@@ -1,0 +1,428 @@
+/* ============================================================
+   mobile.css — 소설 창작 위키
+   Mobile-specific overrides for Galaxy S22 Ultra & touch devices
+   ============================================================ */
+
+/* ─── Minimum tap targets ─────────────────────────────────── */
+button,
+[role="button"],
+.btn,
+.icon-btn,
+.fab,
+.drawer__item,
+.bottom-nav__item,
+.tab,
+.chip,
+.list-item,
+.card--interactive,
+.search-result-item,
+.accordion-header,
+.floor-cell,
+a {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Exceptions for inline elements that shouldn't be forced 44px */
+.tag,
+.badge,
+.grade-badge,
+.chip-strip .chip {
+  min-height: unset;
+  min-width: unset;
+}
+
+/* ─── Prevent text selection on UI elements ───────────────── */
+button,
+.btn,
+.icon-btn,
+.fab,
+.drawer__item,
+.bottom-nav__item,
+.tab,
+.chip,
+.card-header,
+.card-header__title,
+.modal-header,
+.top-header,
+.bottom-nav,
+.drawer__header {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  user-select: none;
+}
+
+/* ─── Touch callout prevention ────────────────────────────── */
+button,
+.btn,
+.fab,
+.icon-btn,
+.card--interactive,
+.list-item,
+.drawer__item,
+.bottom-nav__item {
+  -webkit-touch-callout: none;
+}
+
+/* ─── Smooth momentum scrolling ──────────────────────────────*/
+.page-content,
+.drawer__nav,
+.modal-body,
+.search-results,
+.chip-strip,
+.tabs {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+}
+
+/* Prevent bounce overscroll on main page */
+.page-content {
+  overscroll-behavior-y: contain;
+}
+
+/* ─── Bottom nav safe area padding ───────────────────────────*/
+.bottom-nav {
+  height: calc(var(--bottom-nav-h) + env(safe-area-inset-bottom, 0px));
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+/* Ensure page content doesn't hide behind bottom nav */
+.page-content {
+  padding-bottom: calc(
+    var(--bottom-nav-h) +
+    env(safe-area-inset-bottom, 0px) +
+    24px
+  );
+}
+
+/* Toast above bottom nav on mobile */
+.toast-container {
+  bottom: calc(
+    var(--bottom-nav-h) +
+    env(safe-area-inset-bottom, 0px) +
+    12px
+  );
+}
+
+/* FAB above bottom nav */
+.fab {
+  bottom: calc(
+    var(--bottom-nav-h) +
+    env(safe-area-inset-bottom, 0px) +
+    16px
+  );
+}
+
+/* ─── Input zoom prevention (iOS) ─────────────────────────── */
+/* iOS zooms when input font-size < 16px */
+input[type="text"],
+input[type="number"],
+input[type="email"],
+input[type="password"],
+input[type="search"],
+input[type="url"],
+input[type="tel"],
+input[type="date"],
+input[type="time"],
+textarea,
+select {
+  font-size: 16px !important;
+}
+
+/* But scale them down visually for small screens */
+@media (max-width: 380px) {
+  .form-input,
+  .form-select,
+  .form-textarea,
+  .search-input {
+    font-size: 16px !important;
+  }
+}
+
+/* ─── PWA Standalone Mode ─────────────────────────────────── */
+@media (display-mode: standalone) {
+  /* In standalone PWA, adjust for status bar */
+  .top-header {
+    padding-top: env(safe-area-inset-top, 0px);
+    height: calc(var(--header-h) + env(safe-area-inset-top, 0px));
+  }
+
+  .page-content {
+    padding-top: calc(
+      var(--header-h) +
+      env(safe-area-inset-top, 0px) +
+      16px
+    );
+  }
+
+  .drawer {
+    padding-top: env(safe-area-inset-top, 0px);
+  }
+
+  /* Hide browser-chrome indicators */
+  body {
+    overscroll-behavior: none;
+  }
+}
+
+/* ─── Galaxy S22 Ultra specific ───────────────────────────── */
+/* ~412px wide at default zoom, 3088×1440 display */
+@media (min-width: 400px) and (max-width: 420px) {
+  :root {
+    --header-h: 58px;
+    --bottom-nav-h: 60px;
+  }
+
+  .bottom-nav__item {
+    font-size: 12px;
+  }
+
+  .bottom-nav__item svg {
+    width: 24px;
+    height: 24px;
+  }
+
+  /* Larger tap targets on high-DPI display */
+  .drawer__item {
+    min-height: 52px;
+    padding: var(--sp-3) var(--sp-5);
+  }
+
+  .card-header {
+    padding: var(--sp-4) var(--sp-5);
+  }
+
+  /* Slightly larger text for readability */
+  .card-header__title {
+    font-size: var(--text-md);
+  }
+
+  .page-content {
+    padding-left: var(--sp-4);
+    padding-right: var(--sp-4);
+  }
+}
+
+/* ─── Landscape mode ──────────────────────────────────────── */
+@media (orientation: landscape) and (max-height: 500px) {
+  :root {
+    --header-h: 44px;
+    --bottom-nav-h: 44px;
+  }
+
+  .top-header {
+    height: calc(44px + var(--safe-top));
+  }
+
+  .bottom-nav {
+    height: calc(44px + var(--safe-bottom));
+  }
+
+  /* Move bottom nav to side in landscape if very wide */
+  @media (min-width: 700px) {
+    .bottom-nav {
+      position: fixed;
+      top: 0;
+      left: 0;
+      bottom: 0;
+      right: auto;
+      width: 60px;
+      height: auto;
+      flex-direction: column;
+      border-top: none;
+      border-right: 1px solid var(--color-border);
+      padding-bottom: var(--safe-bottom);
+      padding-left: var(--safe-left);
+      box-shadow: 2px 0 8px rgba(0,0,0,0.4);
+    }
+
+    .bottom-nav__item {
+      flex: none;
+      width: 60px;
+      height: 60px;
+    }
+
+    .bottom-nav__item span {
+      display: none;
+    }
+
+    .page-content {
+      padding-bottom: var(--sp-6);
+      padding-left: calc(60px + var(--sp-4));
+    }
+
+    .fab {
+      bottom: var(--sp-4);
+      right: var(--sp-4);
+    }
+
+    .toast-container {
+      bottom: var(--sp-4);
+      left: calc(60px + var(--sp-4));
+      transform: none;
+    }
+  }
+}
+
+/* ─── Small phones (< 360px) ──────────────────────────────── */
+@media (max-width: 360px) {
+  :root {
+    --drawer-w: 260px;
+  }
+
+  .bottom-nav__item span {
+    font-size: 10px;
+  }
+
+  .page-content {
+    padding-left: var(--sp-3);
+    padding-right: var(--sp-3);
+  }
+
+  .grid-2 {
+    grid-template-columns: 1fr;
+  }
+
+  .form-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ─── Medium phones (360px - 480px) ──────────────────────── */
+@media (min-width: 360px) and (max-width: 480px) {
+  .grid-3 {
+    grid-template-columns: 1fr 1fr;
+  }
+}
+
+/* ─── Reduced motion ──────────────────────────────────────── */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .page {
+    animation: none;
+  }
+
+  .fab:hover {
+    transform: none;
+  }
+}
+
+/* ─── High contrast mode ──────────────────────────────────── */
+@media (prefers-contrast: high) {
+  :root {
+    --color-border: #4a5568;
+    --color-text-muted: #cbd5e1;
+  }
+
+  .card,
+  .form-input,
+  .form-select,
+  .form-textarea {
+    border-width: 2px;
+  }
+}
+
+/* ─── Dark/Light scheme (always dark, but respect) ───────── */
+@media (prefers-color-scheme: light) {
+  /* App is always dark — keep dark even if system prefers light */
+  :root {
+    color-scheme: dark;
+  }
+}
+
+/* ─── Overscroll glow ─────────────────────────────────────── */
+html {
+  overscroll-behavior: none;
+}
+
+/* ─── Active state feedbacks for touch ────────────────────── */
+@media (hover: none) and (pointer: coarse) {
+  .btn:active {
+    opacity: 0.8;
+    transform: scale(0.98);
+  }
+
+  .card--interactive:active {
+    opacity: 0.9;
+    transform: scale(0.99);
+  }
+
+  .list-item:active {
+    background: var(--color-surface);
+  }
+
+  .drawer__item:active {
+    background: rgba(255,255,255,0.07);
+  }
+}
+
+/* ─── Image handling ──────────────────────────────────────── */
+img {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
+/* ─── Fixed positioning for iOS ──────────────────────────── */
+/* Fixes 'sticky' bottom bar issue on iOS */
+.bottom-nav,
+.top-header {
+  -webkit-transform: translateZ(0);
+  transform: translateZ(0);
+  will-change: transform;
+}
+
+/* ─── Keyboard adjustment ─────────────────────────────────── */
+/* When virtual keyboard is open, modals should shrink */
+@media (max-height: 400px) {
+  .modal {
+    max-height: 95vh;
+    max-height: 95dvh;
+  }
+
+  .modal-body {
+    padding: var(--sp-3);
+  }
+}
+
+/* ─── Focus outline for accessibility ────────────────────── */
+@media (hover: none) {
+  /* Remove focus outline on touch to avoid visual noise */
+  :focus {
+    outline: none;
+  }
+
+  :focus-visible {
+    outline: 2px solid var(--color-primary);
+    outline-offset: 2px;
+  }
+}
+
+/* ─── Prevent pull-to-refresh conflicts ──────────────────── */
+.page-content,
+.modal-body,
+.drawer__nav,
+.search-results {
+  overscroll-behavior-y: contain;
+}
+
+/* ─── Bottom sheet handle area for swipe-to-dismiss ──────── */
+.modal__drag-handle-area {
+  height: 24px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: grab;
+  touch-action: pan-y;
+  flex-shrink: 0;
+}
+
+.modal__drag-handle-area:active {
+  cursor: grabbing;
+}
