@@ -52,6 +52,15 @@ window.Pages.skills = {
           <button class="filter-chip active" data-grade="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-primary);color:#000;font-size:11px;cursor:pointer;">전체</button>
           ${this.GRADES.map(g => `<button class="filter-chip" data-grade="${g}" style="padding:3px 8px;border-radius:4px;border:1px solid ${Utils.gradeColor(g)}66;background:transparent;color:${Utils.gradeColor(g)};font-size:11px;cursor:pointer;">${g}</button>`).join('')}
         </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;" id="typeFilters">
+          <button class="skill-type-chip active" data-stype="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface2);color:var(--color-text);font-size:11px;cursor:pointer;">전체 타입</button>
+          <button class="skill-type-chip" data-stype="패시브" style="padding:3px 8px;border-radius:4px;border:1px solid rgba(99,102,241,0.4);background:transparent;color:#818cf8;font-size:11px;cursor:pointer;">패시브</button>
+          <button class="skill-type-chip" data-stype="액티브" style="padding:3px 8px;border-radius:4px;border:1px solid rgba(236,72,153,0.4);background:transparent;color:#f472b6;font-size:11px;cursor:pointer;">액티브</button>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;" id="seriesFilters">
+          <button class="skill-series-chip active" data-series="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface2);color:var(--color-text);font-size:11px;cursor:pointer;">전체 계열</button>
+          ${this.SERIES.filter(s => s !== '없음').map(s => `<button class="skill-series-chip" data-series="${Utils.escHtml(s)}" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);font-size:11px;cursor:pointer;">${Utils.escHtml(s)}</button>`).join('')}
+        </div>
       </div>
       <div id="skillList" class="item-list">
         ${skills.length === 0
@@ -65,6 +74,14 @@ window.Pages.skills = {
     </div>`;
 
     let activeGrade = '';
+    let activeType = '';
+    let activeSeries = '';
+
+    const applyAll = () => {
+      const q = document.getElementById('skillFilter')?.value || '';
+      this._applyFilter(container, q, activeGrade, activeType, activeSeries);
+    };
+
     container.querySelectorAll('.filter-chip').forEach(btn => {
       btn.addEventListener('click', () => {
         container.querySelectorAll('.filter-chip').forEach(b => {
@@ -74,14 +91,29 @@ window.Pages.skills = {
         btn.style.background = btn.dataset.grade ? Utils.gradeColor(btn.dataset.grade) : 'var(--color-primary)';
         btn.style.color = '#000';
         activeGrade = btn.dataset.grade;
-        const q = document.getElementById('skillFilter')?.value || '';
-        this._applyFilter(container, q, activeGrade);
+        applyAll();
       });
     });
 
-    document.getElementById('skillFilter')?.addEventListener('input', e => {
-      this._applyFilter(container, e.target.value, activeGrade);
+    container.querySelectorAll('.skill-type-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.skill-type-chip').forEach(b => { b.style.background = 'transparent'; });
+        btn.style.background = 'var(--color-surface2)';
+        activeType = btn.dataset.stype;
+        applyAll();
+      });
     });
+
+    container.querySelectorAll('.skill-series-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.skill-series-chip').forEach(b => { b.style.background = 'transparent'; });
+        btn.style.background = 'var(--color-surface2)';
+        activeSeries = btn.dataset.series;
+        applyAll();
+      });
+    });
+
+    document.getElementById('skillFilter')?.addEventListener('input', applyAll);
 
     document.getElementById('btnAddSkill')?.addEventListener('click', () => {
       this._openForm(null, wid, container);
@@ -141,14 +173,18 @@ window.Pages.skills = {
     });
   },
 
-  _applyFilter: function(container, query, grade) {
+  _applyFilter: function(container, query, grade, type, series) {
     const q = (query || '').toLowerCase();
     container.querySelectorAll('.skill-card').forEach(card => {
       const text = (card.dataset.searchText || '').toLowerCase();
       const cardGrade = card.dataset.grade || '';
+      const cardType = card.dataset.type || '';
+      const cardSeries = card.dataset.series || '';
       const gradeOk = !grade || cardGrade === grade;
+      const typeOk = !type || cardType === type;
+      const seriesOk = !series || cardSeries === series;
       const textOk = !q || text.includes(q);
-      card.style.display = gradeOk && textOk ? '' : 'none';
+      card.style.display = gradeOk && typeOk && seriesOk && textOk ? '' : 'none';
     });
   },
 
@@ -160,6 +196,8 @@ window.Pages.skills = {
     <div class="skill-card list-item list-item--full"
       data-id="${Utils.escHtml(s.id)}"
       data-grade="${Utils.escHtml(s.grade || '')}"
+      data-type="${Utils.escHtml(s.type || '')}"
+      data-series="${Utils.escHtml(s.series && s.series !== '없음' ? s.series : '')}"
       data-search-text="${Utils.escHtml([s.name, s.grade, s.attribute, s.series, s.type, s.effects].filter(Boolean).join(' ').toLowerCase())}"
       style="cursor:pointer;border-left:3px solid ${gc};display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--color-surface2,#1a2535);border-radius:10px;border-top:1px solid var(--color-border);border-right:1px solid var(--color-border);border-bottom:1px solid var(--color-border);margin-bottom:8px;">
       <div style="flex:1;min-width:0;">

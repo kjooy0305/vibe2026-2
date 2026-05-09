@@ -384,7 +384,8 @@ window.Pages.constellations = {
     const c = constellation || {};
     const self = this;
 
-    const chars = await DB.getAll('characters', wid);
+    const charsRaw = await DB.getAll('characters', wid);
+    const chars = charsRaw.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
     const contractorIds = new Set(c.contractors || []);
     const provisionalIds = new Set(c.provisionalContractors || []);
     const linkedIds = new Set(c.linkedCharacterIds || []);
