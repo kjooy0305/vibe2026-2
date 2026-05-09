@@ -200,9 +200,16 @@ window.Pages.characters = {
     </div>`;
   },
 
-  _renderDetail: function(container, char, wid) {
+  _renderDetail: async function(container, char, wid) {
     const allStats = {};
     if (char.stats) Object.assign(allStats, char.stats);
+
+    // Load linked constellations
+    const allConstellations = await DB.getAll('constellations', wid);
+    const linkedConstellations = allConstellations.filter(c =>
+      (c.contractors || []).includes(char.id) ||
+      (c.provisionalContractors || []).includes(char.id)
+    );
 
     const baseStatRows = this.BASE_STATS.map(s => `
       <div class="stat-row" style="display:flex;justify-content:space-between;padding:2px 0;">
@@ -272,8 +279,17 @@ window.Pages.characters = {
         ${char.gender && char.gender !== '미지정' ? `<div class="status-row">ㅣ성별: ${Utils.escHtml(char.gender)}</div>` : ''}
         ${char.cycle !== null && char.cycle !== undefined ? `<div class="status-row">ㅣ회귀 회차: ${char.cycle}회차</div>` : ''}
         <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
-        <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[업적]</div>
+        ${char.title ? `<div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[핵심칭호]</div><div class="status-row">ㄴ${Utils.escHtml(char.title)}</div>` : ''}
+        <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[보유칭호]</div>
         ${achieveList || '<div class="status-row" style="color:rgba(150,170,200,0.6);">ㄴ(없음)</div>'}
+        ${linkedConstellations.length > 0 ? `
+          <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
+          <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[성좌 계약]</div>
+          ${linkedConstellations.map(c => {
+            const isContractor = (c.contractors || []).includes(char.id);
+            const status = isContractor ? '계약' : '가계약';
+            return `<div class="status-row">ㄴ${Utils.escHtml(c.name || '')} (${status})</div>`;
+          }).join('')}` : ''}
         <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
         <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[스텟]</div>
         ${baseStatRows}
@@ -292,10 +308,11 @@ window.Pages.characters = {
         <div style="text-align:center;font-size:12px;color:rgba(120,160,255,0.6);letter-spacing:4px;margin-bottom:12px;">${'ㅡ'.repeat(14)}</div>
         <div style="text-align:center;font-size:16px;font-weight:700;color:#aaccff;margin-bottom:12px;">[${Utils.escHtml(char.name || '')}의 상태창]</div>
         <div>ㅣ레벨: <strong style="color:#ffe080;">${char.level || 0}</strong></div>
-        ${char.title ? `<div>ㅣ칭호: <em style="color:#80ffcc;">${Utils.escHtml(char.title)}</em></div>` : ''}
         <div>ㅣ이름: ${Utils.escHtml(char.name || '')}</div>
         ${char.race ? `<div>ㅣ종족: ${Utils.escHtml(char.race)}</div>` : ''}
-        ${achieveList ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[업적]</div>${achieveList}` : ''}
+        ${char.title ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[핵심칭호]</div><div>ㄴ<em style="color:#80ffcc;">${Utils.escHtml(char.title)}</em></div>` : ''}
+        ${achieveList ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[보유칭호]</div>${achieveList}` : ''}
+        ${linkedConstellations.length > 0 ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[성좌 계약]</div>${linkedConstellations.map(c => `<div>ㄴ${Utils.escHtml(c.name || '')} (${(c.contractors||[]).includes(char.id)?'계약':'가계약'})</div>`).join('')}` : ''}
         <div style="margin-top:8px;color:#aaccff;">ㅣ[스텟]</div>
         ${baseStatRows}
         ${skillsList ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[스킬]</div>${skillsList}` : ''}
@@ -362,7 +379,8 @@ window.Pages.characters = {
     });
 
     document.getElementById('btnManageSkills')?.addEventListener('click', async () => {
-      const allSkills = await DB.getAll('skills', wid);
+      const allSkillsRaw = await DB.getAll('skills', wid);
+      const allSkills = allSkillsRaw.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
       const charSkillIds = new Set((char.skills || []).map(s => s.id || s));
       const skillCheckboxes = allSkills.length === 0
         ? '<div style="color:var(--color-text-muted);">스킬 라이브러리가 비어 있습니다. 먼저 스킬을 추가하세요.</div>'
@@ -392,7 +410,6 @@ window.Pages.characters = {
     const stats = char.stats || {};
     let text = 'ㅡ'.repeat(16) + '\n';
     text += `ㅣ레벨:${char.level || 0}\n`;
-    if (char.title) text += `ㅣ칭호:${char.title}\n`;
     text += `ㅣ이름:${char.name || ''}\n`;
     if (char.country) text += `ㅣ국가:${char.country}\n`;
     if (char.guild) text += `ㅣ길드:${char.guild}\n`;
@@ -400,7 +417,8 @@ window.Pages.characters = {
     if (char.age) text += `ㅣ나이:${char.age}\n`;
     if (char.gender && char.gender !== '미지정') text += `ㅣ성별:${char.gender}\n`;
     if (char.cycle !== null && char.cycle !== undefined) text += `ㅣ회귀 회차:${char.cycle}회차\n`;
-    text += `ㅣ[업적]\n`;
+    if (char.title) { text += `ㅣ[핵심칭호]\n`; text += `ㄴ${char.title}\n`; }
+    text += `ㅣ[보유칭호]\n`;
     (char.achievements || []).forEach(a => { text += `ㄴ${a.name || a}\n`; });
     text += `ㅣ[스텟]\n`;
     this.BASE_STATS.forEach(s => { if (stats[s] !== undefined) text += `ㄴ${s}:${stats[s]}\n`; });
