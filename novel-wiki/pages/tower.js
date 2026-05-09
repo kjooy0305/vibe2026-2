@@ -316,12 +316,12 @@ window.Pages.tower = {
       });
     });
 
-    // Delete floor
+    // Delete floor (require floor number confirmation)
     container.querySelectorAll('.btn-del-floor').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const floorNum = parseInt(btn.dataset.floorNum, 10);
-        Utils.confirm(`${floorNum}층 삭제`, '서브층도 함께 삭제됩니다.', async () => {
+        Utils.confirmWithInput(`${floorNum}층 삭제`, `삭제하려면 층 번호(${floorNum})를 입력하세요. 서브층도 함께 삭제됩니다.`, String(floorNum), async () => {
           tower.floors = (tower.floors || []).filter(f => f.floorNum !== floorNum);
           await DB.put('towers', tower);
           if (this._expandedFloor === floorNum) this._expandedFloor = null;
@@ -495,10 +495,12 @@ window.Pages.tower = {
 
   // ── FLOOR FORM ───────────────────────────────────────────────────────────────
 
-  _openFloorForm: function(floor, tower, wid, container, world) {
+  _openFloorForm: async function(floor, tower, wid, container, world) {
     const isEdit = !!floor;
     const f = floor || {};
     let newImage = f.image || null;
+
+    const allMonsters = await DB.getAll('monsters', wid);
 
     const ta = (id, label, val, rows, placeholder) => `
       <div class="form-group">
@@ -520,7 +522,14 @@ window.Pages.tower = {
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">테마</label>
           <input class="input-field" id="fFloorTheme" value="${Utils.escHtml(f.theme || '')}" placeholder="예: 슬라임 사냥터, 마의 삼림" style="width:100%;box-sizing:border-box;" />
         </div>
-        ${ta('fFloorEnemies', '적 (줄바꿈으로 구분)', f.enemies, 3, '예: 슬라임 (F급)\n오거 (E급)')}
+        <div class="form-group">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="form-label" style="font-size:13px;font-weight:600;display:block;margin:0;">적 (줄바꿈으로 구분)</label>
+            ${allMonsters.length > 0 ? `<button type="button" class="btn btn-ghost btn-sm" id="btnPickMonsters" style="font-size:11px;">👾 몬스터에서 추가</button>` : ''}
+          </div>
+          <textarea class="input-field" id="fFloorEnemies" rows="3" placeholder="예: 슬라임 (F급)\n오거 (E급)"
+            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.enemies || '')}</textarea>
+        </div>
         ${ta('fFloorFeatures', '특징 (줄바꿈으로 각 항목)', f.features, 4, '예: 마기 농도 높음\n중력 2배')}
         ${ta('fFloorQuests', '퀘스트', f.quests, 2, '퀘스트 조건')}
         ${ta('fFloorRewards', '보상', f.rewards, 2, '보상 내용')}
@@ -584,7 +593,7 @@ window.Pages.tower = {
       return true;
     }, isEdit ? '저장' : '추가');
 
-    // Wire image preview after modal renders
+    // Wire image preview and monster picker after modal renders
     setTimeout(() => {
       document.getElementById('floorImageFile')?.addEventListener('change', async e => {
         const file = e.target.files?.[0];
@@ -592,6 +601,54 @@ window.Pages.tower = {
         newImage = await Utils.imageToBase64(file);
         const prev = document.getElementById('floorImgPreview');
         if (prev) prev.innerHTML = `<img src="${newImage}" style="max-width:120px;border-radius:8px;" />`;
+      });
+
+      document.getElementById('btnPickMonsters')?.addEventListener('click', () => {
+        this._openMonsterPicker(allMonsters, wid);
+      });
+    }, 50);
+  },
+
+  _openMonsterPicker: function(monsters, wid) {
+    const body = `
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:60vh;">
+        <input class="input-field" id="monsterPickSearch" placeholder="몬스터 검색..." style="width:100%;box-sizing:border-box;" />
+        <div id="monsterPickList" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;">
+          ${monsters.map(m => `
+            <label style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--color-surface2);border-radius:8px;border:1px solid var(--color-border);cursor:pointer;">
+              <input type="checkbox" class="monster-pick-cb" data-name="${Utils.escHtml(m.name || '')}" data-grade="${Utils.escHtml(m.grade || '')}" />
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;">${Utils.escHtml(m.name || '이름 없음')}</div>
+                ${m.grade ? `<div style="font-size:11px;color:var(--color-text-muted);">등급: ${Utils.escHtml(m.grade)}</div>` : ''}
+              </div>
+            </label>`).join('')}
+        </div>
+      </div>`;
+
+    Utils.openModal('몬스터 추가', body, () => {
+      const checked = document.querySelectorAll('#globalModalBody .monster-pick-cb:checked');
+      if (checked.length === 0) { Utils.toast('몬스터를 선택하세요', 'error'); return false; }
+      const enemyTA = document.getElementById('fFloorEnemies');
+      if (!enemyTA) return false;
+      const toAdd = Array.from(checked).map(cb => {
+        const name = cb.dataset.name;
+        const grade = cb.dataset.grade;
+        return grade ? `${name} (${grade}급)` : name;
+      }).join('\n');
+      const existing = enemyTA.value.trim();
+      enemyTA.value = existing ? existing + '\n' + toAdd : toAdd;
+      return true;
+    }, '추가');
+
+    setTimeout(() => {
+      document.getElementById('monsterPickSearch')?.addEventListener('input', e => {
+        const q = e.target.value.toLowerCase();
+        document.querySelectorAll('#globalModalBody .monster-pick-cb').forEach(cb => {
+          const name = cb.dataset.name.toLowerCase();
+          const grade = cb.dataset.grade.toLowerCase();
+          const row = cb.closest('label');
+          if (row) row.style.display = (name.includes(q) || grade.includes(q)) ? '' : 'none';
+        });
       });
     }, 50);
   },
