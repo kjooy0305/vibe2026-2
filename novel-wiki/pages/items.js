@@ -286,7 +286,7 @@ window.Pages.items = {
       ${novelViewHtml}
     </div>`;
 
-    document.getElementById('btnBackItems')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackItems')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditItem')?.addEventListener('click', () => this._openForm(it, wid, container));
     document.getElementById('btnDelItemDetail')?.addEventListener('click', () => {
       Utils.confirm(`"${it.name}" 삭제`, '삭제하시겠습니까?', async () => {

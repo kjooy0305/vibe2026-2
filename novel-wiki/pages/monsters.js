@@ -298,7 +298,7 @@ window.Pages.monsters = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackMonsters')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackMonsters')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditMonster')?.addEventListener('click', () => this._openForm(m, wid, container));
     document.getElementById('btnDelMonsterDetail')?.addEventListener('click', () => {
       Utils.confirm(`"${m.name}" 삭제`, '삭제하시겠습니까?', async () => {

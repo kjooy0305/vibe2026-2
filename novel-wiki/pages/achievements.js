@@ -181,20 +181,20 @@ window.Pages.achievements = {
     const isGradient = gc.startsWith('linear');
     const borderColor = isGradient ? '#fbbf24' : gc;
 
-    // Resolve reward links
-    let rewardLinkHTML = '';
-    if (a.rewardItemId) {
-      const item = await DB.get('items', a.rewardItemId);
-      if (item) {
-        rewardLinkHTML = `<button class="btn btn-ghost btn-sm" id="btnGoRewardItem" style="font-size:12px;margin-top:6px;">→ 아이템: ${Utils.escHtml(item.name)}</button>`;
-      }
-    }
-    if (a.rewardSkillId) {
-      const sk = await DB.get('skills', a.rewardSkillId);
-      if (sk) {
-        rewardLinkHTML += `<button class="btn btn-ghost btn-sm" id="btnGoRewardSkill" style="font-size:12px;margin-top:6px;margin-left:4px;">→ 스킬: ${Utils.escHtml(sk.name)}</button>`;
-      }
-    }
+    // Resolve reward links (support both old single and new multi)
+    const rewardItemIds = a.rewardItemIds || (a.rewardItemId ? [a.rewardItemId] : []);
+    const rewardSkillIds = a.rewardSkillIds || (a.rewardSkillId ? [a.rewardSkillId] : []);
+    const rewardItems = (await Promise.all(rewardItemIds.map(id => DB.get('items', id)))).filter(Boolean);
+    const rewardSkills = (await Promise.all(rewardSkillIds.map(id => DB.get('skills', id)))).filter(Boolean);
+
+    const rewardStatEntries = Object.entries(a.rewardStats || {}).filter(([, v]) => v !== 0);
+    const statRewardHTML = rewardStatEntries.length
+      ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${rewardStatEntries.map(([k, v]) => `<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(100,150,255,0.15);color:#c4b5fd;border:1px solid rgba(100,150,255,0.2);">${k} ${v > 0 ? '+' : ''}${v}</span>`).join('')}</div>`
+      : '';
+    const rewardLinkHTML = [
+      ...rewardItems.map(it => `<button class="btn btn-ghost btn-sm btn-reward-item" data-item-id="${Utils.escHtml(it.id)}" style="font-size:12px;">→ 🗡 ${Utils.escHtml(it.name)}</button>`),
+      ...rewardSkills.map(sk => `<button class="btn btn-ghost btn-sm btn-reward-skill" data-skill-id="${Utils.escHtml(sk.id)}" style="font-size:12px;">→ ⚡ ${Utils.escHtml(sk.name)}</button>`),
+    ].join('');
 
     container.innerHTML = `
     <div class="page active">
@@ -225,12 +225,13 @@ window.Pages.achievements = {
             <div style="font-size:11px;color:rgba(148,163,184,0.8);margin-bottom:2px;">달성 조건</div>
             <div style="white-space:pre-wrap;font-size:12px;color:#c8d8ff;">${Utils.nl2br(a.condition)}</div>
           </div>` : ''}
-        ${a.reward ? `
+        ${(a.reward || statRewardHTML || rewardLinkHTML) ? `
           <div style="margin-top:8px;">
             <div style="font-size:11px;color:rgba(148,163,184,0.8);margin-bottom:2px;">보상</div>
-            <div style="font-size:12px;color:var(--color-accent);font-weight:600;">${Utils.escHtml(a.reward)}</div>
-            ${rewardLinkHTML}
-          </div>` : rewardLinkHTML ? `<div style="margin-top:8px;">${rewardLinkHTML}</div>` : ''}
+            ${a.reward ? `<div style="font-size:12px;color:var(--color-accent);font-weight:600;">${Utils.escHtml(a.reward)}</div>` : ''}
+            ${statRewardHTML}
+            ${rewardLinkHTML ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">${rewardLinkHTML}</div>` : ''}
+          </div>` : ''}
         ${a.description ? `
           <div style="margin-top:10px;border-top:1px dashed rgba(100,150,255,0.2);padding-top:10px;">
             <div style="white-space:pre-wrap;font-size:12px;font-style:italic;color:rgba(200,220,255,0.7);">${Utils.nl2br(a.description)}</div>
@@ -249,7 +250,7 @@ window.Pages.achievements = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackAchieve')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackAchieve')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditAchieve')?.addEventListener('click', () => this._openForm(a, wid, container));
     document.getElementById('btnDelAchieveDetail')?.addEventListener('click', () => {
       Utils.confirm(`"${a.name}" 삭제`, '삭제하시겠습니까?', async () => {
@@ -272,11 +273,11 @@ window.Pages.achievements = {
       ].filter(x => x !== null).join('\n');
       Utils.copyText(text);
     });
-    document.getElementById('btnGoRewardItem')?.addEventListener('click', () => {
-      AppRouter.navigate('items', { highlightId: a.rewardItemId });
+    container.querySelectorAll('.btn-reward-item').forEach(btn => {
+      btn.addEventListener('click', () => AppRouter.navigate('items', { highlightId: btn.dataset.itemId }));
     });
-    document.getElementById('btnGoRewardSkill')?.addEventListener('click', () => {
-      AppRouter.navigate('skills', { highlightId: a.rewardSkillId });
+    container.querySelectorAll('.btn-reward-skill').forEach(btn => {
+      btn.addEventListener('click', () => AppRouter.navigate('skills', { highlightId: btn.dataset.skillId }));
     });
   },
 
@@ -289,13 +290,13 @@ window.Pages.achievements = {
       DB.getAll('skills', wid),
     ]);
 
-    const itemOptions = `<option value="">없음</option>` +
-      items.map(i => `<option value="${Utils.escHtml(i.id)}" ${achieve?.rewardItemId === i.id ? 'selected' : ''}>${Utils.escHtml(i.name)}</option>`).join('');
-    const skillOptions = `<option value="">없음</option>` +
-      skills.map(s => `<option value="${Utils.escHtml(s.id)}" ${achieve?.rewardSkillId === s.id ? 'selected' : ''}>${Utils.escHtml(s.name)} (${s.grade || 'F'})</option>`).join('');
+    const STAT_KEYS = ['힘', '민첩', '체력', '마나', '마력', '재능', '잠재력', '행운', '신성력', '정신력', '투지', '집중력'];
+    const rewardStats = achieve?.rewardStats || {};
+    const rewardItemIds = new Set(achieve?.rewardItemIds || (achieve?.rewardItemId ? [achieve.rewardItemId] : []));
+    const rewardSkillIds = new Set(achieve?.rewardSkillIds || (achieve?.rewardSkillId ? [achieve.rewardSkillId] : []));
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">이름 *</label>
           <input class="input-field" id="fAcName" value="${Utils.escHtml(achieve?.name || '')}" placeholder="업적 이름" style="width:100%;box-sizing:border-box;" />
@@ -312,18 +313,35 @@ window.Pages.achievements = {
         </div>
         <div class="form-group">
           <label class="form-label">보상 (텍스트)</label>
-          <input class="input-field" id="fAcReward" value="${Utils.escHtml(achieve?.reward || '')}" placeholder="예: 스텟 포인트 +10, 칭호 '최초의 사냥꾼'" style="width:100%;box-sizing:border-box;" />
+          <input class="input-field" id="fAcReward" value="${Utils.escHtml(achieve?.reward || '')}" placeholder="예: 칭호 '최초의 사냥꾼'" style="width:100%;box-sizing:border-box;" />
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
-          <div class="form-group">
-            <label class="form-label">보상 아이템 연결</label>
-            <select class="select-input" id="fAcRewardItem" style="width:100%;">${itemOptions}</select>
-          </div>
-          <div class="form-group">
-            <label class="form-label">보상 스킬 연결</label>
-            <select class="select-input" id="fAcRewardSkill" style="width:100%;">${skillOptions}</select>
+        <div class="form-group">
+          <label class="form-label">스텟 보상 (수치 입력)</label>
+          <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:6px;">
+            ${STAT_KEYS.map(s => `<div style="display:flex;align-items:center;gap:4px;">
+              <label style="font-size:11px;color:var(--color-text-muted);min-width:40px;">${s}</label>
+              <input type="number" class="input-field ac-stat-reward" data-stat="${s}" value="${rewardStats[s] !== undefined ? rewardStats[s] : ''}" placeholder="0" style="flex:1;padding:4px 6px;font-size:12px;" />
+            </div>`).join('')}
           </div>
         </div>
+        ${items.length > 0 ? `<div class="form-group">
+          <label class="form-label">보상 아이템 연결 (복수 선택 가능)</label>
+          <div style="max-height:100px;overflow-y:auto;border:1px solid var(--color-border);border-radius:6px;padding:6px;">
+            ${items.map(i => `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer;">
+              <input type="checkbox" class="ac-item-cb" data-iid="${Utils.escHtml(i.id)}" ${rewardItemIds.has(i.id) ? 'checked' : ''} />
+              <span style="font-size:12px;">${Utils.escHtml(i.name)}</span>
+            </label>`).join('')}
+          </div>
+        </div>` : ''}
+        ${skills.length > 0 ? `<div class="form-group">
+          <label class="form-label">보상 스킬 연결 (복수 선택 가능)</label>
+          <div style="max-height:100px;overflow-y:auto;border:1px solid var(--color-border);border-radius:6px;padding:6px;">
+            ${skills.map(s => `<label style="display:flex;align-items:center;gap:6px;padding:2px 0;cursor:pointer;">
+              <input type="checkbox" class="ac-skill-cb" data-sid="${Utils.escHtml(s.id)}" ${rewardSkillIds.has(s.id) ? 'checked' : ''} />
+              <span style="font-size:12px;">⚡ ${Utils.escHtml(s.name)} (${s.grade || 'F'})</span>
+            </label>`).join('')}
+          </div>
+        </div>` : ''}
         <div class="form-group">
           <label class="form-label">설명 (소설 표시용)</label>
           <textarea class="textarea-field" id="fAcDesc" rows="3" placeholder="독자에게 보이는 업적 설명..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(achieve?.description || '')}</textarea>
@@ -338,6 +356,15 @@ window.Pages.achievements = {
       const name = document.getElementById('fAcName')?.value.trim();
       if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
 
+      const newRewardStats = {};
+      document.querySelectorAll('#globalModalBody .ac-stat-reward').forEach(inp => {
+        if (inp.value !== '' && Number(inp.value) !== 0) {
+          newRewardStats[inp.dataset.stat] = Number(inp.value);
+        }
+      });
+      const newRewardItemIds = [...document.querySelectorAll('#globalModalBody .ac-item-cb:checked')].map(cb => cb.dataset.iid);
+      const newRewardSkillIds = [...document.querySelectorAll('#globalModalBody .ac-skill-cb:checked')].map(cb => cb.dataset.sid);
+
       const item = {
         ...(achieve || {}),
         worldId: wid,
@@ -345,8 +372,9 @@ window.Pages.achievements = {
         grade: document.getElementById('fAcGrade')?.value || 'F',
         condition: document.getElementById('fAcCondition')?.value.trim() || '',
         reward: document.getElementById('fAcReward')?.value.trim() || '',
-        rewardItemId: document.getElementById('fAcRewardItem')?.value || '',
-        rewardSkillId: document.getElementById('fAcRewardSkill')?.value || '',
+        rewardStats: newRewardStats,
+        rewardItemIds: newRewardItemIds,
+        rewardSkillIds: newRewardSkillIds,
         description: document.getElementById('fAcDesc')?.value.trim() || '',
         authorNotes: document.getElementById('fAcAuthor')?.value.trim() || '',
         id: achieve?.id || DB.genId(),

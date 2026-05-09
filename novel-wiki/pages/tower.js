@@ -159,18 +159,28 @@ window.Pages.tower = {
           <textarea class="input-field" id="fTowerDesc" rows="3"
             style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(t.description || '')}</textarea>
         </div>
+        ${!isEdit ? `<div class="form-group">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">사전 생성 층 수 (선택)</label>
+          <input type="number" class="input-field" id="fTowerPreFloors" value="0" min="0" max="999" placeholder="0"
+            style="width:100%;box-sizing:border-box;" />
+          <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">입력한 숫자만큼 빈 층을 미리 만듭니다 (0 = 안 만들기)</div>
+        </div>` : ''}
       </div>`;
 
     Utils.openModal(isEdit ? '탑 편집' : '새 탑 추가', body, async () => {
       const name = document.getElementById('fTowerName')?.value.trim();
       if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      const preFloors = !isEdit ? (Number(document.getElementById('fTowerPreFloors')?.value) || 0) : 0;
+      const preFloorArr = preFloors > 0
+        ? Array.from({ length: preFloors }, (_, i) => ({ floorNum: i + 1, name: `${i + 1}층`, description: '', hidden: false, createdAt: Date.now() }))
+        : [];
       const data = {
         id: t.id || DB.genId(),
         worldId: wid,
         name,
         country: document.getElementById('fTowerCountry')?.value.trim() || '',
         description: document.getElementById('fTowerDesc')?.value.trim() || '',
-        floors: t.floors || [],
+        floors: isEdit ? (t.floors || []) : preFloorArr,
         createdAt: t.createdAt || Date.now(),
       };
       await DB.put('towers', data);
@@ -224,6 +234,7 @@ window.Pages.tower = {
         ${tower.description ? `<p style="font-size:12px;color:var(--color-text-muted);margin-top:4px;">${Utils.escHtml(tower.description)}</p>` : ''}
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" id="btnEditTower">탑 편집</button>
+          ${tower.description ? `<button class="btn btn-ghost btn-sm" id="btnCopyTowerDesc">설명 복사</button>` : ''}
           <button class="btn btn-primary btn-sm" id="btnAddFloor">+ 층 추가</button>
         </div>
       </div>
@@ -258,6 +269,10 @@ window.Pages.tower = {
     });
     document.getElementById('btnEditTower')?.addEventListener('click', () => {
       this._openTowerForm(tower, wid, container, world);
+    });
+    document.getElementById('btnCopyTowerDesc')?.addEventListener('click', () => {
+      Utils.copyText(tower.description || '');
+      Utils.toast('설명 복사됨', 'success');
     });
     document.getElementById('btnAddFloor')?.addEventListener('click', () => {
       this._openFloorForm(null, tower, wid, container, world);
