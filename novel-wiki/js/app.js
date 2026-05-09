@@ -1,6 +1,15 @@
 'use strict';
 (function() {
 
+  function setupTouchLock() {
+    document.addEventListener('touchstart', (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+    document.addEventListener('touchmove', (e) => {
+      if (e.touches.length > 1) e.preventDefault();
+    }, { passive: false });
+  }
+
   function setupDrawer() {
     const drawer = document.getElementById('appDrawer');
     const overlay = document.getElementById('drawerOverlay');
@@ -117,6 +126,7 @@
         else AppRouter.register(id, { init: (el) => { el.innerHTML = `<div class="empty-state"><div class="empty-state__icon">🚧</div><div class="empty-state__title">${id} 페이지 준비 중</div></div>`; }, destroy: () => {} });
       });
 
+      setupTouchLock();
       setupDrawer();
       setupHeaderMore();
       SearchEngine.init();
