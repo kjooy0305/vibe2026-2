@@ -187,14 +187,14 @@ window.Pages.templates = {
       </div>
 
       <!-- Entity type selector grouped -->
-      <div style="margin-bottom:16px;">
+      <div style="position:sticky;top:0;z-index:10;background:var(--color-bg);margin-bottom:16px;padding-bottom:4px;">
         ${Object.entries(groups).map(([groupName, types]) => `
-          <div style="margin-bottom:10px;">
-            <div style="font-size:10px;color:var(--color-text-dim);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:6px;padding-left:2px;">${Utils.escHtml(groupName)}</div>
-            <div style="display:flex;gap:6px;flex-wrap:wrap;">
+          <div style="margin-bottom:8px;">
+            <div style="font-size:10px;color:var(--color-text-dim);letter-spacing:0.8px;text-transform:uppercase;margin-bottom:5px;padding-left:2px;">${Utils.escHtml(groupName)}</div>
+            <div style="display:flex;gap:6px;overflow-x:auto;-webkit-overflow-scrolling:touch;padding-bottom:4px;scrollbar-width:none;">
               ${types.map(et => `
                 <button class="filter-chip" data-etype="${Utils.escHtml(et.key)}"
-                  style="display:flex;align-items:center;gap:4px;padding:6px 12px;border-radius:8px;border:1px solid var(--color-border);cursor:pointer;font-size:12px;transition:background 0.15s;${et.key === selType ? 'background:var(--color-primary);color:#000;border-color:var(--color-primary);' : 'background:var(--color-surface2);color:var(--color-text);'}">
+                  style="display:flex;align-items:center;gap:4px;padding:6px 12px;border-radius:8px;border:1px solid var(--color-border);cursor:pointer;font-size:12px;transition:background 0.15s;flex-shrink:0;${et.key === selType ? 'background:var(--color-primary);color:#000;border-color:var(--color-primary);' : 'background:var(--color-surface2);color:var(--color-text);'}">
                   <span>${et.icon}</span><span>${Utils.escHtml(et.label)}</span>
                 </button>`).join('')}
             </div>
@@ -219,7 +219,7 @@ window.Pages.templates = {
       </div>
 
       <!-- Info box -->
-      <div style="padding:12px 14px;background:rgba(59,130,246,0.08);border-left:3px solid var(--color-primary);border-radius:6px;font-size:12px;color:var(--color-text-muted);line-height:1.7;margin-bottom:24px;">
+      <div style="padding:12px 14px;background:rgba(59,130,246,0.08);border-left:3px solid var(--color-primary);border-radius:6px;font-size:12px;color:var(--color-text-muted);line-height:1.7;margin-bottom:80px;">
         <strong style="color:var(--color-primary);">템플릿 안내</strong><br>
         · <strong>필수</strong>: 비어 있으면 목록에 ⚠️ 표시됩니다.<br>
         · <strong>소설 뷰 숨김</strong>: 소설 뷰에서 숨겨집니다 (작가메모 등).<br>

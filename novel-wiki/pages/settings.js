@@ -132,7 +132,7 @@ window.Pages.settings = {
       </div>
 
       <!-- 6. 앱 소개 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:24px;border:1px solid var(--color-border);">
+      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:80px;border:1px solid var(--color-border);">
         <div style="font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.8px;">앱 소개</div>
         <p style="font-size:13px;color:var(--color-text-muted);line-height:1.7;margin:0;">
           소설 창작 위키 ${Utils.escHtml(this.APP_VERSION)} — 오프라인 우선 PWA<br>
