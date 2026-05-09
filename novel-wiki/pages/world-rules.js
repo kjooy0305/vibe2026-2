@@ -85,7 +85,7 @@ window.Pages.worldRules = {
 
     const openForm = (rule) => {
       const isEdit = !!rule;
-      const subs = rule ? (rule.subRules || []) : [];
+      let subs = rule ? [...(rule.subRules || [])] : [];
       let subCount = Math.max(1, subs.length);
 
       const renderSubInputs = () => Array.from({ length: subCount }, (_, j) =>
@@ -126,6 +126,9 @@ window.Pages.worldRules = {
 
       document.getElementById('btnAddSub')?.addEventListener('click', () => {
         if (subCount >= JAMO.length) { Utils.toast('하위 규칙은 최대 ' + JAMO.length + '개', 'error'); return; }
+        // 현재 입력된 값을 먼저 저장한 뒤 재렌더링
+        subs = [...document.querySelectorAll('#globalModalBody .sub-rule-input')]
+          .map(inp => inp.value);
         subCount++;
         const listEl = document.getElementById('subRulesList');
         if (listEl) listEl.innerHTML = renderSubInputs();

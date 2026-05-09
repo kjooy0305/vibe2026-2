@@ -3,8 +3,9 @@ window.Pages = window.Pages || {};
 window.Pages.monsters = {
   _currentId: null,
   _container: null,
+  _listScrollY: 0,
 
-  GRADES: ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS', 'G'],
+  _C: null,
   DEATH_TYPES: ['자폭', '소멸', '복귀', '죽음'],
   DEATH_TYPE_DESC: {
     '자폭': '죽을때 주위에 피해 (폭발/독 분사)',
@@ -37,6 +38,7 @@ window.Pages.monsters = {
       return;
     }
 
+    this._C = await AppConstants.load();
     if (options.highlightId) this._currentId = options.highlightId;
     const monsters = await DB.getAll('monsters', wid);
 
@@ -51,12 +53,15 @@ window.Pages.monsters = {
   destroy: function() {
     this._currentId = null;
     this._container = null;
+    this._listScrollY = 0;
   },
 
   // ── LIST ────────────────────────────────────────────────────────────────────
 
   _renderList: function(container, monsters, wid, world) {
     this._currentId = null;
+    const self = this;
+
     container.innerHTML = `
     <div class="page active">
       <div class="page-header">
@@ -67,10 +72,10 @@ window.Pages.monsters = {
         <p class="page-desc" style="margin-top:4px;font-size:12px;color:var(--color-text-muted);">
           ${Utils.escHtml(world?.name || '현재 세계')} · ${monsters.length}마리
         </p>
-        <input class="input-field" id="monsterFilter" placeholder="이름, 등급, 서식지, 수식언 검색..." style="margin-top:8px;width:100%;box-sizing:border-box;" />
+        <input class="input-field" id="monsterFilter" placeholder="이름, 등급, 서식지 검색... (-제외어 가능)" style="margin-top:8px;width:100%;box-sizing:border-box;" />
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;" id="gradeFilters">
           <button class="monster-grade-chip" data-grade="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-primary);color:#000;font-size:11px;cursor:pointer;">전체</button>
-          ${this.GRADES.map(g => {
+          ${this._C.grades.map(g => {
             const col = Utils.gradeColor(g);
             return `<button class="monster-grade-chip" data-grade="${g}" style="padding:3px 8px;border-radius:4px;border:1px solid ${col}66;background:transparent;color:${col};font-size:11px;cursor:pointer;">${g}</button>`;
           }).join('')}
@@ -97,25 +102,26 @@ window.Pages.monsters = {
         btn.style.background = btn.dataset.grade ? Utils.gradeColor(btn.dataset.grade) : 'var(--color-primary)';
         btn.style.color = '#000';
         activeGrade = btn.dataset.grade;
-        this._applyFilter(container, document.getElementById('monsterFilter')?.value || '', activeGrade);
+        self._applyFilter(container, document.getElementById('monsterFilter')?.value || '', activeGrade);
       });
     });
 
     document.getElementById('monsterFilter')?.addEventListener('input', e => {
-      this._applyFilter(container, e.target.value, activeGrade);
+      self._applyFilter(container, e.target.value, activeGrade);
     });
 
     document.getElementById('btnAddMonster')?.addEventListener('click', () => {
-      this._openForm(null, wid, container);
+      self._openForm(null, wid, container);
     });
 
     container.querySelectorAll('.monster-card').forEach(card => {
       card.addEventListener('click', e => {
         if (e.target.closest('.btn-del-monster') || e.target.closest('.btn-edit-monster')) return;
+        self._listScrollY = container.scrollTop || window.scrollY || 0;
         const id = card.dataset.id;
         DB.getAll('monsters', wid).then(all => {
           const m = all.find(x => x.id === id);
-          if (m) { this._currentId = id; this._renderDetail(container, m, wid); }
+          if (m) { self._currentId = id; self._renderDetail(container, m, wid); }
         });
       });
     });
@@ -125,7 +131,7 @@ window.Pages.monsters = {
         e.stopPropagation();
         DB.getAll('monsters', wid).then(all => {
           const m = all.find(x => x.id === btn.dataset.id);
-          if (m) this._openForm(m, wid, container);
+          if (m) self._openForm(m, wid, container);
         });
       });
     });
@@ -134,24 +140,21 @@ window.Pages.monsters = {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const id = btn.dataset.id;
-        const card = container.querySelector(`.monster-card[data-id="${id}"]`);
-        const name = card?.querySelector('.monster-name')?.textContent || '이 몬스터';
-        Utils.confirm(`"${name}" 삭제`, '삭제하면 되돌릴 수 없습니다.', async () => {
+        const m = monsters.find(x => x.id === id);
+        Utils.confirmWithInput('몬스터 삭제', '삭제하려면 몬스터 이름을 정확히 입력하세요.', m?.name || '', async () => {
           await DB.del('monsters', id);
           Utils.toast('삭제됨', 'info');
-          this.init(container);
+          self.init(container);
         });
       });
     });
   },
 
   _applyFilter: function(container, query, grade) {
-    const q = (query || '').toLowerCase();
     container.querySelectorAll('.monster-card').forEach(card => {
-      const text = (card.dataset.searchText || '').toLowerCase();
       const cardGrade = card.dataset.grade || '';
       const gradeOk = !grade || cardGrade === grade;
-      const textOk = !q || text.includes(q);
+      const textOk = Utils.matchesQuery(card.dataset.searchText || '', query);
       card.style.display = gradeOk && textOk ? '' : 'none';
     });
   },
@@ -162,7 +165,8 @@ window.Pages.monsters = {
     const badgeStyle = isGrad
       ? `background:${gc};color:#fff;`
       : `background:${gc}22;color:${gc};border:1px solid ${gc}66;`;
-    const searchText = [m.name, m.grade, m.habitat, m.deathType, m.modifier].filter(Boolean).join(' ').toLowerCase();
+    const lifespanStr = this._lifespanStr(m);
+    const searchText = [m.name, m.grade, m.habitat, m.deathType].filter(Boolean).join(' ').toLowerCase();
 
     return `
     <div class="monster-card list-item"
@@ -179,7 +183,7 @@ window.Pages.monsters = {
           ${m.grade ? `<span style="font-size:11px;padding:2px 7px;border-radius:4px;font-weight:700;${badgeStyle}">${Utils.escHtml(m.grade)}</span>` : ''}
           ${m.deathType ? `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--color-border);color:var(--color-text-muted);">${Utils.escHtml(m.deathType)}</span>` : ''}
         </div>
-        ${(m.lifespanMin !== null && m.lifespanMin !== undefined) || (m.lifespanMax !== null && m.lifespanMax !== undefined) ? `<div style="font-size:12px;color:var(--color-text-muted);">수명: ${m.lifespanMin ?? 0}~${m.lifespanMax ?? '∞'}년</div>` : m.lifespan ? `<div style="font-size:12px;color:var(--color-text-muted);">수명: ${Utils.escHtml(m.lifespan)}</div>` : ''}
+        ${lifespanStr ? `<div style="font-size:12px;color:var(--color-text-muted);">수명: ${Utils.escHtml(lifespanStr)}</div>` : ''}
         ${m.habitat ? `<div style="font-size:12px;color:var(--color-text-muted);">서식지: ${Utils.escHtml(m.habitat)}</div>` : ''}
         ${(m.skills || []).length > 0 ? `
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
@@ -193,6 +197,16 @@ window.Pages.monsters = {
     </div>`;
   },
 
+  _lifespanStr: function(m) {
+    if (m.lifespanMin !== null && m.lifespanMin !== undefined &&
+        m.lifespanMax !== null && m.lifespanMax !== undefined) {
+      return `${m.lifespanMin}~${m.lifespanMax}년`;
+    }
+    if (m.lifespanMin !== null && m.lifespanMin !== undefined) return `${m.lifespanMin}년~`;
+    if (m.lifespanMax !== null && m.lifespanMax !== undefined) return `~${m.lifespanMax}년`;
+    return m.lifespan || '';
+  },
+
   // ── DETAIL ──────────────────────────────────────────────────────────────────
 
   _renderDetail: function(container, m, wid) {
@@ -202,6 +216,7 @@ window.Pages.monsters = {
     const badgeStyle = isGrad
       ? `background:${gc};color:#fff;`
       : `background:${gc}22;color:${gc};border:1px solid ${gc}66;`;
+    const self = this;
 
     const field = (label, value, multiline) => {
       if (!value && value !== 0) return '';
@@ -217,6 +232,7 @@ window.Pages.monsters = {
 
     const modifiers = (m.modifier || '').split(',').map(s => s.trim()).filter(Boolean);
     const deathDesc = this.DEATH_TYPE_DESC[m.deathType] || '';
+    const lifespanStr = this._lifespanStr(m);
 
     const skillsHtml = (m.skills || []).length === 0
       ? '<div style="font-size:13px;color:var(--color-text-muted);">스킬 없음</div>'
@@ -227,7 +243,7 @@ window.Pages.monsters = {
               ${sk.grade ? `<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(139,92,246,0.2);color:#a78bfa;">${Utils.escHtml(sk.grade)}</span>` : ''}
             </div>
             ${sk.effects ? `<div style="font-size:12px;color:var(--color-text-muted);">ㄴㄴ효과: ${Utils.nl2br(Utils.escHtml(sk.effects))}</div>` : ''}
-            ${sk.cooldown ? `<div style="font-size:12px;color:var(--color-text-muted);">ㄴㄴ스킬 쿨타임: ${Utils.escHtml(sk.cooldown)}</div>` : ''}
+            ${sk.cooldown ? `<div style="font-size:12px;color:var(--color-text-muted);">ㄴㄴ쿨타임: ${Utils.escHtml(sk.cooldown)}</div>` : ''}
           </div>`).join('');
 
     container.innerHTML = `
@@ -253,19 +269,12 @@ window.Pages.monsters = {
         <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:12px;letter-spacing:1px;">기본 정보</div>
         ${field('이름', m.name)}
         ${field('등급', m.grade)}
-        ${(m.lifespanMin !== null && m.lifespanMin !== undefined) || (m.lifespanMax !== null && m.lifespanMax !== undefined) ? field('수명', `${m.lifespanMin ?? 0}~${m.lifespanMax ?? '∞'}년`) : field('수명', m.lifespan)}
+        ${lifespanStr ? field('수명', lifespanStr) : ''}
         ${field('서식 지역', m.habitat)}
         ${m.deathType ? `
           <div style="margin-bottom:10px;">
             <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:2px;">죽음 유형</div>
             <div style="font-size:13px;">${Utils.escHtml(m.deathType)}${deathDesc ? ` <span style="color:var(--color-text-muted);font-size:12px;">— ${Utils.escHtml(deathDesc)}</span>` : ''}</div>
-          </div>` : ''}
-        ${modifiers.length ? `
-          <div style="margin-bottom:10px;">
-            <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">수식언/상태</div>
-            <div style="display:flex;flex-wrap:wrap;gap:4px;">
-              ${modifiers.map(mod => `<span style="font-size:12px;padding:2px 8px;border-radius:6px;background:rgba(251,191,36,0.08);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);">${Utils.escHtml(mod)}</span>`).join('')}
-            </div>
           </div>` : ''}
       </div>
 
@@ -287,10 +296,19 @@ window.Pages.monsters = {
           <div style="font-size:13px;white-space:pre-wrap;line-height:1.7;">${Utils.nl2br(Utils.escHtml(m.loot))}</div>
         </div>` : ''}
 
-      ${m.authorNotes ? `
+      ${(m.authorNotes || modifiers.length) ? `
         <div style="background:rgba(245,158,11,0.08);border-left:3px solid var(--color-warning);border-radius:6px;padding:12px 14px;margin-bottom:12px;">
-          <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:6px;">작가 메모 (소설에 미표시)</div>
-          <div style="white-space:pre-wrap;font-size:13px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(m.authorNotes))}</div>
+          <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:8px;">작가 메모 (소설에 미표시)</div>
+          ${modifiers.length ? `
+            <div style="margin-bottom:8px;">
+              <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">수식언 <span style="color:var(--color-text-dim);">(이름 앞 부착 가능)</span></div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                ${modifiers.map(mod => `<span style="font-size:12px;padding:2px 8px;border-radius:6px;background:rgba(251,191,36,0.08);color:#fbbf24;border:1px solid rgba(251,191,36,0.25);">
+                  ${Utils.escHtml(mod)} ${Utils.escHtml(m.name || '')}
+                </span>`).join('')}
+              </div>
+            </div>` : ''}
+          ${m.authorNotes ? `<div style="white-space:pre-wrap;font-size:13px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(m.authorNotes))}</div>` : ''}
         </div>` : ''}
 
       <div style="font-size:11px;color:var(--color-text-dim);text-align:right;">
@@ -298,25 +316,30 @@ window.Pages.monsters = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackMonsters')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
-    document.getElementById('btnEditMonster')?.addEventListener('click', () => this._openForm(m, wid, container));
+    document.getElementById('btnBackMonsters')?.addEventListener('click', async () => {
+      const y = self._listScrollY || 0;
+      self._currentId = null;
+      await self.init(container);
+      requestAnimationFrame(() => { container.scrollTop = y; if (y > 0) window.scrollTo(0, y); });
+    });
+    document.getElementById('btnEditMonster')?.addEventListener('click', () => self._openForm(m, wid, container));
     document.getElementById('btnDelMonsterDetail')?.addEventListener('click', () => {
-      Utils.confirm(`"${m.name}" 삭제`, '삭제하시겠습니까?', async () => {
+      Utils.confirmWithInput('몬스터 삭제', '삭제하려면 몬스터 이름을 정확히 입력하세요.', m.name || '', async () => {
         await DB.del('monsters', m.id);
         Utils.toast('삭제됨', 'info');
-        this._currentId = null;
-        this.init(container);
+        self._currentId = null;
+        self.init(container);
       });
     });
     document.getElementById('btnCopyMonsterText')?.addEventListener('click', () => {
-      Utils.copyText(this._exportText(m));
+      Utils.copyText(self._exportText(m));
       Utils.toast('복사됨', 'success');
     });
     document.getElementById('btnPickSkills')?.addEventListener('click', () => {
-      this._openSkillPicker(m, wid, container);
+      self._openSkillPicker(m, wid, container);
     });
     document.getElementById('btnCopyToWorld')?.addEventListener('click', () => {
-      this._openCopyToWorld(m, wid);
+      self._openCopyToWorld(m, wid);
     });
   },
 
@@ -327,7 +350,6 @@ window.Pages.monsters = {
     if (!allSkills.length) { Utils.toast('스킬 라이브러리가 비어 있습니다', 'error'); return; }
 
     const currentIds = new Set((m.skills || []).map(s => s.id));
-
     const rows = allSkills.map(sk => {
       const col = Utils.gradeColor(sk.grade || 'F');
       return `
@@ -363,18 +385,16 @@ window.Pages.monsters = {
   _openCopyToWorld: function(m, wid) {
     const worlds = AppStore.getState().worlds.filter(w => w.id !== wid);
     if (!worlds.length) { Utils.toast('다른 세계가 없습니다', 'error'); return; }
-    const body = `
+    Utils.openModal('다른 세계로 복사', `
       <div class="form-group">
         <label class="form-label">복사할 세계 선택</label>
         <select class="select-input" id="copyMonsterWorld" style="width:100%;">
           ${worlds.map(w => `<option value="${Utils.escHtml(w.id)}">${Utils.escHtml(w.name)}</option>`).join('')}
         </select>
-      </div>`;
-    Utils.openModal('다른 세계로 복사', body, async () => {
+      </div>`, async () => {
       const tid = document.getElementById('copyMonsterWorld')?.value;
       if (!tid) return false;
-      const copy = { ...m, id: DB.genId(), worldId: tid, createdAt: Date.now(), updatedAt: Date.now() };
-      await DB.put('monsters', copy);
+      await DB.put('monsters', { ...m, id: DB.genId(), worldId: tid, createdAt: Date.now(), updatedAt: Date.now() });
       Utils.toast('복사됨', 'success');
       return true;
     }, '복사');
@@ -384,15 +404,15 @@ window.Pages.monsters = {
 
   _openForm: function(monster, wid, container) {
     const isEdit = !!monster;
+    const self = this;
     const m = monster || {};
     let newImage = m.image || null;
 
-    const gradeOpts = ['', ...this.GRADES].map(g =>
+    const gradeOpts = ['', ...this._C.grades].map(g =>
       `<option value="${g}" ${(m.grade || '') === g ? 'selected' : ''}>${g || '선택 안 함'}</option>`).join('');
     const deathOpts = ['', ...this.DEATH_TYPES].map(d =>
       `<option value="${d}" ${(m.deathType || '') === d ? 'selected' : ''}>${d || '선택 안 함'}</option>`).join('');
 
-    // Build modifier checkboxes (stored as comma-separated string)
     const currentMods = new Set((m.modifier || '').split(',').map(s => s.trim()).filter(Boolean));
     const modCheckboxes = this.MODIFIERS.map(mod => `
       <label style="display:inline-flex;align-items:center;gap:4px;font-size:12px;margin:2px 4px;cursor:pointer;white-space:nowrap;">
@@ -412,6 +432,9 @@ window.Pages.monsters = {
         <textarea class="input-field" id="${id}" rows="${rows || 3}" style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(val || '')}</textarea>
       </div>`;
 
+    const lifespanMinVal = m.lifespanMin !== null && m.lifespanMin !== undefined ? String(m.lifespanMin) : '';
+    const lifespanMaxVal = m.lifespanMax !== null && m.lifespanMax !== undefined ? String(m.lifespanMax) : '';
+
     const body = `
       <div style="display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
@@ -429,11 +452,13 @@ window.Pages.monsters = {
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">수명 (년)</label>
           <div style="display:flex;align-items:center;gap:8px;">
-            <input type="number" class="input-field" id="fMLifespanMin" value="${Utils.escHtml(String(m.lifespanMin ?? (m.lifespan ? '' : ''))}" placeholder="최소" min="0" style="flex:1;box-sizing:border-box;" />
+            <input type="number" class="input-field" id="fMLifespanMin" value="${Utils.escHtml(lifespanMinVal)}"
+              placeholder="최소 (0~1999)" min="0" max="1999" style="flex:1;box-sizing:border-box;" />
             <span style="color:var(--color-text-muted);flex-shrink:0;">~</span>
-            <input type="number" class="input-field" id="fMLifespanMax" value="${Utils.escHtml(String(m.lifespanMax ?? ''))}" placeholder="최대" min="0" style="flex:1;box-sizing:border-box;" />
+            <input type="number" class="input-field" id="fMLifespanMax" value="${Utils.escHtml(lifespanMaxVal)}"
+              placeholder="최대 (0~1999)" min="0" max="1999" style="flex:1;box-sizing:border-box;" />
           </div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">예: 0 ~ 1999</div>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">정수만 입력 · 예: 0 ~ 1999</div>
         </div>
         ${ta('fMFeatures', '특징', m.features, 3)}
         ${ta('fMStrengths', '강점', m.strengths, 2)}
@@ -445,13 +470,20 @@ window.Pages.monsters = {
           <select class="select-input" id="fMDeathType" style="width:100%;">${deathOpts}</select>
           <div id="deathTypeDesc" style="font-size:11px;color:var(--color-text-muted);margin-top:4px;min-height:14px;"></div>
         </div>
-        <div class="form-group">
-          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">수식언/상태</label>
-          <div style="background:var(--color-surface3,#2a2a3a);border:1px solid var(--color-border);border-radius:8px;padding:8px;display:flex;flex-wrap:wrap;">
-            ${modCheckboxes}
+
+        <!-- 작가 전용 영역 -->
+        <div style="border-top:1px dashed var(--color-border);padding-top:10px;">
+          <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:8px;">작가 전용 (소설에 미표시)</div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">
+              수식언 <span style="font-size:11px;font-weight:400;color:var(--color-text-muted);">(이름 앞에 붙을 수 있는 상태 접두어)</span>
+            </label>
+            <div style="background:var(--color-surface3,#2a2a3a);border:1px solid var(--color-border);border-radius:8px;padding:8px;display:flex;flex-wrap:wrap;">
+              ${modCheckboxes}
+            </div>
           </div>
+          ${ta('fMAuthorNotes', '작가 메모', m.authorNotes, 2)}
         </div>
-        ${ta('fMAuthorNotes', '작가 메모', m.authorNotes, 2)}
       </div>`;
 
     Utils.openModal(isEdit ? '몬스터 편집' : '새 몬스터', body, async () => {
@@ -464,42 +496,46 @@ window.Pages.monsters = {
       const modifier = [...document.querySelectorAll('.mod-check:checked')]
         .map(cb => cb.dataset.mod).filter(Boolean).join(', ');
 
+      const minRaw = document.getElementById('fMLifespanMin')?.value;
+      const maxRaw = document.getElementById('fMLifespanMax')?.value;
+
       const data = {
         id: m.id || DB.genId(),
         worldId: wid,
         name,
-        grade: document.getElementById('fMGrade')?.value || '',
-        lifespanMin: document.getElementById('fMLifespanMin')?.value !== '' ? Number(document.getElementById('fMLifespanMin').value) : null,
-        lifespanMax: document.getElementById('fMLifespanMax')?.value !== '' ? Number(document.getElementById('fMLifespanMax').value) : null,
-        features: document.getElementById('fMFeatures')?.value.trim() || '',
-        strengths: document.getElementById('fMStrengths')?.value.trim() || '',
-        weaknesses: document.getElementById('fMWeaknesses')?.value.trim() || '',
-        habitat: document.getElementById('fMHabitat')?.value.trim() || '',
-        loot: document.getElementById('fMLoot')?.value.trim() || '',
-        skills: m.skills || [],
-        deathType: document.getElementById('fMDeathType')?.value || '',
+        grade:        document.getElementById('fMGrade')?.value || '',
+        lifespanMin:  minRaw !== '' && minRaw !== undefined ? Number(minRaw) : null,
+        lifespanMax:  maxRaw !== '' && maxRaw !== undefined ? Number(maxRaw) : null,
+        features:     document.getElementById('fMFeatures')?.value.trim() || '',
+        strengths:    document.getElementById('fMStrengths')?.value.trim() || '',
+        weaknesses:   document.getElementById('fMWeaknesses')?.value.trim() || '',
+        habitat:      document.getElementById('fMHabitat')?.value.trim() || '',
+        loot:         document.getElementById('fMLoot')?.value.trim() || '',
+        skills:       m.skills || [],
+        deathType:    document.getElementById('fMDeathType')?.value || '',
         modifier,
-        authorNotes: document.getElementById('fMAuthorNotes')?.value.trim() || '',
-        image: newImage,
-        createdAt: m.createdAt || Date.now(),
+        authorNotes:  document.getElementById('fMAuthorNotes')?.value.trim() || '',
+        image:        newImage,
+        createdAt:    m.createdAt || Date.now(),
+        updatedAt:    Date.now(),
       };
 
       await DB.put('monsters', data);
       await AppStore.updateStreak();
+      await AppStore.recordActivity('monsters', !isEdit);
       Utils.toast(isEdit ? '저장됨' : '추가됨', 'success');
-      this._currentId = data.id;
+      self._currentId = data.id;
       const updated = await DB.get('monsters', data.id);
-      if (updated) this._renderDetail(container, updated, wid);
-      else this.init(container);
+      if (updated) self._renderDetail(container, updated, wid);
+      else self.init(container);
       return true;
     }, isEdit ? '저장' : '추가');
 
-    // Death type desc + image preview wired after modal is in DOM
     setTimeout(() => {
-      const dtSel = document.getElementById('fMDeathType');
+      const dtSel  = document.getElementById('fMDeathType');
       const dtDesc = document.getElementById('deathTypeDesc');
       if (dtSel && dtDesc) {
-        const updateDesc = () => { dtDesc.textContent = this.DEATH_TYPE_DESC[dtSel.value] || ''; };
+        const updateDesc = () => { dtDesc.textContent = self.DEATH_TYPE_DESC[dtSel.value] || ''; };
         dtSel.addEventListener('change', updateDesc);
         updateDesc();
       }
@@ -517,12 +553,13 @@ window.Pages.monsters = {
 
   _exportText: function(m) {
     const lines = [];
-    const add = (label, val) => { if (val) lines.push(`${label}: ${val}`); };
+    const add = (label, val) => { if (val || val === 0) lines.push(`${label}: ${val}`); };
     add('이름', m.name);
-    add('수명', (m.lifespanMin !== null && m.lifespanMin !== undefined) ? `${m.lifespanMin}~${m.lifespanMax ?? '∞'}년` : m.lifespan);
-    if (m.features) lines.push(`특징: ${m.features}`);
+    const ls = this._lifespanStr(m);
+    if (ls) add('수명', ls);
+    if (m.features)  lines.push(`특징: ${m.features}`);
     if (m.strengths) lines.push(`강점: ${m.strengths}`);
-    if (m.weaknesses) lines.push(`약점: ${m.weaknesses}`);
+    if (m.weaknesses)lines.push(`약점: ${m.weaknesses}`);
     add('서식 지역', m.habitat);
     if (m.loot) lines.push(`전리품: ${m.loot}`);
     if ((m.skills || []).length > 0) {
@@ -530,11 +567,10 @@ window.Pages.monsters = {
       (m.skills || []).forEach(sk => {
         lines.push(`ㄴ이름: [${sk.name || ''}]`);
         if (sk.effects) lines.push(`ㄴㄴ효과: ${sk.effects}`);
-        if (sk.cooldown) lines.push(`ㄴㄴ스킬 쿨타임: ${sk.cooldown}`);
+        if (sk.cooldown) lines.push(`ㄴㄴ쿨타임: ${sk.cooldown}`);
       });
     }
     add('죽음 유형', m.deathType);
-    if (m.modifier) add('수식언/상태', m.modifier);
     return lines.join('\n');
   },
 };

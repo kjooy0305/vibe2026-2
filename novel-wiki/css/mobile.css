@@ -70,7 +70,11 @@ button,
 .modal-body,
 .search-results,
 .chip-strip,
-.tabs {
+.tabs,
+[style*="overflow-y:auto"],
+[style*="overflow-y: auto"],
+[style*="overflow:auto"],
+[style*="overflow: auto"] {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
 }
@@ -408,7 +412,11 @@ img {
 .page-content,
 .modal-body,
 .drawer__nav,
-.search-results {
+.search-results,
+[style*="overflow-y:auto"],
+[style*="overflow-y: auto"],
+[style*="overflow:auto"],
+[style*="overflow: auto"] {
   overscroll-behavior-y: contain;
 }
 

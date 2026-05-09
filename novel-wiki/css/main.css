@@ -716,6 +716,11 @@ hr {
   outline-offset: 2px;
 }
 
+/* ─── Color picker: force light scheme so hue/sat area renders ─ */
+input[type="color"] {
+  color-scheme: light;
+}
+
 /* ─── Selection ───────────────────────────────────────────── */
 ::selection {
   background: var(--color-primary-glow);
@@ -902,4 +907,14 @@ hr {
   align-items: flex-end;
   gap: var(--sp-1);
   flex-shrink: 0;
+}
+
+/* ─── Single-finger scroll for all inline overflow containers ── */
+[style*="overflow-y:auto"],
+[style*="overflow-y: auto"],
+[style*="overflow:auto"],
+[style*="overflow: auto"] {
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y;
+  overscroll-behavior-y: contain;
 }

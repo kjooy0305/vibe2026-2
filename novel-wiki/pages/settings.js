@@ -18,21 +18,90 @@ window.Pages.settings = {
     '잘못된 희생은 피해를 야기한다.',
   ],
 
+  // ── Feature flag definitions ─────────────────────────────────────────────
+  FEATURE_FLAGS: [
+    // 표시
+    { key: 'gradeColors',              group: '표시', default: true,
+      label: '등급 색상 배지',
+      desc: 'F~EX 등급을 색상으로 구분해 표시합니다. 비활성 시 단색 배지를 사용합니다.' },
+    { key: 'showAuthorBadge',          group: '표시', default: true,
+      label: '작가 전용 배지 표시',
+      desc: '작가 메모·히든 정보에 「작가전용」 배지를 표시합니다.' },
+    { key: 'novelViewDefault',         group: '표시', default: false,
+      label: '상태창 기본 소설 뷰',
+      desc: '상태창 뷰어 진입 시 소설 뷰를 기본으로 사용합니다.' },
+    { key: 'communityLockedDefault',   group: '표시', default: true,
+      label: '커뮤니티 패널 기본 잠금',
+      desc: '상태창 뷰어의 커뮤니티·길드 커뮤니티 패널이 기본 잠금 상태로 시작합니다.' },
+    { key: 'showConstellationsInStatus', group: '표시', default: true,
+      label: '상태창 성좌 계약 섹션',
+      desc: '상태창 뷰어에서 성좌 계약 정보 섹션을 표시합니다.' },
+    // 조작
+    { key: 'deleteConfirmInput',       group: '조작', default: true,
+      label: '삭제 시 이름 확인 입력',
+      desc: '항목 삭제 전 이름을 직접 입력해 확인합니다. 비활성 시 버튼 클릭만으로 삭제됩니다.' },
+    { key: 'listScrollMemory',         group: '조작', default: true,
+      label: '목록 스크롤 위치 기억',
+      desc: '상세보기 후 목록으로 돌아올 때 이전 스크롤 위치를 복원합니다.' },
+    { key: 'autoResetFilters',         group: '조작', default: false,
+      label: '검색 시 필터 자동 초기화',
+      desc: '검색어 입력 시 활성화된 등급·타입 필터를 자동으로 해제합니다.' },
+    // 검색
+    { key: 'searchScope',              group: '검색', default: 'world',
+      label: '검색 범위',
+      desc: '(아래 버튼으로 변경하세요)',
+      isScope: true },
+  ],
+
   init: async function(container, options) {
     options = options || {};
     this._container = container;
+    await this._renderPage(container);
+  },
 
+  _renderPage: async function(container) {
+    const self = this;
     const state = AppStore.getState();
     const streak = state.streak || { count: 0 };
     const currentWorld = state.currentWorld;
-    const searchScope = await DB.getSetting('searchScope', 'world');
 
-    this._renderPage(container, { streak, currentWorld, searchScope });
-  },
+    // Load all flag values from DB (source of truth) and sync to AppFlags
+    const flagValues = {};
+    await Promise.all(this.FEATURE_FLAGS.map(async f => {
+      const dbVal = await DB.getSetting('flag_' + f.key, null);
+      const val = dbVal !== null ? dbVal : AppFlags.get(f.key, f.default);
+      flagValues[f.key] = val;
+      AppFlags.set(f.key, val);
+    }));
 
-  _renderPage: function(container, { streak, currentWorld, searchScope }) {
-    const self = this;
-    const worldName = currentWorld ? currentWorld.name : '(없음)';
+    // Load icon presets
+    const savedIcons = await DB.getSetting('const_iconPresets', null);
+    const iconList = savedIcons ? [...savedIcons] : [...AppConstants.DEFAULTS.iconPresets];
+
+    // Helper: render toggle switch HTML
+    const toggleHtml = (key, val) => `
+      <button class="feat-toggle" data-key="${Utils.escHtml(key)}" aria-label="토글" style="
+        position:relative;width:44px;height:26px;border-radius:13px;border:none;cursor:pointer;
+        padding:0;flex-shrink:0;transition:background .2s;outline:none;
+        background:${val ? 'var(--color-primary)' : '#4b5563'};">
+        <div style="position:absolute;top:3px;left:${val ? '21px' : '3px'};
+          width:20px;height:20px;border-radius:10px;background:#fff;
+          transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
+      </button>`;
+
+    // Group flags
+    const groups = {};
+    this.FEATURE_FLAGS.filter(f => !f.isScope).forEach(f => {
+      if (!groups[f.group]) groups[f.group] = [];
+      groups[f.group].push(f);
+    });
+
+    // Scope setting
+    const searchScope = flagValues['searchScope'] || 'world';
+
+    const secStyle = 'background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);';
+    const secLabel = 'font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;';
+    const rowDivider = 'border-bottom:1px solid var(--color-border);';
 
     container.innerHTML = `
     <div class="page active">
@@ -41,16 +110,16 @@ window.Pages.settings = {
         <p style="margin-top:4px;font-size:12px;color:var(--color-text-muted);">앱 환경설정 및 데이터 관리</p>
       </div>
 
-      <!-- 1. 앱 정보 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);">
-        <div style="font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">앱 정보</div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--color-border);">
+      <!-- ① 앱 정보 -->
+      <div style="${secStyle}">
+        <div style="${secLabel}">앱 정보</div>
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;${rowDivider}">
           <span style="font-size:13px;">버전</span>
           <span style="font-size:13px;color:var(--color-text-muted);">${Utils.escHtml(this.APP_VERSION)}</span>
         </div>
-        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;border-bottom:1px solid var(--color-border);">
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;${rowDivider}">
           <span style="font-size:13px;">현재 세계</span>
-          <span style="font-size:13px;color:var(--color-text-muted);">${Utils.escHtml(worldName)}</span>
+          <span style="font-size:13px;color:var(--color-text-muted);">${Utils.escHtml(currentWorld ? currentWorld.name : '(없음)')}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;">
           <span style="font-size:13px;">연속 작성 스트릭</span>
@@ -58,82 +127,94 @@ window.Pages.settings = {
         </div>
       </div>
 
-      <!-- 2. 검색 범위 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);">
-        <div style="font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">검색 범위</div>
+      <!-- ② 아이콘 관리 -->
+      <div style="${secStyle}">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+          <div style="${secLabel}margin-bottom:0;">🎨 아이콘 관리</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" id="btnResetIcons" style="color:var(--color-warning);font-size:11px;">기본값 복원</button>
+            <button class="btn btn-primary btn-sm" id="btnSaveIcons" style="font-size:11px;">저장</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:10px;">
+          성좌 등 아이콘 선택 시 사용할 이모지 목록입니다. 클릭하여 제거하거나 아래에서 추가하세요.
+        </div>
+        <!-- Icon grid -->
+        <div id="iconGrid" style="display:flex;flex-wrap:wrap;gap:6px;min-height:36px;margin-bottom:10px;"></div>
+        <!-- Add icon input -->
+        <div style="display:flex;gap:6px;align-items:center;">
+          <input id="iconAddInput" class="input-field" placeholder="이모지 직접 입력 (예: 🦋)" style="width:120px;box-sizing:border-box;text-align:center;font-size:18px;" maxlength="8" />
+          <button class="btn btn-ghost btn-sm" id="btnAddIcon">+ 추가</button>
+          <span style="font-size:11px;color:var(--color-text-dim);">총 ${iconList.length}개</span>
+        </div>
+      </div>
+
+      <!-- ③ 기능 설정 -->
+      <div style="${secStyle}">
+        <div style="${secLabel}">⚙️ 기능 설정</div>
+        <div style="font-size:11px;color:var(--color-text-dim);margin-bottom:12px;">
+          비활성화해도 기존 데이터는 유지됩니다. 일부 기능은 다음 페이지 방문 시 적용됩니다.
+        </div>
+
+        ${Object.entries(groups).map(([groupName, flags]) => `
+          <div style="margin-bottom:14px;">
+            <div style="font-size:10px;color:var(--color-text-dim);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:8px;padding-left:2px;">${Utils.escHtml(groupName)}</div>
+            ${flags.map((f, fi) => `
+              <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;${fi < flags.length - 1 ? rowDivider : ''}">
+                <div style="flex:1;min-width:0;">
+                  <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${Utils.escHtml(f.label)}</div>
+                  <div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;">${Utils.escHtml(f.desc)}</div>
+                </div>
+                ${toggleHtml(f.key, flagValues[f.key])}
+              </div>`).join('')}
+          </div>`).join('')}
+      </div>
+
+      <!-- ④ 검색 범위 -->
+      <div style="${secStyle}">
+        <div style="${secLabel}">검색 범위</div>
         <div style="display:flex;gap:8px;margin-bottom:8px;">
           <button class="scope-btn" data-scope="world"
-            style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid ${searchScope === 'world' ? 'var(--color-primary)' : 'var(--color-border)'};cursor:pointer;font-size:13px;font-weight:${searchScope === 'world' ? '700' : '400'};background:${searchScope === 'world' ? 'var(--color-primary)' : 'var(--color-surface2)'};color:${searchScope === 'world' ? '#000' : 'var(--color-text)'};transition:all 0.15s;">
+            style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid ${searchScope === 'world' ? 'var(--color-primary)' : 'var(--color-border)'};cursor:pointer;font-size:13px;font-weight:${searchScope === 'world' ? '700' : '400'};background:${searchScope === 'world' ? 'var(--color-primary)' : 'var(--color-surface2)'};color:${searchScope === 'world' ? '#000' : 'var(--color-text)'};transition:all .15s;">
             현재 세계만
           </button>
           <button class="scope-btn" data-scope="all"
-            style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid ${searchScope === 'all' ? 'var(--color-primary)' : 'var(--color-border)'};cursor:pointer;font-size:13px;font-weight:${searchScope === 'all' ? '700' : '400'};background:${searchScope === 'all' ? 'var(--color-primary)' : 'var(--color-surface2)'};color:${searchScope === 'all' ? '#000' : 'var(--color-text)'};transition:all 0.15s;">
+            style="flex:1;padding:9px 12px;border-radius:8px;border:1px solid ${searchScope === 'all' ? 'var(--color-primary)' : 'var(--color-border)'};cursor:pointer;font-size:13px;font-weight:${searchScope === 'all' ? '700' : '400'};background:${searchScope === 'all' ? 'var(--color-primary)' : 'var(--color-surface2)'};color:${searchScope === 'all' ? '#000' : 'var(--color-text)'};transition:all .15s;">
             전체 세계
           </button>
         </div>
-        <div style="font-size:11px;color:var(--color-text-dim);">검색 결과에 포함할 세계의 범위입니다. 현재: <strong>${searchScope === 'all' ? '전체 세계' : '현재 세계만'}</strong></div>
+        <div style="font-size:11px;color:var(--color-text-dim);">현재: <strong>${searchScope === 'all' ? '전체 세계' : '현재 세계만'}</strong></div>
       </div>
 
-      <!-- 3. 데이터 관리 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);">
-        <div style="font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">데이터 관리</div>
-
-        <!-- Export -->
-        <button id="btnExportData"
-          style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;color:var(--color-text);font-size:13px;margin-bottom:8px;text-align:left;">
+      <!-- ⑤ 데이터 관리 -->
+      <div style="${secStyle}">
+        <div style="${secLabel}">데이터 관리</div>
+        <button id="btnExportData" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;color:var(--color-text);font-size:13px;margin-bottom:8px;text-align:left;">
           <span style="font-size:16px;">📤</span>
-          <div>
-            <div style="font-weight:600;">내보내기 (Export)</div>
-            <div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">모든 데이터를 JSON 파일로 백업합니다</div>
-          </div>
+          <div><div style="font-weight:600;">내보내기 (Export)</div><div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">모든 데이터를 JSON 파일로 백업합니다</div></div>
         </button>
-
-        <!-- Import -->
-        <button id="btnImportData"
-          style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;color:var(--color-text);font-size:13px;margin-bottom:8px;text-align:left;">
+        <button id="btnImportData" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;color:var(--color-text);font-size:13px;margin-bottom:8px;text-align:left;">
           <span style="font-size:16px;">📥</span>
-          <div>
-            <div style="font-weight:600;">가져오기 (Import)</div>
-            <div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">JSON 백업 파일을 불러와 기존 데이터를 교체합니다</div>
-          </div>
+          <div><div style="font-weight:600;">가져오기 (Import)</div><div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">JSON 백업 파일을 불러와 기존 데이터를 교체합니다</div></div>
         </button>
         <input type="file" id="importFileInput" accept=".json" style="display:none;" />
-
-        <!-- Reset -->
-        <button id="btnResetAll"
-          style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);cursor:pointer;color:var(--color-danger);font-size:13px;text-align:left;">
+        <button id="btnResetAll" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);cursor:pointer;color:var(--color-danger);font-size:13px;text-align:left;">
           <span style="font-size:16px;">🗑️</span>
-          <div>
-            <div style="font-weight:600;">초기화 (Reset)</div>
-            <div style="font-size:11px;color:rgba(239,68,68,0.7);margin-top:1px;">모든 데이터를 영구 삭제합니다. 되돌릴 수 없습니다.</div>
-          </div>
+          <div><div style="font-weight:600;">초기화 (Reset)</div><div style="font-size:11px;color:rgba(239,68,68,0.7);margin-top:1px;">모든 데이터를 영구 삭제합니다. 되돌릴 수 없습니다.</div></div>
         </button>
       </div>
 
-      <!-- 4. 알림 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);">
-        <div style="font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;">알림</div>
-        <div style="font-size:13px;color:var(--color-text-muted);line-height:1.6;">
-          웹 푸시 알림은 서비스 워커를 통해 지원됩니다.<br>
-          오프라인 상태이거나 브라우저 설정에 따라 알림이 제한될 수 있습니다.<br>
-          <span style="font-size:11px;color:var(--color-text-dim);">현재 알림 지원: ${('Notification' in window && 'serviceWorker' in navigator) ? '가능' : '불가 (브라우저 미지원)'}</span>
-        </div>
-      </div>
-
-      <!-- 5. 소설 주제 질문들 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);border-left:3px solid var(--color-primary);">
+      <!-- ⑥ 소설 주제 질문들 -->
+      <div style="${secStyle}border-left:3px solid var(--color-primary);">
         <div style="font-weight:700;font-size:13px;color:var(--color-primary);margin-bottom:12px;">소설 주제 질문들</div>
         <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:9px;">
-          ${this.THEMATIC_QUESTIONS.map((q, i) => `
-            <li style="font-size:12px;line-height:1.65;color:var(--color-text-muted);">
-              ${Utils.escHtml(q)}
-            </li>`).join('')}
+          ${this.THEMATIC_QUESTIONS.map(q => `<li style="font-size:12px;line-height:1.65;color:var(--color-text-muted);">${Utils.escHtml(q)}</li>`).join('')}
         </ol>
       </div>
 
-      <!-- 6. 앱 소개 -->
-      <div style="background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:80px;border:1px solid var(--color-border);">
-        <div style="font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:10px;text-transform:uppercase;letter-spacing:0.8px;">앱 소개</div>
+      <!-- ⑦ 앱 소개 -->
+      <div style="${secStyle}margin-bottom:80px;">
+        <div style="${secLabel}">앱 소개</div>
         <p style="font-size:13px;color:var(--color-text-muted);line-height:1.7;margin:0;">
           소설 창작 위키 ${Utils.escHtml(this.APP_VERSION)} — 오프라인 우선 PWA<br>
           IndexedDB 기반 로컬 저장. 인터넷 없이도 완전히 동작합니다.<br>
@@ -142,25 +223,95 @@ window.Pages.settings = {
       </div>
     </div>`;
 
-    // Search scope buttons
-    container.querySelectorAll('.scope-btn[data-scope]').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const scope = btn.dataset.scope;
-        await DB.setSetting('searchScope', scope);
-        AppStore.setState({ searchScope: scope });
-        Utils.toast(scope === 'all' ? '전체 세계 검색으로 변경됨' : '현재 세계만 검색으로 변경됨', 'success');
-        // Re-render with new scope
-        const state = AppStore.getState();
-        self._renderPage(container, {
-          streak: state.streak || { count: 0 },
-          currentWorld: state.currentWorld,
-          searchScope: scope,
+    // ── Icon grid management ────────────────────────────────────────────────
+    const iconGrid = container.querySelector('#iconGrid');
+    const iconCountEl = container.querySelector('#iconAddInput')?.parentElement?.querySelector('span');
+
+    function renderIconGrid() {
+      if (!iconGrid) return;
+      iconGrid.innerHTML = iconList.map((ic, i) => `
+        <button class="icon-chip" data-idx="${i}" title="클릭하여 제거"
+          style="font-size:22px;padding:4px 6px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;position:relative;transition:background .1s;line-height:1.2;"
+          onmouseover="this.style.background='rgba(239,68,68,0.12)'" onmouseout="this.style.background='var(--color-bg)'">
+          ${Utils.escHtml(ic)}
+        </button>`).join('');
+      iconGrid.querySelectorAll('.icon-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.idx);
+          iconList.splice(i, 1);
+          renderIconGrid();
         });
+      });
+      if (iconCountEl) iconCountEl.textContent = `총 ${iconList.length}개`;
+    }
+    renderIconGrid();
+
+    container.querySelector('#btnAddIcon')?.addEventListener('click', () => {
+      const inp = container.querySelector('#iconAddInput');
+      const val = inp?.value.trim();
+      if (!val) return;
+      if (iconList.includes(val)) { Utils.toast('이미 있는 아이콘입니다', 'error'); return; }
+      iconList.push(val);
+      renderIconGrid();
+      if (inp) inp.value = '';
+    });
+    container.querySelector('#iconAddInput')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') container.querySelector('#btnAddIcon')?.click();
+    });
+
+    container.querySelector('#btnSaveIcons')?.addEventListener('click', async () => {
+      await DB.setSetting('const_iconPresets', [...iconList]);
+      AppConstants.invalidate();
+      Utils.toast('아이콘 저장됨', 'success');
+    });
+    container.querySelector('#btnResetIcons')?.addEventListener('click', () => {
+      Utils.confirm('아이콘 기본값 복원', '아이콘 목록을 기본값으로 되돌리시겠습니까?', async () => {
+        await DB.setSetting('const_iconPresets', null);
+        AppConstants.invalidate();
+        iconList.length = 0;
+        AppConstants.DEFAULTS.iconPresets.forEach(ic => iconList.push(ic));
+        renderIconGrid();
+        Utils.toast('기본값으로 복원됨', 'info');
+      }, '복원');
+    });
+
+    // ── Feature toggles ────────────────────────────────────────────────────
+    container.querySelectorAll('.feat-toggle[data-key]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const key = btn.dataset.key;
+        const flagDef = self.FEATURE_FLAGS.find(f => f.key === key);
+        const current = flagValues[key] !== undefined ? flagValues[key] : (flagDef?.default ?? true);
+        const newVal = !current;
+        flagValues[key] = newVal;
+
+        // Update UI immediately
+        btn.style.background = newVal ? 'var(--color-primary)' : '#4b5563';
+        const knob = btn.querySelector('div');
+        if (knob) knob.style.left = newVal ? '21px' : '3px';
+
+        // Persist
+        AppFlags.set(key, newVal);
+        await DB.setSetting('flag_' + key, newVal);
+        Utils.toast(`'${Utils.escHtml(flagDef?.label || key)}' ${newVal ? '활성화' : '비활성화'}`, 'info', 1500);
       });
     });
 
-    // Export
-    document.getElementById('btnExportData')?.addEventListener('click', async () => {
+    // ── Search scope buttons ───────────────────────────────────────────────
+    container.querySelectorAll('.scope-btn[data-scope]').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const scope = btn.dataset.scope;
+        flagValues['searchScope'] = scope;
+        AppFlags.set('searchScope', scope);
+        await DB.setSetting('flag_searchScope', scope);
+        await DB.setSetting('searchScope', scope); // keep existing key too
+        AppStore.setState({ searchScope: scope });
+        Utils.toast(scope === 'all' ? '전체 세계 검색으로 변경됨' : '현재 세계만 검색으로 변경됨', 'success');
+        await self._renderPage(container);
+      });
+    });
+
+    // ── Export ────────────────────────────────────────────────────────────
+    container.querySelector('#btnExportData')?.addEventListener('click', async () => {
       try {
         const data = await DB.exportAll();
         const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
@@ -179,28 +330,22 @@ window.Pages.settings = {
       }
     });
 
-    // Import — click hidden file input
-    document.getElementById('btnImportData')?.addEventListener('click', () => {
-      document.getElementById('importFileInput')?.click();
+    // ── Import ────────────────────────────────────────────────────────────
+    container.querySelector('#btnImportData')?.addEventListener('click', () => {
+      container.querySelector('#importFileInput')?.click();
     });
-
-    document.getElementById('importFileInput')?.addEventListener('change', async e => {
+    container.querySelector('#importFileInput')?.addEventListener('change', async e => {
       const file = e.target.files?.[0];
       if (!file) return;
-      e.target.value = ''; // Reset so same file can be picked again
-
-      Utils.confirm(
-        '데이터 가져오기',
+      e.target.value = '';
+      Utils.confirm('데이터 가져오기',
         `"${file.name}" 파일을 불러옵니다. 기존의 모든 데이터가 교체됩니다. 계속하시겠습니까?`,
         async () => {
           try {
             const text = await file.text();
             let data;
-            try {
-              data = JSON.parse(text);
-            } catch (_) {
-              Utils.toast('JSON 파싱 오류: 올바른 백업 파일인지 확인하세요', 'error');
-              return;
+            try { data = JSON.parse(text); } catch (_) {
+              Utils.toast('JSON 파싱 오류: 올바른 백업 파일인지 확인하세요', 'error'); return;
             }
             await DB.importAll(data);
             Utils.toast('가져오기 완료! 앱을 다시 시작합니다.', 'success');
@@ -208,16 +353,14 @@ window.Pages.settings = {
           } catch (err) {
             Utils.toast('가져오기 오류: ' + err.message, 'error');
           }
-        },
-        '가져오기'
-      );
+        }, '가져오기');
     });
 
-    // Reset all
-    document.getElementById('btnResetAll')?.addEventListener('click', () => {
-      Utils.confirm(
-        '전체 초기화',
-        '모든 세계, 캐릭터, 스킬, 아이템, 업적 등 저장된 모든 데이터가 영구 삭제됩니다. 백업 후 진행하세요. 계속하시겠습니까?',
+    // ── Reset all ─────────────────────────────────────────────────────────
+    container.querySelector('#btnResetAll')?.addEventListener('click', () => {
+      Utils.confirmWithInput('전체 초기화',
+        '모든 세계, 캐릭터, 스킬, 아이템, 업적 등 저장된 모든 데이터가 영구 삭제됩니다. 백업 후 진행하세요.',
+        '초기화',
         async () => {
           try {
             const emptyData = {
@@ -227,14 +370,13 @@ window.Pages.settings = {
               templates: [], folders: [], settings: [], streak: [],
             };
             await DB.importAll(emptyData);
+            localStorage.removeItem('appFlags');
             Utils.toast('초기화 완료. 앱을 다시 시작합니다.', 'info');
             setTimeout(() => window.location.reload(), 1800);
           } catch (err) {
             Utils.toast('초기화 오류: ' + err.message, 'error');
           }
-        },
-        '초기화'
-      );
+        }, '초기화');
     });
   },
 

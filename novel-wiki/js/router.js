@@ -3,28 +3,17 @@ const AppRouter = (function() {
   let currentPage = null;
   let currentPageId = null;
   const pageMap = {};
+  let _history = [];
+  let _navigatingBack = false;
 
   const PAGE_TITLES = {
-    home: '홈',
-    world: '세계/차원',
-    characters: '캐릭터',
-    organizations: '조직/단체',
-    skills: '스킬',
-    achievements: '업적',
-    constellations: '성좌',
-    gates: '게이트',
-    monsters: '몬스터',
-    tower: '탑 관리',
-    timeline: '타임라인',
-    'event-graph': '사건 그래프',
-    'family-tree': '가계도',
-    'world-rules': '세계관 규칙',
-    items: '아이템',
-    jobs: '직업',
-    templates: '템플릿 설정',
-    'status-viewer': '상태창 뷰어',
-    'novel-view': '소설 보기',
-    settings: '설정',
+    home: '홈', world: '세계/차원', characters: '캐릭터',
+    organizations: '조직/단체', skills: '스킬', achievements: '업적',
+    constellations: '성좌', gates: '게이트', monsters: '몬스터',
+    tower: '탑 관리', timeline: '타임라인', 'event-graph': '사건 그래프',
+    'family-tree': '가계도', 'world-rules': '세계관 규칙', items: '아이템',
+    jobs: '직업', templates: '템플릿 설정', 'status-viewer': '상태창 뷰어',
+    'novel-view': '소설 보기', settings: '설정',
   };
 
   function register(pageId, module) {
@@ -37,18 +26,20 @@ const AppRouter = (function() {
       return;
     }
 
+    if (!_navigatingBack && currentPageId && currentPageId !== pageId) {
+      _history.push({ pageId: currentPageId, options: {} });
+      if (_history.length > 50) _history.shift();
+    }
+    _navigatingBack = false;
+
     if (currentPage && currentPage.destroy) currentPage.destroy();
 
     const app = document.getElementById('app');
     app.innerHTML = '';
 
     const titleEl = document.getElementById('pageTitle');
-    if (titleEl) {
-      const title = PAGE_TITLES[pageId] || pageId;
-      titleEl.textContent = title;
-    }
+    if (titleEl) titleEl.textContent = PAGE_TITLES[pageId] || pageId;
 
-    // Update drawer active state
     document.querySelectorAll('.drawer__item').forEach(btn => {
       btn.classList.toggle('active', btn.dataset.page === pageId);
     });
@@ -60,15 +51,22 @@ const AppRouter = (function() {
     currentPage = pageMap[pageId];
     currentPage.init(app, options);
 
-    // Close drawer if open
+    const backBtn = document.getElementById('btnHeaderBack');
+    if (backBtn) backBtn.style.display = _history.length > 0 ? 'flex' : 'none';
+
     document.getElementById('appDrawer')?.classList.remove('open');
     document.getElementById('drawerOverlay')?.classList.remove('open');
     document.getElementById('btnOpenDrawer')?.setAttribute('aria-expanded', 'false');
   }
 
   function handleBack() {
-    // Simple back: go to home if not already there
-    if (currentPageId !== 'home') navigate('home');
+    if (_history.length > 0) {
+      const prev = _history.pop();
+      _navigatingBack = true;
+      navigate(prev.pageId, prev.options);
+    } else if (currentPageId !== 'home') {
+      navigate('home');
+    }
   }
 
   function getCurrentPage() { return currentPageId; }

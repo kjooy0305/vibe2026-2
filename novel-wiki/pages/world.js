@@ -96,9 +96,21 @@ window.Pages.world = {
         </div>
         <div class="form-group">
           <label class="form-label">타입</label>
-          <div style="display:flex;gap:6px;">
-            <select class="select-input" id="fWorldType" style="flex:1;">${typeOptions}</select>
-            <button type="button" class="btn btn-ghost btn-sm" id="btnEditTypes" style="font-size:11px;white-space:nowrap;">목록 편집</button>
+          <select class="select-input" id="fWorldType" style="width:100%;margin-bottom:6px;">${typeOptions}</select>
+          <div style="border:1px solid var(--color-border);border-radius:8px;overflow:hidden;">
+            <button type="button" id="btnToggleTypePanel"
+              style="width:100%;display:flex;align-items:center;justify-content:space-between;padding:7px 12px;background:var(--color-surface);border:none;cursor:pointer;font-size:11px;color:var(--color-text-muted);">
+              <span>타입 목록 관리</span><span id="typeChevron">▼</span>
+            </button>
+            <div id="typeManagePanel" style="display:none;padding:8px 10px 10px;background:var(--color-surface2);">
+              <div id="typeItemList" style="display:flex;flex-direction:column;margin-bottom:8px;"></div>
+              <div style="display:flex;gap:6px;">
+                <input class="input-field" id="fNewTypeName" placeholder="새 타입 이름..."
+                  style="flex:1;font-size:12px;padding:5px 8px;" />
+                <button type="button" class="btn btn-primary btn-sm" id="btnAddNewType"
+                  style="white-space:nowrap;">+ 추가</button>
+              </div>
+            </div>
           </div>
         </div>
         <div class="form-group">
@@ -206,21 +218,119 @@ window.Pages.world = {
         Utils.toast(`아이콘 "${val}" 추가됨`, 'success');
       });
 
-      // Edit types
-      document.getElementById('btnEditTypes')?.addEventListener('click', async () => {
-        const types = await DB.getSetting('worldTypes', null) || this.DEFAULT_TYPES;
-        const typeBody = `
-          <div>
-            <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;">각 줄에 하나씩 입력하세요</div>
-            <textarea class="textarea-field" id="fTypesList" rows="10" style="width:100%;box-sizing:border-box;font-size:13px;">${types.join('\n')}</textarea>
-          </div>`;
-        Utils.openModal('타입 목록 편집', typeBody, async () => {
-          const lines = document.getElementById('fTypesList')?.value.split('\n').map(l => l.trim()).filter(Boolean) || [];
-          if (!lines.length) { Utils.toast('타입이 없습니다', 'error'); return false; }
-          await DB.setSetting('worldTypes', lines);
-          Utils.toast('저장됨', 'success');
-          return true;
-        }, '저장');
+      // ── Inline type management ──────────────────────────────
+      let managedTypes = [...customTypes];
+
+      const updateTypeSelect = (types) => {
+        const sel = document.getElementById('fWorldType');
+        if (!sel) return;
+        const cur = sel.value;
+        sel.innerHTML = types.map(t =>
+          `<option ${cur === t || (!cur && t === (world?.type || '커스텀')) ? 'selected' : ''}>${Utils.escHtml(t)}</option>`
+        ).join('');
+      };
+
+      const renderTypeItems = (types) => {
+        const list = document.getElementById('typeItemList');
+        if (!list) return;
+        list.innerHTML = types.map((t, i) => `
+          <div class="type-manage-row" data-idx="${i}"
+            style="display:flex;align-items:center;gap:4px;padding:5px 0;border-bottom:1px solid var(--color-border)33;">
+            <span class="type-label" style="flex:1;font-size:12px;">${Utils.escHtml(t)}</span>
+            <input class="type-input input-field" value="${Utils.escHtml(t)}"
+              style="display:none;flex:1;font-size:12px;padding:3px 6px;height:28px;" />
+            <button class="btn-te btn btn-ghost btn-sm" data-action="edit" data-idx="${i}"
+              style="font-size:10px;padding:2px 6px;flex-shrink:0;">편집</button>
+            <button class="btn-te btn btn-primary btn-sm" data-action="save" data-idx="${i}"
+              style="display:none;font-size:10px;padding:2px 6px;flex-shrink:0;">✓</button>
+            <button class="btn-te btn btn-ghost btn-sm" data-action="cancel" data-idx="${i}"
+              style="display:none;font-size:10px;padding:2px 5px;flex-shrink:0;">✕</button>
+            <button class="btn-te btn btn-ghost btn-sm" data-action="del" data-idx="${i}"
+              style="font-size:10px;padding:2px 6px;color:var(--color-danger);flex-shrink:0;">삭제</button>
+          </div>`).join('');
+        attachTypeListeners(types);
+      };
+
+      const attachTypeListeners = (types) => {
+        const list = document.getElementById('typeItemList');
+        list?.querySelectorAll('.btn-te').forEach(btn => {
+          btn.addEventListener('click', async () => {
+            const idx = parseInt(btn.dataset.idx, 10);
+            const action = btn.dataset.action;
+            const row = list.querySelector(`.type-manage-row[data-idx="${idx}"]`);
+            if (!row) return;
+
+            if (action === 'edit') {
+              row.querySelector('.type-label').style.display = 'none';
+              row.querySelector('.type-input').style.display = '';
+              row.querySelector('[data-action="edit"]').style.display = 'none';
+              row.querySelector('[data-action="save"]').style.display = '';
+              row.querySelector('[data-action="cancel"]').style.display = '';
+              row.querySelector('[data-action="del"]').style.display = 'none';
+              row.querySelector('.type-input').focus();
+
+            } else if (action === 'save') {
+              const newVal = row.querySelector('.type-input')?.value.trim();
+              if (!newVal) { Utils.toast('이름을 입력하세요', 'error'); return; }
+              types[idx] = newVal;
+              managedTypes = types;
+              await DB.setSetting('worldTypes', types);
+              updateTypeSelect(types);
+              renderTypeItems(types);
+              Utils.toast('수정됨', 'success');
+
+            } else if (action === 'cancel') {
+              row.querySelector('.type-label').style.display = '';
+              row.querySelector('.type-input').style.display = 'none';
+              row.querySelector('[data-action="edit"]').style.display = '';
+              row.querySelector('[data-action="save"]').style.display = 'none';
+              row.querySelector('[data-action="cancel"]').style.display = 'none';
+              row.querySelector('[data-action="del"]').style.display = '';
+
+            } else if (action === 'del') {
+              if (types.length <= 1) { Utils.toast('최소 1개 필요', 'error'); return; }
+              types.splice(idx, 1);
+              managedTypes = types;
+              await DB.setSetting('worldTypes', types);
+              updateTypeSelect(types);
+              renderTypeItems(types);
+              Utils.toast('삭제됨', 'info');
+            }
+          });
+        });
+
+        list?.querySelectorAll('.type-input').forEach(input => {
+          input.addEventListener('keydown', e => {
+            const idx = parseInt(input.closest('.type-manage-row')?.dataset.idx, 10);
+            if (e.key === 'Enter') list.querySelector(`[data-action="save"][data-idx="${idx}"]`)?.click();
+            if (e.key === 'Escape') list.querySelector(`[data-action="cancel"][data-idx="${idx}"]`)?.click();
+          });
+        });
+      };
+
+      let typePanelOpen = false;
+      document.getElementById('btnToggleTypePanel')?.addEventListener('click', () => {
+        typePanelOpen = !typePanelOpen;
+        const panel = document.getElementById('typeManagePanel');
+        const chevron = document.getElementById('typeChevron');
+        if (panel) panel.style.display = typePanelOpen ? 'block' : 'none';
+        if (chevron) chevron.textContent = typePanelOpen ? '▲' : '▼';
+        if (typePanelOpen) renderTypeItems(managedTypes);
+      });
+
+      document.getElementById('btnAddNewType')?.addEventListener('click', async () => {
+        const val = document.getElementById('fNewTypeName')?.value.trim();
+        if (!val) return;
+        managedTypes.push(val);
+        await DB.setSetting('worldTypes', managedTypes);
+        updateTypeSelect(managedTypes);
+        renderTypeItems(managedTypes);
+        const inp = document.getElementById('fNewTypeName');
+        if (inp) inp.value = '';
+        Utils.toast(`"${val}" 추가됨`, 'success');
+      });
+      document.getElementById('fNewTypeName')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') document.getElementById('btnAddNewType')?.click();
       });
 
       // Color sync between picker and hex input

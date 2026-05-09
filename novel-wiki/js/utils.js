@@ -110,7 +110,6 @@ const Utils = (function() {
       onConfirm();
       return true;
     }, btnLabel);
-    // Focus input after modal renders
     setTimeout(() => {
       document.getElementById('confirmInputField')?.focus();
     }, 100);
@@ -135,6 +134,9 @@ const Utils = (function() {
   }
 
   function gradeBadge(grade) {
+    if (window.AppFlags && !window.AppFlags.get('gradeColors', true)) {
+      return `<span class="grade-badge" style="background:var(--color-surface2);color:var(--color-text-muted);border:1px solid var(--color-border);">${grade}</span>`;
+    }
     const color = gradeColor(grade);
     const isGradient = color.startsWith('linear');
     const style = isGradient ? `background:${color}; color:#fff;` : `background:${color}22; color:${color}; border:1px solid ${color}66;`;
@@ -201,6 +203,34 @@ const Utils = (function() {
     return out;
   }
 
-  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport };
+  // Supports space-separated AND terms and -keyword exclusion
+  function matchesQuery(text, query) {
+    if (!query || !query.trim()) return true;
+    const t = (text || '').toLowerCase();
+    return query.toLowerCase().split(/\s+/).filter(Boolean).every(term => {
+      if (term.startsWith('-') && term.length > 1) return !t.includes(term.slice(1));
+      return t.includes(term);
+    });
+  }
+
+  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery };
 })();
 window.Utils = Utils;
+
+// AppFlags — synchronous feature-flag cache backed by localStorage.
+// Settings page writes flags here; utils/pages read synchronously without async overhead.
+window.AppFlags = (function () {
+  let data = {};
+  try { data = JSON.parse(localStorage.getItem('appFlags') || '{}'); } catch (_) {}
+  return {
+    _data: data,
+    get: function (key, def) {
+      return this._data[key] !== undefined ? this._data[key] : def;
+    },
+    set: function (key, value) {
+      this._data[key] = value;
+      try { localStorage.setItem('appFlags', JSON.stringify(this._data)); } catch (_) {}
+    },
+    getAll: function () { return Object.assign({}, this._data); },
+  };
+})();

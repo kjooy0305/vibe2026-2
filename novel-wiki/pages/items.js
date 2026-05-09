@@ -5,8 +5,7 @@ window.Pages.items = {
   _container: null,
   _novelView: false,
 
-  GRADES: ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS', 'G', 'GG', 'GGG', 'EX'],
-  TYPES: ['무기', '방어구', '소비', '재료', '특수', '탑전용', '장신구', '기타'],
+  _C: null,
 
   init: async function(container, options) {
     options = options || {};
@@ -24,6 +23,7 @@ window.Pages.items = {
       return;
     }
 
+    this._C = await AppConstants.load();
     const items = await DB.getAll('items', wid);
     if (options.highlightId) this._currentId = options.highlightId;
 
@@ -55,7 +55,7 @@ window.Pages.items = {
     towers.forEach(t => { towerMap[t.id] = t.name; });
 
     const towerFilterHtml = towers.length > 0
-      ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;" id="towerFilters">
+      ? `<div style="display:none;gap:4px;flex-wrap:wrap;margin-top:6px;" id="towerFilters">
           <button class="filter-chip-tower active" data-tower="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface2);color:var(--color-text);font-size:11px;cursor:pointer;">전체 탑</button>
           ${towers.map(t => `<button class="filter-chip-tower" data-tower="${Utils.escHtml(t.id)}" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);font-size:11px;cursor:pointer;">🗼 ${Utils.escHtml(t.name)}</button>`).join('')}
         </div>`
@@ -74,11 +74,11 @@ window.Pages.items = {
         <input class="input-field" id="itemFilter" placeholder="이름, 등급, 종류, 효과 검색..." style="margin-top:8px;width:100%;box-sizing:border-box;" />
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;" id="gradeFilters">
           <button class="filter-chip active" data-grade="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-primary);color:#000;font-size:11px;cursor:pointer;">전체</button>
-          ${this.GRADES.map(g => `<button class="filter-chip" data-grade="${g}" style="padding:3px 8px;border-radius:4px;border:1px solid ${Utils.gradeColor(g)}66;background:transparent;color:${Utils.gradeColor(g)};font-size:11px;cursor:pointer;">${g}</button>`).join('')}
+          ${this._C.grades.map(g => `<button class="filter-chip" data-grade="${g}" style="padding:3px 8px;border-radius:4px;border:1px solid ${Utils.gradeColor(g)}66;background:transparent;color:${Utils.gradeColor(g)};font-size:11px;cursor:pointer;">${g}</button>`).join('')}
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;" id="typeFilters">
           <button class="filter-chip-type active" data-type="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface2);color:var(--color-text);font-size:11px;cursor:pointer;">전체 종류</button>
-          ${this.TYPES.map(t => `<button class="filter-chip-type" data-type="${t}" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);font-size:11px;cursor:pointer;">${t}</button>`).join('')}
+          ${this._C.itemTypes.map(t => `<button class="filter-chip-type" data-type="${t}" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);font-size:11px;cursor:pointer;">${t}</button>`).join('')}
         </div>
         ${towerFilterHtml}
       </div>
@@ -118,6 +118,17 @@ window.Pages.items = {
         btn.style.background = 'var(--color-surface2)';
         btn.style.color = 'var(--color-text)';
         activeType = btn.dataset.type;
+        const towerFiltersEl = document.getElementById('towerFilters');
+        if (towerFiltersEl) {
+          towerFiltersEl.style.display = activeType === '탑전용' ? 'flex' : 'none';
+          if (activeType !== '탑전용') {
+            activeTower = '';
+            container.querySelectorAll('.filter-chip-tower[data-tower]').forEach(b => {
+              b.style.background = b.dataset.tower === '' ? 'var(--color-surface2)' : 'transparent';
+              b.style.color = b.dataset.tower === '' ? 'var(--color-text)' : 'var(--color-text-muted)';
+            });
+          }
+        }
         this._applyFilter(container, document.getElementById('itemFilter')?.value || '', activeGrade, activeType, activeTower);
       });
     });
@@ -159,7 +170,7 @@ window.Pages.items = {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const it = items.find(x => x.id === btn.dataset.id);
-        Utils.confirm(`"${it?.name || '이 아이템'}" 삭제`, '삭제하시겠습니까?', async () => {
+        Utils.confirmWithInput('아이템 삭제', '삭제하면 되돌릴 수 없습니다.', it?.name || '이 아이템', async () => {
           await DB.del('items', btn.dataset.id);
           Utils.toast('삭제됨', 'info');
           this.init(container);
@@ -178,16 +189,15 @@ window.Pages.items = {
   },
 
   _applyFilter: function(container, query, grade, type, tower) {
-    const q = (query || '').toLowerCase();
     container.querySelectorAll('.item-card').forEach(card => {
-      const text = (card.dataset.searchText || '').toLowerCase();
+      const text = card.dataset.searchText || '';
       const cardGrade = card.dataset.grade || '';
       const cardType = card.dataset.type || '';
       const cardTower = card.dataset.towerId || '';
       const gradeOk = !grade || cardGrade === grade;
       const typeOk = !type || cardType === type;
       const towerOk = !tower || cardTower === tower;
-      const textOk = !q || text.includes(q);
+      const textOk = Utils.matchesQuery(text, query);
       card.style.display = gradeOk && typeOk && towerOk && textOk ? '' : 'none';
     });
   },
@@ -333,7 +343,7 @@ window.Pages.items = {
     document.getElementById('btnBackItems')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditItem')?.addEventListener('click', () => this._openForm(it, wid, container));
     document.getElementById('btnDelItemDetail')?.addEventListener('click', () => {
-      Utils.confirm(`"${it.name}" 삭제`, '삭제하시겠습니까?', async () => {
+      Utils.confirmWithInput('아이템 삭제', '삭제하면 되돌릴 수 없습니다.', it.name, async () => {
         await DB.del('items', it.id);
         Utils.toast('삭제됨', 'info');
         this._currentId = null;
@@ -411,14 +421,14 @@ window.Pages.items = {
           <div class="form-group">
             <label class="form-label">등급</label>
             <select class="select-input" id="fItGrade" style="width:100%;">
-              ${this.GRADES.map(g => `<option value="${g}" ${(it.grade || 'F') === g ? 'selected' : ''}>${g}</option>`).join('')}
+              ${this._C.grades.map(g => `<option value="${g}" ${(it.grade || 'F') === g ? 'selected' : ''}>${g}</option>`).join('')}
             </select>
           </div>
           <div class="form-group">
             <label class="form-label">종류</label>
             <select class="select-input" id="fItType" style="width:100%;">
               <option value="">선택 안 함</option>
-              ${this.TYPES.map(t => `<option value="${t}" ${(it.type || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
+              ${this._C.itemTypes.map(t => `<option value="${t}" ${(it.type || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
           </div>
         </div>
@@ -495,6 +505,7 @@ window.Pages.items = {
 
       await DB.put('items', record);
       await AppStore.updateStreak();
+      await AppStore.recordActivity('items', !isEdit);
       Utils.toast(isEdit ? '저장됨' : '추가됨', 'success');
       self._currentId = record.id;
       self._novelView = false;

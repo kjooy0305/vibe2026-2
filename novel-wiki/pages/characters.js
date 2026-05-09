@@ -2,8 +2,9 @@
 window.Pages = window.Pages || {};
 window.Pages.characters = {
   _currentId: null,
-  _view: 'list', // 'list' | 'detail'
+  _view: 'list',
   _container: null,
+  _listScrollY: 0,
 
   BASE_STATS: ['힘', '민첩', '체력'],
   HIDDEN_STATS: [
@@ -70,7 +71,12 @@ window.Pages.characters = {
           <button class="char-imp-chip active" data-imp="" style="padding:2px 8px;border-radius:4px;border:1px solid var(--color-border);font-size:11px;cursor:pointer;background:var(--color-primary);color:#000;">전체</button>
           <button class="char-imp-chip" data-imp="main" style="padding:2px 8px;border-radius:4px;border:1px solid #fbbf24;color:#fbbf24;font-size:11px;cursor:pointer;background:transparent;">★ 주요</button>
           <button class="char-imp-chip" data-imp="sub" style="padding:2px 8px;border-radius:4px;border:1px solid #94a3b8;color:#94a3b8;font-size:11px;cursor:pointer;background:transparent;">☆ 서브</button>
+          <span style="color:var(--color-border);font-size:11px;align-self:center;">|</span>
+          <button class="char-gender-chip active" data-gender="" style="padding:2px 8px;border-radius:4px;border:1px solid var(--color-border);font-size:11px;cursor:pointer;background:transparent;color:var(--color-text-muted);">성별전체</button>
+          <button class="char-gender-chip" data-gender="남" style="padding:2px 8px;border-radius:4px;border:1px solid #60a5fa;color:#60a5fa;font-size:11px;cursor:pointer;background:transparent;">남</button>
+          <button class="char-gender-chip" data-gender="여" style="padding:2px 8px;border-radius:4px;border:1px solid #f472b6;color:#f472b6;font-size:11px;cursor:pointer;background:transparent;">여</button>
         </div>
+        <div id="searchHistoryDropdown" style="display:none;position:relative;z-index:10;"></div>
       </div>
 
       <div id="charList" class="item-list">
@@ -90,9 +96,41 @@ window.Pages.characters = {
 
     const self = this;
     let activeImp = '';
+    let activeGender = '';
+
+    // ── Search history ─────────────────────────────────────────
+    const HIST_KEY = 'charSearchHistory_' + wid;
+    const getHist = () => { try { return JSON.parse(sessionStorage.getItem(HIST_KEY) || '[]'); } catch { return []; } };
+    const saveHist = (q) => {
+      if (!q.trim()) return;
+      const h = [q.trim(), ...getHist().filter(x => x !== q.trim())].slice(0, 6);
+      sessionStorage.setItem(HIST_KEY, JSON.stringify(h));
+    };
+    const showHistDropdown = () => {
+      const hist = getHist();
+      const drop = document.getElementById('searchHistoryDropdown');
+      if (!drop) return;
+      if (!hist.length) { drop.style.display = 'none'; return; }
+      drop.style.display = 'block';
+      drop.innerHTML = `
+        <div style="background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;padding:6px;margin-top:4px;">
+          <div style="font-size:10px;color:var(--color-text-dim);margin-bottom:4px;padding:0 4px;">최근 검색</div>
+          ${hist.map(h => `
+            <div class="hist-chip" style="padding:4px 8px;border-radius:4px;font-size:12px;cursor:pointer;color:var(--color-text-muted);"
+              data-hist="${Utils.escHtml(h)}">${Utils.escHtml(h)}</div>`).join('')}
+        </div>`;
+      drop.querySelectorAll('.hist-chip').forEach(chip => {
+        chip.addEventListener('mousedown', e => {
+          e.preventDefault();
+          const filterEl = document.getElementById('charFilter');
+          if (filterEl) { filterEl.value = chip.dataset.hist; filterEl.dispatchEvent(new Event('input')); }
+          drop.style.display = 'none';
+        });
+      });
+    };
 
     const applySort = () => {
-      const sort = document.getElementById('charSort')?.value || 'created';
+      const sort = document.getElementById('charSort')?.value || 'name';
       const q = (document.getElementById('charFilter')?.value || '').toLowerCase();
       const listEl = document.getElementById('charList');
       if (!listEl) return;
@@ -108,26 +146,34 @@ window.Pages.characters = {
         : sorted.map(c => self._charCard(c)).join('');
       listEl.querySelectorAll('.char-card').forEach(card => {
         const text = card.dataset.searchText || '';
-        const impOk = !activeImp || chars.find(c => c.id === card.dataset.id)?.importance === activeImp;
-        card.style.display = (text.includes(q) && impOk) ? '' : 'none';
+        const ch = chars.find(c => c.id === card.dataset.id);
+        const impOk = !activeImp || ch?.importance === activeImp;
+        const genderOk = !activeGender || ch?.gender === activeGender;
+        card.style.display = (Utils.matchesQuery(text, q) && impOk && genderOk) ? '' : 'none';
         card.addEventListener('click', e => {
           if (e.target.closest('.btn-del-char') || e.target.closest('.btn-copy-char')) return;
           const id = card.dataset.id;
+          self._listScrollY = container.scrollTop || window.scrollY || 0;
           self._currentId = id;
           DB.getAll('characters', wid).then(allChars => {
-            const ch = allChars.find(c => c.id === id);
-            if (ch) self._renderDetail(container, ch, wid);
+            const found = allChars.find(c => c.id === id);
+            if (found) self._renderDetail(container, found, wid);
           });
         });
         card.querySelector('.btn-del-char')?.addEventListener('click', e => {
           e.stopPropagation();
           const id = card.dataset.id;
           const name = card.querySelector('.char-name')?.textContent || '이 캐릭터';
-          Utils.confirm(`"${name}"을(를) 삭제하시겠습니까?`, '되돌릴 수 없습니다.', async () => {
-            await DB.del('characters', id);
-            Utils.toast('삭제됨', 'info');
-            self.init(container);
-          });
+          Utils.confirmWithInput(
+            '캐릭터 삭제',
+            `삭제하려면 캐릭터 이름을 정확히 입력하세요.\n삭제 후 되돌릴 수 없습니다.`,
+            name,
+            async () => {
+              await DB.del('characters', id);
+              Utils.toast('삭제됨', 'info');
+              self.init(container);
+            }
+          );
         });
         card.querySelector('.btn-copy-char')?.addEventListener('click', async e => {
           e.stopPropagation();
@@ -150,7 +196,17 @@ window.Pages.characters = {
       });
     };
 
-    document.getElementById('charFilter')?.addEventListener('input', applySort);
+    const filterEl = document.getElementById('charFilter');
+    filterEl?.addEventListener('input', () => { applySort(); showHistDropdown(); });
+    filterEl?.addEventListener('focus', showHistDropdown);
+    filterEl?.addEventListener('blur', () => setTimeout(() => {
+      const drop = document.getElementById('searchHistoryDropdown');
+      if (drop) drop.style.display = 'none';
+    }, 200));
+    filterEl?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') { saveHist(filterEl.value); showHistDropdown(); }
+    });
+
     document.getElementById('charSort')?.addEventListener('change', applySort);
 
     container.querySelectorAll('.char-imp-chip').forEach(btn => {
@@ -158,6 +214,7 @@ window.Pages.characters = {
         container.querySelectorAll('.char-imp-chip').forEach(b => {
           b.classList.remove('active');
           b.style.background = 'transparent';
+          b.style.color = b.dataset.imp === 'main' ? '#fbbf24' : b.dataset.imp === 'sub' ? '#94a3b8' : 'var(--color-text-muted)';
         });
         btn.classList.add('active');
         btn.style.background = btn.dataset.imp === 'main' ? '#fbbf24' : btn.dataset.imp === 'sub' ? '#94a3b8' : 'var(--color-primary)';
@@ -167,6 +224,22 @@ window.Pages.characters = {
       });
     });
 
+    container.querySelectorAll('.char-gender-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.char-gender-chip').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+        });
+        btn.classList.add('active');
+        btn.style.background = btn.dataset.gender === '남' ? '#60a5fa' : btn.dataset.gender === '여' ? '#f472b6' : 'var(--color-primary)';
+        btn.style.color = '#000';
+        activeGender = btn.dataset.gender;
+        applySort();
+      });
+    });
+
+    // Default sort: alphabetical by name
+    document.getElementById('charSort').value = 'name';
     applySort();
   },
 
@@ -231,19 +304,37 @@ window.Pages.characters = {
         </div>`;
     }).join('');
 
-    const skillsList = (char.skills || []).map(sk => {
+    const skillRow = (sk) => {
       const name = sk.name || sk;
       const grade = sk.grade ? `(${sk.grade})` : '';
       const locked = sk.locked ? ' <span style="color:var(--color-text-dim);">???</span>' : '';
       return `<div class="status-row" style="padding:2px 0;font-size:13px;">ㄴ${Utils.escHtml(name)} ${grade}${locked}</div>`;
-    }).join('');
+    };
+    const allSkillsList = char.skills || [];
+    const activeSkills = allSkillsList.filter(sk => (sk.type || '').includes('액티브'));
+    const passiveSkills = allSkillsList.filter(sk => (sk.type || '').includes('패시브'));
+    const otherSkills = allSkillsList.filter(sk => !(sk.type || '').includes('액티브') && !(sk.type || '').includes('패시브'));
+    const skillsList = (activeSkills.length || passiveSkills.length || otherSkills.length)
+      ? [
+          activeSkills.length ? `<div class="status-row" style="font-size:12px;color:rgba(100,180,255,0.7);padding-top:2px;">[액티브]</div>${activeSkills.map(skillRow).join('')}` : '',
+          passiveSkills.length ? `<div class="status-row" style="font-size:12px;color:rgba(150,255,180,0.7);padding-top:2px;">[패시브]</div>${passiveSkills.map(skillRow).join('')}` : '',
+          otherSkills.length ? otherSkills.map(skillRow).join('') : '',
+        ].filter(Boolean).join('')
+      : '';
 
     const achieveList = (char.achievements || []).map(a =>
       `<div class="status-row" style="padding:2px 0;font-size:13px;">ㄴ${Utils.escHtml(a.name || a)}</div>`
     ).join('');
 
+    const customStatRows = (char.customStats || []).map(cs =>
+      `<div style="display:flex;justify-content:space-between;padding:2px 0;gap:8px;">
+        <span style="color:var(--color-text-muted);">ㄴ${Utils.escHtml(cs.name||'')}</span>
+        <span style="font-weight:600;white-space:nowrap;">${Utils.escHtml(String(cs.value||''))}${cs.desc ? ` <span style="font-size:11px;font-weight:400;color:rgba(150,170,200,0.7);">(${Utils.escHtml(cs.desc)})</span>` : ''}</span>
+      </div>`
+    ).join('');
+
     container.innerHTML = `
-    <div class="page active">
+    <div class="page active" style="overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;">
       <div class="page-header">
         <div style="display:flex;align-items:center;gap:12px;">
           <button class="btn btn-ghost btn-sm" id="btnBackChars">← 목록</button>
@@ -297,6 +388,10 @@ window.Pages.characters = {
           <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
           <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[히든 스텟]</div>
           ${hiddenStatRows}` : ''}
+        ${customStatRows ? `
+          <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
+          <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[커스텀 스텟]</div>
+          ${customStatRows}` : ''}
         <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
         <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[스킬]</div>
         ${skillsList || '<div class="status-row" style="color:rgba(150,170,200,0.6);">ㄴ(없음)</div>'}
@@ -315,6 +410,7 @@ window.Pages.characters = {
         ${linkedConstellations.length > 0 ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[성좌 계약]</div>${linkedConstellations.map(c => `<div>ㄴ${Utils.escHtml(c.name || '')} (${(c.contractors||[]).includes(char.id)?'계약':'가계약'})</div>`).join('')}` : ''}
         <div style="margin-top:8px;color:#aaccff;">ㅣ[스텟]</div>
         ${baseStatRows}
+        ${customStatRows ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[커스텀 스텟]</div>${customStatRows}` : ''}
         ${skillsList ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[스킬]</div>${skillsList}` : ''}
         <div style="text-align:center;font-size:12px;color:rgba(120,160,255,0.6);letter-spacing:4px;margin-top:12px;">${'ㅡ'.repeat(14)}</div>
       </div>
@@ -355,7 +451,25 @@ window.Pages.characters = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackChars')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
+    document.getElementById('btnBackChars')?.addEventListener('click', async () => {
+      // If navigated here from another page (e.g. org member link), go back there
+      const refRaw = sessionStorage.getItem('orgReferrer');
+      if (refRaw) {
+        sessionStorage.removeItem('orgReferrer');
+        try {
+          const ref = JSON.parse(refRaw);
+          AppRouter.navigate(ref.page, { highlightId: ref.id });
+          return;
+        } catch {}
+      }
+      const scrollY = this._listScrollY || 0;
+      this._currentId = null;
+      await this.init(container);
+      requestAnimationFrame(() => {
+        container.scrollTop = scrollY;
+        if (scrollY > 0) window.scrollTo(0, scrollY);
+      });
+    });
     document.getElementById('btnEditChar')?.addEventListener('click', () => this._openForm(char, wid, container));
 
     document.getElementById('btnCopyCharText')?.addEventListener('click', () => {
@@ -394,7 +508,7 @@ window.Pages.characters = {
         const selected = [...document.querySelectorAll('input[data-skid]:checked')]
           .map(cb => {
             const sk = allSkills.find(s => s.id === cb.dataset.skid);
-            return sk ? { id: sk.id, name: sk.name, grade: sk.grade || '' } : null;
+            return sk ? { id: sk.id, name: sk.name, grade: sk.grade || '', type: sk.type || '' } : null;
           }).filter(Boolean);
         char.skills = selected;
         char.updatedAt = Date.now();
@@ -429,6 +543,12 @@ window.Pages.characters = {
         group.stats.forEach(s => { if (stats[s] !== undefined) text += `ㄴ${s}:${stats[s]}\n`; });
       });
     }
+    if ((char.customStats || []).length > 0) {
+      text += `ㅣ[커스텀 스텟]\n`;
+      char.customStats.forEach(cs => {
+        text += `ㄴ${cs.name}:${cs.value}${cs.desc ? ` (${cs.desc})` : ''}\n`;
+      });
+    }
     text += `ㅣ[스킬]\n`;
     (char.skills || []).forEach(sk => { text += `ㄴ${sk.name || sk}${sk.grade ? `(${sk.grade})` : ''}\n`; });
     text += 'ㅡ'.repeat(16);
@@ -455,9 +575,19 @@ window.Pages.characters = {
     ]);
   },
 
-  _openForm: function(char, wid, container) {
+  _openForm: async function(char, wid, container) {
     const isEdit = !!char;
     const stats = char?.stats || {};
+
+    // Load constellations for linking
+    const allConsts = await DB.getAll('constellations', wid);
+    const sortedConsts = allConsts.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+    let contractorConstIds = new Set(
+      allConsts.filter(c => (c.contractors||[]).includes(char?.id||'')).map(c => c.id)
+    );
+    let provisionalConstIds = new Set(
+      allConsts.filter(c => (c.provisionalContractors||[]).includes(char?.id||'')).map(c => c.id)
+    );
 
     const statInputs = (statList) => statList.map(s => `
       <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -550,10 +680,68 @@ window.Pages.characters = {
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">기본 스텟</label>
           ${statInputs(this.BASE_STATS)}
         </div>
+        <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">커스텀 스텟</label>
+            <button type="button" id="btnAddCustomStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+          </div>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:8px;">스텟명·수치·보조설명 자유 입력</div>
+          <div style="display:grid;grid-template-columns:auto 1fr 1fr auto;gap:4px;margin-bottom:4px;padding:0 2px;">
+            <span></span>
+            <span style="font-size:10px;color:var(--color-text-dim);">스텟명</span>
+            <span style="font-size:10px;color:var(--color-text-dim);">수치</span>
+            <span></span>
+          </div>
+          <div id="customStatRows">
+            ${(char?.customStats || []).map((cs, i) => `
+              <div class="cs-row" style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:4px;margin-bottom:6px;align-items:center;">
+                <input class="input-field cs-name" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+                <input class="input-field cs-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
+                <input class="input-field cs-desc" value="${Utils.escHtml(cs.desc||'')}" placeholder="보조 설명(선택)" style="font-size:12px;padding:5px 8px;" />
+                <button type="button" class="btn-del-cs" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
+              </div>`).join('')}
+          </div>
+        </div>
         <details style="border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0;list-style:none;">히든 스텟 (클릭하여 펼치기)</summary>
+          <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0;list-style:none;">세부 히든 스텟 (클릭하여 펼치기)</summary>
           <div style="margin-top:12px;">${hiddenStatInputs}</div>
         </details>
+        ${sortedConsts.length > 0 ? `
+        <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">성좌 계약</label>
+          <div style="margin-bottom:12px;">
+            <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:5px;">계약자</div>
+            <div id="contractorConstChips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:5px;">
+              ${[...contractorConstIds].map(cid => {
+                const c = allConsts.find(x => x.id === cid);
+                if (!c) return '';
+                return `<span class="const-chip contractor" data-cid="${Utils.escHtml(cid)}"
+                  style="display:inline-flex;align-items:center;gap:4px;background:rgba(100,80,200,0.2);border:1px solid rgba(100,80,200,0.5);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+                  title="클릭하여 제거">${Utils.escHtml(c.name||'')} ✕</span>`;
+              }).join('')}
+            </div>
+            <div style="position:relative;">
+              <input class="input-field" id="contractorConstSearch" placeholder="성좌 이름 검색..." style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="contractorConstResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:150px;overflow-y:auto;"></div>
+            </div>
+          </div>
+          <div>
+            <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:5px;">가계약자</div>
+            <div id="provisionalConstChips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:5px;">
+              ${[...provisionalConstIds].map(cid => {
+                const c = allConsts.find(x => x.id === cid);
+                if (!c) return '';
+                return `<span class="const-chip provisional" data-cid="${Utils.escHtml(cid)}"
+                  style="display:inline-flex;align-items:center;gap:4px;background:rgba(80,160,200,0.2);border:1px solid rgba(80,160,200,0.5);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+                  title="클릭하여 제거">${Utils.escHtml(c.name||'')} ✕</span>`;
+              }).join('')}
+            </div>
+            <div style="position:relative;">
+              <input class="input-field" id="provisionalConstSearch" placeholder="성좌 이름 검색..." style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="provisionalConstResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:150px;overflow-y:auto;"></div>
+            </div>
+          </div>
+        </div>` : ''}
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">작가 메모 (작가 뷰에만 표시)</label>
           <textarea class="textarea-field" id="fCharAuthorNotes" rows="3"
@@ -577,6 +765,15 @@ window.Pages.characters = {
       const cycleVal = document.getElementById('fCharCycle')?.value;
       const ageVal = document.getElementById('fCharAge')?.value;
 
+      // Collect custom stats
+      const customStats = [];
+      document.querySelectorAll('#globalModalBody .cs-row').forEach(row => {
+        const name2 = row.querySelector('.cs-name')?.value.trim();
+        const value = row.querySelector('.cs-value')?.value.trim();
+        const desc = row.querySelector('.cs-desc')?.value.trim() || '';
+        if (name2) customStats.push({ name: name2, value: value || '', desc });
+      });
+
       const item = {
         ...(char || {}),
         worldId: wid,
@@ -592,6 +789,7 @@ window.Pages.characters = {
         importance: document.getElementById('fCharImportance')?.value || '',
         cycle: cycleVal !== '' && cycleVal !== null && cycleVal !== undefined ? Number(cycleVal) : null,
         stats: newStats,
+        customStats,
         authorNotes: document.getElementById('fCharAuthorNotes')?.value.trim() || '',
         image: newImage,
         skills: char?.skills || [],
@@ -603,16 +801,41 @@ window.Pages.characters = {
       };
 
       await DB.put('characters', item);
+
+      // Sync constellation contractor/provisional links
+      if (sortedConsts.length > 0) {
+        const allConstsNow = await DB.getAll('constellations', wid);
+        for (const c of allConstsNow) {
+          const wasContractor = (c.contractors||[]).includes(item.id);
+          const wasProvisional = (c.provisionalContractors||[]).includes(item.id);
+          const isNowContractor = contractorConstIds.has(c.id);
+          const isNowProvisional = provisionalConstIds.has(c.id);
+          if (wasContractor !== isNowContractor || wasProvisional !== isNowProvisional) {
+            await DB.put('constellations', {
+              ...c,
+              contractors: isNowContractor
+                ? [...new Set([...(c.contractors||[]), item.id])]
+                : (c.contractors||[]).filter(id => id !== item.id),
+              provisionalContractors: isNowProvisional
+                ? [...new Set([...(c.provisionalContractors||[]), item.id])]
+                : (c.provisionalContractors||[]).filter(id => id !== item.id),
+              updatedAt: Date.now(),
+            });
+          }
+        }
+      }
+
       Utils.toast(isEdit ? '저장됨' : '추가됨', 'success');
       this._currentId = item.id;
       await AppStore.updateStreak();
+      await AppStore.recordActivity('characters', !isEdit);
       const chars = await DB.getAll('characters', wid);
       const updated = chars.find(c => c.id === item.id);
       if (updated) this._renderDetail(container, updated, wid);
       return true;
     }, isEdit ? '저장' : '추가');
 
-    // Image upload handler (after modal renders)
+    // Image upload + custom stat editor
     setTimeout(() => {
       document.getElementById('charImageFile')?.addEventListener('change', async e => {
         const file = e.target.files[0];
@@ -621,6 +844,87 @@ window.Pages.characters = {
         const preview = document.getElementById('charImgPreview');
         if (preview) preview.innerHTML = `<img src="${newImage}" style="max-width:120px;border-radius:8px;margin-bottom:6px;" />`;
       });
+
+      const addCSRow = (name, value, desc) => {
+        const rows = document.getElementById('customStatRows');
+        if (!rows) return;
+        const div = document.createElement('div');
+        div.className = 'cs-row';
+        div.style.cssText = 'display:grid;grid-template-columns:1fr 80px 1fr auto;gap:4px;margin-bottom:6px;align-items:center;';
+        div.innerHTML = `
+          <input class="input-field cs-name" value="${Utils.escHtml(name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+          <input class="input-field cs-value" value="${Utils.escHtml(String(value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
+          <input class="input-field cs-desc" value="${Utils.escHtml(desc||'')}" placeholder="보조 설명(선택)" style="font-size:12px;padding:5px 8px;" />
+          <button type="button" class="btn-del-cs" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>`;
+        rows.appendChild(div);
+      };
+
+      document.getElementById('btnAddCustomStat')?.addEventListener('click', () => addCSRow('', '', ''));
+
+      document.getElementById('customStatRows')?.addEventListener('click', e => {
+        if (e.target.closest('.btn-del-cs')) {
+          e.target.closest('.cs-row')?.remove();
+        }
+      });
+
+      // ── Constellation linking chip UI ──────────────────────────
+      const wireConstSearch = (inputId, resultsId, chipsId, idSet, chipColor) => {
+        const input = document.getElementById(inputId);
+        const results = document.getElementById(resultsId);
+        const chipsEl = document.getElementById(chipsId);
+        if (!input || !results || !chipsEl) return;
+
+        const renderChips = () => {
+          chipsEl.innerHTML = [...idSet].map(cid => {
+            const c = sortedConsts.find(x => x.id === cid);
+            if (!c) return '';
+            return `<span class="const-chip" data-cid="${Utils.escHtml(cid)}"
+              style="display:inline-flex;align-items:center;gap:4px;background:${chipColor.bg};border:1px solid ${chipColor.border};padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+              title="클릭하여 제거">${Utils.escHtml(c.name||'')} ✕</span>`;
+          }).filter(Boolean).join('');
+          chipsEl.querySelectorAll('.const-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+              idSet.delete(chip.dataset.cid);
+              renderChips();
+            });
+          });
+        };
+        renderChips();
+
+        input.addEventListener('input', () => {
+          const q = input.value.trim().toLowerCase();
+          if (!q) { results.style.display = 'none'; return; }
+          const matches = sortedConsts.filter(c => !idSet.has(c.id) && (c.name||'').toLowerCase().includes(q)).slice(0, 10);
+          if (!matches.length) { results.style.display = 'none'; return; }
+          results.style.display = 'block';
+          results.innerHTML = matches.map(c => `
+            <div class="const-result-row" data-cid="${Utils.escHtml(c.id)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">
+              ${Utils.escHtml(c.name||'')}${c.series ? `<span style="font-size:11px;color:var(--color-text-dim);margin-left:6px;">${Utils.escHtml(c.series)}</span>` : ''}
+            </div>`).join('');
+          results.querySelectorAll('.const-result-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              idSet.add(row.dataset.cid);
+              input.value = '';
+              results.style.display = 'none';
+              renderChips();
+            });
+          });
+        });
+        input.addEventListener('blur', () => setTimeout(() => { results.style.display = 'none'; }, 150));
+      };
+
+      wireConstSearch(
+        'contractorConstSearch', 'contractorConstResults', 'contractorConstChips',
+        contractorConstIds,
+        { bg: 'rgba(100,80,200,0.2)', border: 'rgba(100,80,200,0.5)' }
+      );
+      wireConstSearch(
+        'provisionalConstSearch', 'provisionalConstResults', 'provisionalConstChips',
+        provisionalConstIds,
+        { bg: 'rgba(80,160,200,0.2)', border: 'rgba(80,160,200,0.5)' }
+      );
     }, 50);
   },
 

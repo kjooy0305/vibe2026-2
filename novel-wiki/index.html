@@ -48,6 +48,12 @@
   <!-- ── TOP HEADER ── -->
   <header class="top-header" id="topHeader" role="banner">
     <div class="top-header__left">
+      <!-- Back button (hidden until navigation history exists) -->
+      <button class="icon-btn" id="btnHeaderBack" aria-label="이전 페이지" style="display:none;" onclick="AppRouter.handleBack()">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M19 12H5M12 5l-7 7 7 7"/>
+        </svg>
+      </button>
       <!-- Hamburger menu -->
       <button class="icon-btn" id="btnOpenDrawer" aria-label="메뉴 열기" aria-expanded="false" aria-controls="appDrawer">
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
@@ -539,6 +545,7 @@
 <script src="js/db.js"></script>
 <script src="js/store.js"></script>
 <script src="js/utils.js"></script>
+<script src="js/constants.js"></script>
 
 <!-- Search engine -->
 <script src="js/search.js"></script>

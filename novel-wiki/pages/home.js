@@ -2,6 +2,7 @@
 window.Pages = window.Pages || {};
 window.Pages.home = {
   _unsub: null,
+  _missionTimer: null,
 
   QUOTES: [
     '모든 위대한 이야기는 첫 줄 한 줄에서 시작됩니다.',
@@ -36,141 +37,235 @@ window.Pages.home = {
     '연속 기록이 당신을 작가로 만듭니다.',
   ],
 
-  DEFAULT_PROMPTS: [
-    '오늘 새로운 캐릭터의 과거를 한 줄 작성해보세요!',
-    '아직 이름 없는 스킬을 완성해보세요.',
-    '세계관 규칙을 한 줄 더 추가해보세요.',
-    '성좌의 약점을 설정해보세요.',
-    '게이트 히든 클리어 조건을 생각해보세요.',
-    '탑의 다음 층 설정을 작성해보세요.',
-    '오늘 사건 하나를 그래프에 추가해보세요.',
-    '캐릭터의 숨겨진 스텟을 채워보세요.',
-    '조직의 비밀을 설정해보세요.',
-    '아이템에 이미지를 추가해보세요.',
-    '주인공의 회귀 전 기억을 한 장면 써보세요.',
-    '빌런의 동기를 더 구체적으로 만들어보세요.',
-    '두 캐릭터 사이의 관계를 가계도에 추가해보세요.',
-    '오늘 소설 100자 이상 작성해보세요.',
-    '업적 하나를 완성된 형태로 만들어보세요.',
-  ],
+  _fmtCountdown: function(ms) {
+    if (ms <= 0) return '곧 초기화';
+    const h = Math.floor(ms / 3600000);
+    const m = Math.floor((ms % 3600000) / 60000);
+    if (h > 0) return `${h}시간 ${m}분 후 초기화`;
+    return `${m}분 후 초기화`;
+  },
 
   init: async function(container) {
     const state = AppStore.getState();
     const worlds = state.worlds;
-
     const wid = AppStore.getCurrentWorldId();
-    const [chars, skills, items, events, monsters, orgs, constellations, gates] = await Promise.all([
+
+    const [chars, skills, items, events, monsters, orgs, constellations, gates,
+           streak, ta, missionState] = await Promise.all([
       DB.getAll('characters', wid), DB.getAll('skills', wid),
       DB.getAll('items', wid), DB.getAll('events', wid),
       DB.getAll('monsters', wid), DB.getAll('organizations', wid),
       DB.getAll('constellations', wid), DB.getAll('gates', wid),
+      DB.get('streak', 'main').then(s => s || { id: 'main', count: 0, lastDate: null, history: [], totalCleared: 0, longestStreak: 0, shields: 0, points: 0 }),
+      AppStore.getTodayActivity(),
+      AppStore.getMissionState(),
     ]);
 
-    const streak = state.streak || { count: 0 };
     const today = new Date();
     const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${['일','월','화','수','목','금','토'][today.getDay()]}요일)`;
 
-    // Get quote of the day
     const quoteIdx = Math.floor(Date.now() / 86400000) % this.QUOTES.length;
-    const quote = this.QUOTES[quoteIdx];
 
-    // Get prompts (user-customizable)
-    const customPrompts = await DB.getSetting('customPrompts', null);
-    const prompts = (customPrompts && customPrompts.length > 0) ? customPrompts : this.DEFAULT_PROMPTS;
-    const promptIdx = today.getDate() % prompts.length;
-    const prompt = prompts[promptIdx];
+    // Quest
+    const quest = AppStore.getTodayQuest();
+    const questDone = ta.questDone === true;
+    const textIdx = AppStore.getTodayTextIdx(questDone ? quest.cleared : quest.texts);
+    const questMainText = questDone ? quest.cleared[textIdx] : quest.texts[textIdx];
+    const questSubText = questDone
+      ? `+50⭐ 획득! 내일의 과제도 기다리겠습니다 🌙`
+      : quest.hint;
 
-    const currentWorld = AppStore.getState().currentWorld;
-    const worldName = currentWorld ? Utils.escHtml(currentWorld.name) : '세계 없음';
+    // Streak history → last 7 days chart
+    const history = streak.history || [];
+    const last7 = [];
+    for (let i = 6; i >= 0; i--) {
+      const d = new Date();
+      d.setDate(d.getDate() - i);
+      const iso = d.toISOString().slice(0, 10);
+      const entry = history.find(h => h.d === iso);
+      last7.push({
+        iso, dayLabel: ['일','월','화','수','목','금','토'][d.getDay()],
+        active: !!entry,
+        cleared: entry && entry.c === 1,
+      });
+    }
+
+    // Cumulative stats
+    const now = Date.now();
+    const clearedHist = history.filter(h => h.c === 1);
+    const weekCleared  = clearedHist.filter(h => (now - new Date(h.d).getTime()) <= 7  * 86400000).length;
+    const monthCleared = clearedHist.filter(h => (now - new Date(h.d).getTime()) <= 30 * 86400000).length;
+    const yearCleared  = clearedHist.filter(h => (now - new Date(h.d).getTime()) <= 365* 86400000).length;
+    const totalCleared = streak.totalCleared || clearedHist.length;
+
+    // Missions
+    const missionsWithDef = missionState.missions.map(m => ({
+      m,
+      def: AppStore.MISSION_POOL.find(mp => mp.id === m.id),
+    })).filter(x => x.def);
+
+    const msRemaining = Math.max(0, missionState.resetAt - Date.now());
+
+    // Streak reminder message pool
+    const streakCount = streak.count || 0;
+    const reminders = streakCount >= 30
+      ? [`🔥 ${streakCount}일 연속! 전설의 작가에 가까워지고 있습니다!`]
+      : streakCount >= 7
+      ? [`🔥 ${streakCount}일 연속! 이 흐름을 유지하세요!`, `📖 ${streakCount}일째 이야기를 써내려가고 있습니다!`]
+      : ['✍️ 글을 쓰지 않은 날은 작가가 되지 않은 날입니다.', '🌱 오늘 한 걸음이 내일의 세계를 만듭니다.'];
+    const reminderMsg = reminders[Math.floor(Date.now() / 3600000) % reminders.length];
+    const todayKey = today.toISOString().slice(0, 10);
+    const showReminder = streak.lastDate !== today.toDateString();
+
+    const currentWorld = state.currentWorld;
 
     container.innerHTML = `
     <div class="page active" id="page-home">
       <div class="page-header" style="padding-bottom:12px;">
+
         <!-- Quote banner -->
         <div style="background:linear-gradient(135deg,rgba(0,188,212,0.12),rgba(124,58,237,0.12));border:1px solid rgba(0,188,212,0.25);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
           <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:4px;letter-spacing:0.5px;">✦ 오늘의 명언</div>
-          <div style="font-size:14px;font-weight:600;color:var(--color-text);line-height:1.6;font-style:italic;">"${Utils.escHtml(quote)}"</div>
+          <div style="font-size:14px;font-weight:600;color:var(--color-text);line-height:1.6;font-style:italic;">"${Utils.escHtml(this.QUOTES[quoteIdx])}"</div>
         </div>
 
-        <!-- Date + streak -->
-        <div style="display:flex;align-items:center;justify-content:space-between;gap:12px;">
-          <div>
-            <p class="page-desc" style="font-size:12px;color:var(--color-text-muted);">${dateStr}</p>
-          </div>
-          <div class="streak-badge" title="${streak.count}일 연속"
-            style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 14px;background:var(--color-surface2);border-radius:12px;border:1px solid ${streak.count > 0 ? 'rgba(249,115,22,0.4)' : 'var(--color-border)'};">
-            <span style="font-size:20px;">🔥</span>
-            <span style="font-size:18px;font-weight:700;color:${streak.count > 0 ? '#f97316' : 'var(--color-text-muted)'};">${streak.count}</span>
-            <span style="font-size:10px;color:var(--color-text-muted);">일 연속</span>
-          </div>
-        </div>
+        <!-- Date -->
+        <p class="page-desc" style="font-size:12px;color:var(--color-text-muted);margin-bottom:10px;">${dateStr}</p>
 
         <!-- World selector -->
-        <div class="world-selector-bar" style="margin-top:10px;">
-          <div style="display:flex;gap:8px;align-items:center;">
-            <select id="worldSelect" class="select-input" style="flex:1;">
-              ${worlds.length === 0
-                ? '<option value="">세계 없음 — 세계/차원에서 추가하세요</option>'
-                : worlds.map(w =>
-                    `<option value="${Utils.escHtml(w.id)}" ${w.id === wid ? 'selected' : ''}>${Utils.escHtml(w.icon || '🌍')} ${Utils.escHtml(w.name)}</option>`
-                  ).join('')}
-            </select>
-            <button class="btn btn-ghost btn-sm" onclick="AppRouter.navigate('world')" style="white-space:nowrap;">+ 관리</button>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:14px;">
+          <select id="worldSelect" class="select-input" style="flex:1;">
+            ${worlds.length === 0
+              ? '<option value="">세계 없음 — 세계/차원에서 추가하세요</option>'
+              : worlds.map(w =>
+                  `<option value="${Utils.escHtml(w.id)}" ${w.id === wid ? 'selected' : ''}>${Utils.escHtml(w.icon || '🌍')} ${Utils.escHtml(w.name)}</option>`
+                ).join('')}
+          </select>
+          <button class="btn btn-ghost btn-sm" onclick="AppRouter.navigate('world')" style="white-space:nowrap;">+ 관리</button>
+        </div>
+      </div>
+
+      <!-- ── 연속 기록 ── -->
+      <div style="background:var(--color-surface2);border-radius:12px;padding:14px 16px;margin-bottom:14px;border:1px solid ${streakCount > 0 ? 'rgba(249,115,22,0.3)' : 'var(--color-border)'};">
+        <div style="display:grid;grid-template-columns:1fr auto;gap:12px;align-items:center;">
+          <div>
+            <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px;flex-wrap:wrap;">
+              <span style="font-size:26px;">🔥</span>
+              <div>
+                <div style="font-size:22px;font-weight:800;color:#f97316;line-height:1;">${streakCount}<span style="font-size:13px;font-weight:600;margin-left:3px;">일 연속</span></div>
+                <div style="font-size:10px;color:var(--color-text-muted);">최고 ${streak.longestStreak || streakCount}일</div>
+              </div>
+              ${(streak.shields || 0) > 0 ? `<div style="display:flex;align-items:center;gap:3px;padding:3px 8px;background:rgba(59,130,246,0.15);border-radius:6px;border:1px solid rgba(59,130,246,0.3);flex-shrink:0;">
+                <span style="font-size:14px;">🛡️</span><span style="font-size:12px;font-weight:700;color:#60a5fa;">${streak.shields}</span>
+              </div>` : ''}
+              <div style="display:flex;align-items:center;gap:3px;padding:3px 8px;background:rgba(251,191,36,0.12);border-radius:6px;border:1px solid rgba(251,191,36,0.3);flex-shrink:0;">
+                <span style="font-size:12px;">⭐</span><span style="font-size:12px;font-weight:700;color:#fbbf24;">${streak.points || 0}</span>
+              </div>
+            </div>
+            <div style="display:flex;gap:12px;flex-wrap:wrap;">
+              <div style="font-size:11px;color:var(--color-text-muted);">총 <strong style="color:var(--color-text);">${totalCleared}</strong>회</div>
+              <div style="font-size:11px;color:var(--color-text-muted);">이번주 <strong style="color:var(--color-text);">${weekCleared}</strong></div>
+              <div style="font-size:11px;color:var(--color-text-muted);">이번달 <strong style="color:var(--color-text);">${monthCleared}</strong></div>
+              <div style="font-size:11px;color:var(--color-text-muted);">올해 <strong style="color:var(--color-text);">${yearCleared}</strong></div>
+            </div>
+          </div>
+
+          <!-- 7-day bar chart -->
+          <div style="min-width:116px;">
+            <div style="font-size:9px;color:var(--color-text-dim);margin-bottom:4px;text-align:center;">최근 7일</div>
+            <div style="display:flex;gap:3px;align-items:flex-end;height:36px;">
+              ${last7.map(d => `
+                <div title="${d.iso}" style="width:14px;min-height:4px;border-radius:2px 2px 0 0;
+                  background:${d.cleared ? '#f97316' : d.active ? 'rgba(249,115,22,0.3)' : 'rgba(255,255,255,0.07)'};
+                  height:${d.cleared ? '100%' : d.active ? '55%' : '18%'};"></div>
+              `).join('')}
+            </div>
+            <div style="display:flex;gap:3px;margin-top:3px;">
+              ${last7.map(d => `<div style="width:14px;text-align:center;font-size:8px;color:var(--color-text-dim);">${d.dayLabel}</div>`).join('')}
+            </div>
           </div>
         </div>
       </div>
 
-      <!-- Streak reminder -->
-      <div id="streakNotif" style="display:none;background:linear-gradient(135deg,rgba(249,115,22,0.15),rgba(239,68,68,0.15));border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:12px 16px;margin-bottom:14px;">
-        <div style="font-weight:700;font-size:13px;color:#f97316;">🔥 오늘 아직 작성하지 않으셨습니다!</div>
-        <div style="font-size:12px;color:var(--color-text-muted);margin-top:3px;">소설 작성 또는 항목 편집 시 연속 기록이 갱신됩니다.</div>
-      </div>
-
-      <!-- Daily prompt -->
-      <div style="background:var(--color-surface2);border-left:3px solid var(--color-primary);border-radius:8px;padding:12px 16px;margin-bottom:14px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">📝 오늘의 작성 과제</div>
-          <button class="btn btn-ghost btn-sm" id="btnEditPrompts" style="font-size:10px;padding:2px 6px;">편집</button>
+      <!-- ── 오늘의 과제 ── -->
+      <div style="background:var(--color-surface2);border-left:3px solid ${questDone ? '#10b981' : 'var(--color-primary)'};border-radius:8px;padding:12px 16px;margin-bottom:14px;transition:border-color 0.3s;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">📝 오늘의 과제</div>
+          ${questDone
+            ? '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:#10b98122;color:#10b981;border:1px solid #10b98144;font-weight:700;">✓ 완료!</span>'
+            : ''}
         </div>
-        <div style="font-weight:600;color:var(--color-text);font-size:13px;">${Utils.escHtml(prompt)}</div>
-        <div style="font-size:11px;color:var(--color-text-dim);margin-top:4px;">매일 아이디어를 조금씩 채워나가세요</div>
+        <div style="font-weight:600;color:${questDone ? '#10b981' : 'var(--color-text)'};font-size:13px;line-height:1.5;">${Utils.escHtml(questMainText)}</div>
+        <div style="font-size:11px;color:var(--color-text-dim);margin-top:5px;">${Utils.escHtml(questSubText)}</div>
       </div>
 
-      <!-- Stats -->
+      <!-- ── 연속 기록 리마인더 ── -->
+      ${showReminder ? `
+      <div style="background:linear-gradient(135deg,rgba(249,115,22,0.12),rgba(239,68,68,0.12));border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;">
+        <div style="font-size:13px;font-weight:600;color:#f97316;">${Utils.escHtml(reminderMsg)}</div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-top:3px;">오늘의 과제를 클리어하면 기록이 갱신됩니다.</div>
+      </div>` : ''}
+
+      <!-- ── 도전 미션 ── -->
+      <div style="background:var(--color-surface2);border-radius:12px;padding:14px 16px;margin-bottom:14px;border:1px solid var(--color-border);">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;">
+          <div style="font-size:12px;font-weight:700;">⚡ 도전 미션</div>
+          <div style="font-size:10px;color:var(--color-text-dim);">${this._fmtCountdown(msRemaining)}</div>
+        </div>
+
+        ${missionsWithDef.map(({ m, def }) => `
+          <div style="display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--color-border);">
+            <div style="width:22px;height:22px;border-radius:50%;flex-shrink:0;
+              background:${m.done ? '#10b981' : 'var(--color-surface3)'};
+              border:2px solid ${m.done ? '#10b981' : 'var(--color-border)'};
+              display:flex;align-items:center;justify-content:center;font-size:12px;color:#fff;">
+              ${m.done ? '✓' : ''}
+            </div>
+            <div style="flex:1;min-width:0;">
+              <div style="font-size:12px;${m.done ? 'text-decoration:line-through;color:var(--color-text-muted);' : ''}">${Utils.escHtml(def.text)}</div>
+              ${!m.done && def.target > 1 ? `
+                <div style="height:3px;background:var(--color-surface3);border-radius:2px;margin-top:5px;overflow:hidden;">
+                  <div style="width:${Math.min(100, ((m.progress || 0) / def.target) * 100)}%;height:100%;background:var(--color-primary);border-radius:2px;transition:width 0.3s;"></div>
+                </div>
+                <div style="font-size:10px;color:var(--color-text-dim);margin-top:2px;">${m.progress || 0} / ${def.target}</div>
+              ` : ''}
+            </div>
+            <div style="font-size:11px;font-weight:700;color:${m.done ? '#10b981' : '#fbbf24'};flex-shrink:0;">+${def.reward}⭐</div>
+          </div>
+        `).join('')}
+
+        <!-- Point shop -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:8px;">
+          <div>
+            <div style="font-size:11px;color:var(--color-text-muted);">🛡️ 방패 — 연속기록 1일 보호</div>
+            <div style="font-size:10px;color:var(--color-text-dim);margin-top:1px;">보유: ${streak.shields || 0}개 · 비용: ${AppStore.SHIELD_COST}⭐</div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btnBuyShield"
+            style="font-size:11px;${(streak.points || 0) >= AppStore.SHIELD_COST ? '' : 'opacity:0.4;pointer-events:none;'}">
+            구매 (${streak.points || 0}⭐)
+          </button>
+        </div>
+      </div>
+
+      <!-- ── 통계 ── -->
       <div style="display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-bottom:14px;">
-        <div onclick="AppRouter.navigate('characters')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
-          <div style="font-size:11px;color:var(--color-text-muted);">캐릭터</div>
-          <div style="font-size:28px;font-weight:800;color:var(--color-primary);">${chars.length}</div>
-          <div style="font-size:10px;color:var(--color-text-dim);">명</div>
-        </div>
-        <div onclick="AppRouter.navigate('skills')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
-          <div style="font-size:11px;color:var(--color-text-muted);">스킬</div>
-          <div style="font-size:28px;font-weight:800;color:var(--color-secondary);">${skills.length}</div>
-          <div style="font-size:10px;color:var(--color-text-dim);">개</div>
-        </div>
-        <div onclick="AppRouter.navigate('items')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
-          <div style="font-size:11px;color:var(--color-text-muted);">아이템</div>
-          <div style="font-size:28px;font-weight:800;color:var(--color-accent);">${items.length}</div>
-          <div style="font-size:10px;color:var(--color-text-dim);">개</div>
-        </div>
-        <div onclick="AppRouter.navigate('monsters')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
-          <div style="font-size:11px;color:var(--color-text-muted);">몬스터</div>
-          <div style="font-size:28px;font-weight:800;color:var(--color-warning);">${monsters.length}</div>
-          <div style="font-size:10px;color:var(--color-text-dim);">개</div>
-        </div>
-        <div onclick="AppRouter.navigate('organizations')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
-          <div style="font-size:11px;color:var(--color-text-muted);">조직</div>
-          <div style="font-size:28px;font-weight:800;color:#10b981;">${orgs.length}</div>
-          <div style="font-size:10px;color:var(--color-text-dim);">개</div>
-        </div>
-        <div onclick="AppRouter.navigate('gates')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
-          <div style="font-size:11px;color:var(--color-text-muted);">게이트</div>
-          <div style="font-size:28px;font-weight:800;color:#8b5cf6;">${gates.length}</div>
-          <div style="font-size:10px;color:var(--color-text-dim);">개</div>
-        </div>
+        ${[
+          ['characters', '캐릭터', chars.length, 'var(--color-primary)', '명'],
+          ['skills',     '스킬',   skills.length, 'var(--color-secondary)', '개'],
+          ['items',      '아이템', items.length,  'var(--color-accent)', '개'],
+          ['monsters',   '몬스터', monsters.length,'var(--color-warning)', '개'],
+          ['organizations','조직', orgs.length,   '#10b981', '개'],
+          ['gates',      '게이트', gates.length,  '#8b5cf6', '개'],
+        ].map(([page, label, count, color, unit]) => `
+          <div onclick="AppRouter.navigate('${page}')" style="cursor:pointer;background:var(--color-surface2);border-radius:12px;padding:14px;text-align:center;border:1px solid var(--color-border);">
+            <div style="font-size:11px;color:var(--color-text-muted);">${label}</div>
+            <div style="font-size:28px;font-weight:800;color:${color};">${count}</div>
+            <div style="font-size:10px;color:var(--color-text-dim);">${unit}</div>
+          </div>
+        `).join('')}
       </div>
 
-      <!-- Quick access -->
+      <!-- ── 빠른 접근 ── -->
       <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);margin-bottom:8px;">빠른 접근</div>
       <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
         ${[
@@ -195,86 +290,38 @@ window.Pages.home = {
         `).join('')}
       </div>
 
-      <!-- Recent items -->
+      <!-- ── 최근 수정 ── -->
       <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);margin-bottom:8px;">최근 수정</div>
       <div id="recentItemsList"></div>
     </div>`;
 
-    // World selector event
+    // World selector
     document.getElementById('worldSelect')?.addEventListener('change', async e => {
       await AppStore.setCurrentWorld(e.target.value);
       Utils.toast('세계 변경됨', 'success');
       this.init(container);
     });
 
-    // Edit prompts
-    document.getElementById('btnEditPrompts')?.addEventListener('click', () => this._openPromptsEditor(prompts, container));
+    // Buy shield
+    document.getElementById('btnBuyShield')?.addEventListener('click', async () => {
+      const ok = await AppStore.buyShield();
+      if (ok) { Utils.toast('방패를 구매했습니다! 🛡️', 'success'); this.init(container); }
+      else Utils.toast('포인트가 부족합니다', 'error');
+    });
 
-    // Recent items
     this._loadRecent(chars, skills, items, events);
 
-    // Streak notification
-    const streakState = AppStore.getState().streak || {};
-    const todayKey = new Date().toISOString().slice(0, 10);
-    if (streakState.lastDate !== todayKey) {
-      const notif = document.getElementById('streakNotif');
-      if (notif) notif.style.display = 'block';
-    }
-
     await AppStore.updateStreak();
-  },
 
-  _openPromptsEditor: async function(prompts, container) {
-    let list = [...prompts];
-    const renderItems = () => list.map((p, i) => `
-      <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
-        <span style="min-width:22px;color:var(--color-text-muted);font-size:12px;">${i+1}.</span>
-        <input class="input-field prompt-input" value="${Utils.escHtml(p)}"
-          style="flex:1;padding:6px 10px;font-size:13px;" data-idx="${i}" />
-        <button class="btn btn-ghost btn-sm btn-del-prompt" data-idx="${i}"
-          style="color:var(--color-danger);font-size:11px;padding:4px 8px;">✕</button>
-      </div>`).join('');
-
-    const body = `
-      <div>
-        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:10px;">매일 날짜에 맞춰 순환 표시됩니다. 추가/삭제 가능합니다.</div>
-        <div id="promptsList">${renderItems()}</div>
-        <button class="btn btn-ghost btn-sm" id="btnAddPromptItem" style="width:100%;margin-top:8px;">+ 과제 추가</button>
-      </div>`;
-
-    Utils.openModal('작성 과제 편집', body, async () => {
-      const inputs = [...document.querySelectorAll('#globalModalBody .prompt-input')];
-      const saved = inputs.map(inp => inp.value.trim()).filter(Boolean);
-      if (saved.length === 0) { Utils.toast('과제가 없습니다', 'error'); return false; }
-      await DB.setSetting('customPrompts', saved);
-      Utils.toast('과제 목록 저장됨', 'success');
-      this.init(container);
-      return true;
-    }, '저장');
-
-    setTimeout(() => {
-      const listEl = document.getElementById('promptsList');
-      document.getElementById('btnAddPromptItem')?.addEventListener('click', () => {
-        list.push('');
-        if (listEl) listEl.innerHTML = renderItems();
-        this._bindPromptsEditorEvents(list, listEl, renderItems);
-      });
-      this._bindPromptsEditorEvents(list, listEl, renderItems);
-    }, 60);
-  },
-
-  _bindPromptsEditorEvents: function(list, listEl, renderItems) {
-    if (!listEl) return;
-    listEl.querySelectorAll('.btn-del-prompt').forEach(btn => {
-      btn.onclick = () => {
-        const idx = parseInt(btn.dataset.idx);
-        // Save current input values first
-        listEl.querySelectorAll('.prompt-input').forEach((inp, i) => { if (list[i] !== undefined) list[i] = inp.value; });
-        list.splice(idx, 1);
-        listEl.innerHTML = renderItems();
-        this._bindPromptsEditorEvents(list, listEl, renderItems);
-      };
-    });
+    // Mission refresh timer
+    this._missionTimer = setInterval(() => {
+      const el = document.querySelector('#page-home');
+      if (!el) { clearInterval(this._missionTimer); return; }
+      const remaining = Math.max(0, missionState.resetAt - Date.now());
+      const timerEls = el.querySelectorAll('.mission-timer');
+      timerEls.forEach(t => { t.textContent = this._fmtCountdown(remaining); });
+      if (remaining === 0) { clearInterval(this._missionTimer); this.init(container); }
+    }, 30000);
   },
 
   _loadRecent: function(chars, skills, items, events) {
@@ -313,5 +360,6 @@ window.Pages.home = {
 
   destroy: function() {
     if (this._unsub) { this._unsub(); this._unsub = null; }
+    if (this._missionTimer) { clearInterval(this._missionTimer); this._missionTimer = null; }
   }
 };

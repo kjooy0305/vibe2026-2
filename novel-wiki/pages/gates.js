@@ -5,12 +5,13 @@ window.Pages.gates = {
   _container: null,
   _novelView: false,
 
-  GRADES: ['F','E','D','C','B','A','S','SS','SSS','G','EX'],
+  _C: null,
   TYPES: ['섬멸형','토벌형','스토리형(개입)','스토리형(빙의)','타임어택형','퍼즐형','루프형','폐쇄형','보스형'],
   BREAK_TYPES: ['방출형','침식형','자폭형','소멸형'],
 
   _customTypes: null,
   _customBreakTypes: null,
+  _listScrollY: 0,
 
   _loadCustomLists: async function(wid) {
     const ct = await DB.getSetting('gateCustomTypes_' + wid);
@@ -48,6 +49,7 @@ window.Pages.gates = {
       return;
     }
 
+    this._C = await AppConstants.load();
     if (options.highlightId) this._currentId = options.highlightId;
     const [gates] = await Promise.all([
       DB.getAll('gates', wid),
@@ -100,10 +102,9 @@ window.Pages.gates = {
     });
 
     document.getElementById('gateFilter')?.addEventListener('input', e => {
-      const q = e.target.value.toLowerCase();
+      const q = e.target.value;
       container.querySelectorAll('.gate-card').forEach(card => {
-        const text = card.dataset.searchText || '';
-        card.style.display = text.includes(q) ? '' : 'none';
+        card.style.display = Utils.matchesQuery(card.dataset.searchText || '', q) ? '' : 'none';
       });
     });
 
@@ -111,6 +112,7 @@ window.Pages.gates = {
       card.addEventListener('click', e => {
         if (e.target.closest('.btn-del-gate') || e.target.closest('.btn-edit-gate')) return;
         const id = card.dataset.id;
+        this._listScrollY = container.scrollTop || window.scrollY || 0;
         DB.getAll('gates', wid).then(all => {
           const gate = all.find(g => g.id === id);
           if (gate) { this._currentId = id; this._renderDetail(container, gate, wid); }
@@ -135,11 +137,16 @@ window.Pages.gates = {
         const id = btn.dataset.id;
         const card = container.querySelector(`.gate-card[data-id="${id}"]`);
         const name = card?.querySelector('.gate-name')?.textContent || '이 던전';
-        Utils.confirm(`"${name}"을(를) 삭제하시겠습니까?`, '되돌릴 수 없습니다.', async () => {
-          await DB.del('gates', id);
-          Utils.toast('삭제됨', 'info');
-          this.init(container);
-        });
+        Utils.confirmWithInput(
+          '던전 삭제',
+          `삭제하려면 던전 이름을 정확히 입력하세요.\n삭제 후 되돌릴 수 없습니다.`,
+          name,
+          async () => {
+            await DB.del('gates', id);
+            Utils.toast('삭제됨', 'info');
+            this.init(container);
+          }
+        );
       });
     });
   },
@@ -293,13 +300,19 @@ window.Pages.gates = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackGates')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
+    document.getElementById('btnBackGates')?.addEventListener('click', async () => {
+      const scrollY = this._listScrollY || 0;
+      this._currentId = null;
+      await this.init(container);
+      requestAnimationFrame(() => {
+        container.scrollTop = scrollY;
+        if (scrollY > 0) window.scrollTo(0, scrollY);
+      });
+    });
     document.getElementById('btnEditGate')?.addEventListener('click', () => this._openForm(gate, wid, container));
 
     document.getElementById('btnCopyGate')?.addEventListener('click', () => {
-      const text = this._exportText(gate);
-      Utils.copyText(text);
-      Utils.toast('복사됨', 'success');
+      this._openPartialCopyModal(gate);
     });
 
     document.getElementById('btnViewToggle')?.addEventListener('click', () => {
@@ -339,7 +352,7 @@ window.Pages.gates = {
     if (typeIsCustom && !allTypes.includes(existingType)) allTypes.push(existingType);
     if (breakTypeIsCustom && !allBreakTypes.includes(existingBreakType)) allBreakTypes.push(existingBreakType);
 
-    const gradeOptions = this.GRADES.map(gr =>
+    const gradeOptions = this._C.grades.map(gr =>
       `<option value="${gr}" ${g.grade === gr ? 'selected' : ''}>${gr}</option>`).join('');
     const typeOptions = ['', ...allTypes, '__custom__'].map(t => {
       if (t === '__custom__') return `<option value="__custom__">기타 (직접 입력)...</option>`;
@@ -375,14 +388,44 @@ window.Pages.gates = {
           <select class="select-input" id="fGateGrade" style="width:100%;">${gradeOptions}</select>
         </div>
         <div class="form-group">
-          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">종류</label>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">종류</label>
+            <button type="button" id="btnToggleTypeList" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;">목록 관리</button>
+          </div>
           <select class="select-input" id="fGateType" style="width:100%;">${typeOptions}</select>
           <input class="input-field" id="fGateTypeCustom" placeholder="종류 직접 입력..." style="width:100%;box-sizing:border-box;margin-top:4px;display:${typeIsCustom ? 'block' : 'none'};" value="${typeIsCustom ? Utils.escHtml(existingType) : ''}" />
+          <div id="customTypeList" style="display:none;margin-top:6px;padding:8px;background:var(--color-surface3,#1e2030);border-radius:8px;border:1px solid var(--color-border);">
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">사용자 정의 종류</div>
+            <div id="customTypeItems">
+              ${(this._customTypes||[]).length === 0
+                ? '<div style="font-size:11px;color:var(--color-text-dim);">없음</div>'
+                : (this._customTypes||[]).map(t => `
+                  <div class="custom-type-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:4px;margin-bottom:3px;background:var(--color-surface2);">
+                    <span style="font-size:12px;">${Utils.escHtml(t)}</span>
+                    <button type="button" class="btn-del-custom-type" data-val="${Utils.escHtml(t)}" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:13px;padding:0 4px;">✕</button>
+                  </div>`).join('')}
+            </div>
+          </div>
         </div>
         <div class="form-group">
-          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">브레이크 유형</label>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">브레이크 유형</label>
+            <button type="button" id="btnToggleBreakTypeList" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;">목록 관리</button>
+          </div>
           <select class="select-input" id="fGateBreakType" style="width:100%;">${breakTypeOptions}</select>
           <input class="input-field" id="fGateBreakTypeCustom" placeholder="브레이크 유형 직접 입력..." style="width:100%;box-sizing:border-box;margin-top:4px;display:${breakTypeIsCustom ? 'block' : 'none'};" value="${breakTypeIsCustom ? Utils.escHtml(existingBreakType) : ''}" />
+          <div id="customBreakTypeList" style="display:none;margin-top:6px;padding:8px;background:var(--color-surface3,#1e2030);border-radius:8px;border:1px solid var(--color-border);">
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">사용자 정의 브레이크 유형</div>
+            <div id="customBreakTypeItems">
+              ${(this._customBreakTypes||[]).length === 0
+                ? '<div style="font-size:11px;color:var(--color-text-dim);">없음</div>'
+                : (this._customBreakTypes||[]).map(t => `
+                  <div class="custom-bt-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:4px;margin-bottom:3px;background:var(--color-surface2);">
+                    <span style="font-size:12px;">${Utils.escHtml(t)}</span>
+                    <button type="button" class="btn-del-custom-bt" data-val="${Utils.escHtml(t)}" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:13px;padding:0 4px;">✕</button>
+                  </div>`).join('')}
+            </div>
+          </div>
         </div>
         ${tf('fGateMotif', '모티브', g.motif, '모티브 설명')}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -513,6 +556,73 @@ window.Pages.gates = {
         }
       });
 
+      // Custom type list toggle
+      document.getElementById('btnToggleTypeList')?.addEventListener('click', () => {
+        const el = document.getElementById('customTypeList');
+        if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+      });
+      document.getElementById('btnToggleBreakTypeList')?.addEventListener('click', () => {
+        const el = document.getElementById('customBreakTypeList');
+        if (el) el.style.display = el.style.display === 'none' ? 'block' : 'none';
+      });
+
+      // Delete custom type
+      document.getElementById('customTypeItems')?.addEventListener('click', async e => {
+        const btn = e.target.closest('.btn-del-custom-type');
+        if (!btn) return;
+        const val = btn.dataset.val;
+        self._customTypes = (self._customTypes || []).filter(t => t !== val);
+        await DB.setSetting('gateCustomTypes_' + wid, self._customTypes);
+        // Rebuild select + list
+        const allT = [...self.TYPES, ...self._customTypes];
+        const typeSelectEl = document.getElementById('fGateType');
+        if (typeSelectEl) {
+          const cur = typeSelectEl.value;
+          typeSelectEl.innerHTML = ['', ...allT, '__custom__'].map(t => {
+            if (t === '__custom__') return `<option value="__custom__">기타 (직접 입력)...</option>`;
+            return `<option value="${t}"${cur === t ? ' selected' : ''}>${t || '선택 안 함'}</option>`;
+          }).join('');
+        }
+        const itemsEl = document.getElementById('customTypeItems');
+        if (itemsEl) {
+          itemsEl.innerHTML = self._customTypes.length === 0
+            ? '<div style="font-size:11px;color:var(--color-text-dim);">없음</div>'
+            : self._customTypes.map(t => `
+              <div class="custom-type-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:4px;margin-bottom:3px;background:var(--color-surface2);">
+                <span style="font-size:12px;">${Utils.escHtml(t)}</span>
+                <button type="button" class="btn-del-custom-type" data-val="${Utils.escHtml(t)}" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:13px;padding:0 4px;">✕</button>
+              </div>`).join('');
+        }
+      });
+
+      // Delete custom break type
+      document.getElementById('customBreakTypeItems')?.addEventListener('click', async e => {
+        const btn = e.target.closest('.btn-del-custom-bt');
+        if (!btn) return;
+        const val = btn.dataset.val;
+        self._customBreakTypes = (self._customBreakTypes || []).filter(t => t !== val);
+        await DB.setSetting('gateCustomBreakTypes_' + wid, self._customBreakTypes);
+        const allBT = [...self.BREAK_TYPES, ...self._customBreakTypes];
+        const btSelectEl = document.getElementById('fGateBreakType');
+        if (btSelectEl) {
+          const cur = btSelectEl.value;
+          btSelectEl.innerHTML = ['', ...allBT, '__custom__'].map(t => {
+            if (t === '__custom__') return `<option value="__custom__">기타 (직접 입력)...</option>`;
+            return `<option value="${t}"${cur === t ? ' selected' : ''}>${t || '선택 안 함'}</option>`;
+          }).join('');
+        }
+        const itemsEl = document.getElementById('customBreakTypeItems');
+        if (itemsEl) {
+          itemsEl.innerHTML = self._customBreakTypes.length === 0
+            ? '<div style="font-size:11px;color:var(--color-text-dim);">없음</div>'
+            : self._customBreakTypes.map(t => `
+              <div class="custom-bt-row" style="display:flex;align-items:center;justify-content:space-between;padding:4px 6px;border-radius:4px;margin-bottom:3px;background:var(--color-surface2);">
+                <span style="font-size:12px;">${Utils.escHtml(t)}</span>
+                <button type="button" class="btn-del-custom-bt" data-val="${Utils.escHtml(t)}" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:13px;padding:0 4px;">✕</button>
+              </div>`).join('');
+        }
+      });
+
       // Add new image
       document.getElementById('fGateImageAdd')?.addEventListener('change', async e => {
         const file = e.target.files?.[0];
@@ -540,6 +650,73 @@ window.Pages.gates = {
         } catch(err) { Utils.toast('이미지 처리 오류', 'error'); }
       });
     }, 50);
+  },
+
+  // ── PARTIAL COPY ─────────────────────────────────────────────────────────────
+
+  _openPartialCopyModal: function(g) {
+    const fields = [
+      { key: 'name',               label: '이름',            val: g.name },
+      { key: 'grade',              label: '등급',            val: g.grade },
+      { key: 'type',               label: '종류',            val: g.type },
+      { key: 'breakType',          label: '브레이크 유형',   val: g.breakType },
+      { key: 'motif',              label: '모티브',          val: g.motif },
+      { key: 'levelLimit',         label: '레벨 제한',       val: g.levelLimit },
+      { key: 'maxPlayers',         label: '최대 인원수',     val: g.maxPlayers },
+      { key: 'scale',              label: '규모',            val: g.scale },
+      { key: 'enemies',            label: '적',              val: g.enemies },
+      { key: 'features',           label: '특징',            val: g.features },
+      { key: 'internalStructure',  label: '내부 구성',       val: g.internalStructure },
+      { key: 'strategy',           label: '공략 방법',       val: g.strategy },
+      { key: 'clearCondition',     label: '클리어 조건',     val: g.clearCondition },
+      { key: 'rewards',            label: '보상',            val: g.rewards },
+      { key: 'failPenalty',        label: '실패시 패널티',   val: g.failPenalty },
+      { key: 'hiddenClearCondition', label: '히든 클리어 조건', val: g.hiddenClearCondition },
+      { key: 'hiddenRewards',      label: '히든 보상',       val: g.hiddenRewards },
+      { key: 'details',            label: '세부사항',        val: g.details },
+      { key: 'authorNotes',        label: '작가 메모',       val: g.authorNotes },
+    ].filter(f => f.val);
+
+    if (!fields.length) { Utils.toast('복사할 내용이 없습니다', 'error'); return; }
+
+    const body = `
+      <div style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;">
+        <div style="display:flex;gap:8px;margin-bottom:4px;">
+          <button id="pCopyAll" class="btn btn-ghost btn-sm" style="font-size:11px;">전체 선택</button>
+          <button id="pCopyNone" class="btn btn-ghost btn-sm" style="font-size:11px;">전체 해제</button>
+        </div>
+        ${fields.map(f => `
+          <label style="display:flex;align-items:flex-start;gap:8px;padding:6px 8px;border-radius:6px;background:var(--color-surface2);cursor:pointer;">
+            <input type="checkbox" class="pcopy-chk" data-key="${f.key}" checked style="margin-top:2px;flex-shrink:0;" />
+            <div>
+              <div style="font-size:12px;font-weight:600;color:var(--color-primary);">${f.label}</div>
+              <div style="font-size:11px;color:var(--color-text-muted);white-space:pre-wrap;max-height:48px;overflow:hidden;">${Utils.escHtml(String(f.val).substring(0, 80))}${String(f.val).length > 80 ? '...' : ''}</div>
+            </div>
+          </label>`).join('')}
+      </div>`;
+
+    Utils.openModal('텍스트 선택 복사', body, () => {
+      const checked = [...document.querySelectorAll('#globalModalBody .pcopy-chk:checked')].map(cb => cb.dataset.key);
+      if (!checked.length) { Utils.toast('항목을 선택하세요', 'error'); return false; }
+      const selected = fields.filter(f => checked.includes(f.key));
+      const lines = [];
+      selected.forEach(f => {
+        const val = String(f.val);
+        lines.push(val.includes('\n') ? `${f.label}:\n${val}` : `${f.label}: ${val}`);
+      });
+      Utils.copyText(lines.join('\n'));
+      Utils.toast('복사됨', 'success');
+      return true;
+    }, '복사');
+
+    setTimeout(() => {
+      document.getElementById('pCopyAll')?.addEventListener('click', () => {
+        document.querySelectorAll('#globalModalBody .pcopy-chk').forEach(cb => { cb.checked = true; });
+      });
+      document.getElementById('pCopyNone')?.addEventListener('click', () => {
+        document.querySelectorAll('#globalModalBody .pcopy-chk').forEach(cb => { cb.checked = false; });
+      });
+    }, 30);
   },
 
   // ── EXPORT ──────────────────────────────────────────────────────────────────
