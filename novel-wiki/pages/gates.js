@@ -257,7 +257,7 @@ window.Pages.gates = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackGates')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackGates')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditGate')?.addEventListener('click', () => this._openForm(gate, wid, container));
 
     document.getElementById('btnCopyGate')?.addEventListener('click', () => {

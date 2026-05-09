@@ -179,7 +179,7 @@ window.Pages.monsters = {
           ${m.grade ? `<span style="font-size:11px;padding:2px 7px;border-radius:4px;font-weight:700;${badgeStyle}">${Utils.escHtml(m.grade)}</span>` : ''}
           ${m.deathType ? `<span style="font-size:11px;padding:2px 7px;border-radius:4px;background:var(--color-border);color:var(--color-text-muted);">${Utils.escHtml(m.deathType)}</span>` : ''}
         </div>
-        ${m.lifespan ? `<div style="font-size:12px;color:var(--color-text-muted);">수명: ${Utils.escHtml(m.lifespan)}</div>` : ''}
+        ${(m.lifespanMin !== null && m.lifespanMin !== undefined) || (m.lifespanMax !== null && m.lifespanMax !== undefined) ? `<div style="font-size:12px;color:var(--color-text-muted);">수명: ${m.lifespanMin ?? 0}~${m.lifespanMax ?? '∞'}년</div>` : m.lifespan ? `<div style="font-size:12px;color:var(--color-text-muted);">수명: ${Utils.escHtml(m.lifespan)}</div>` : ''}
         ${m.habitat ? `<div style="font-size:12px;color:var(--color-text-muted);">서식지: ${Utils.escHtml(m.habitat)}</div>` : ''}
         ${(m.skills || []).length > 0 ? `
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
@@ -253,7 +253,7 @@ window.Pages.monsters = {
         <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:12px;letter-spacing:1px;">기본 정보</div>
         ${field('이름', m.name)}
         ${field('등급', m.grade)}
-        ${field('수명', m.lifespan)}
+        ${(m.lifespanMin !== null && m.lifespanMin !== undefined) || (m.lifespanMax !== null && m.lifespanMax !== undefined) ? field('수명', `${m.lifespanMin ?? 0}~${m.lifespanMax ?? '∞'}년`) : field('수명', m.lifespan)}
         ${field('서식 지역', m.habitat)}
         ${m.deathType ? `
           <div style="margin-bottom:10px;">
@@ -426,7 +426,15 @@ window.Pages.monsters = {
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">등급</label>
           <select class="select-input" id="fMGrade" style="width:100%;">${gradeOpts}</select>
         </div>
-        ${tf('fMLifespan', '수명', m.lifespan, '예: 150년~200년')}
+        <div class="form-group">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">수명 (년)</label>
+          <div style="display:flex;align-items:center;gap:8px;">
+            <input type="number" class="input-field" id="fMLifespanMin" value="${Utils.escHtml(String(m.lifespanMin ?? (m.lifespan ? '' : ''))}" placeholder="최소" min="0" style="flex:1;box-sizing:border-box;" />
+            <span style="color:var(--color-text-muted);flex-shrink:0;">~</span>
+            <input type="number" class="input-field" id="fMLifespanMax" value="${Utils.escHtml(String(m.lifespanMax ?? ''))}" placeholder="최대" min="0" style="flex:1;box-sizing:border-box;" />
+          </div>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">예: 0 ~ 1999</div>
+        </div>
         ${ta('fMFeatures', '특징', m.features, 3)}
         ${ta('fMStrengths', '강점', m.strengths, 2)}
         ${ta('fMWeaknesses', '약점', m.weaknesses, 2)}
@@ -461,7 +469,8 @@ window.Pages.monsters = {
         worldId: wid,
         name,
         grade: document.getElementById('fMGrade')?.value || '',
-        lifespan: document.getElementById('fMLifespan')?.value.trim() || '',
+        lifespanMin: document.getElementById('fMLifespanMin')?.value !== '' ? Number(document.getElementById('fMLifespanMin').value) : null,
+        lifespanMax: document.getElementById('fMLifespanMax')?.value !== '' ? Number(document.getElementById('fMLifespanMax').value) : null,
         features: document.getElementById('fMFeatures')?.value.trim() || '',
         strengths: document.getElementById('fMStrengths')?.value.trim() || '',
         weaknesses: document.getElementById('fMWeaknesses')?.value.trim() || '',
@@ -510,7 +519,7 @@ window.Pages.monsters = {
     const lines = [];
     const add = (label, val) => { if (val) lines.push(`${label}: ${val}`); };
     add('이름', m.name);
-    add('수명', m.lifespan);
+    add('수명', (m.lifespanMin !== null && m.lifespanMin !== undefined) ? `${m.lifespanMin}~${m.lifespanMax ?? '∞'}년` : m.lifespan);
     if (m.features) lines.push(`특징: ${m.features}`);
     if (m.strengths) lines.push(`강점: ${m.strengths}`);
     if (m.weaknesses) lines.push(`약점: ${m.weaknesses}`);

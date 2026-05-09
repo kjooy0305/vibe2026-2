@@ -5,7 +5,7 @@ window.Pages.jobs = {
   _container: null,
 
   GRADES: ['F', 'E', 'D', 'C', 'B', 'A', 'S', 'SS', 'SSS', 'G', 'GG', 'GGG', 'EX'],
-  TYPES: ['전사계', '마법사계', '성직자계', '도적계', '궁수계', '특수계', '하이브리드', '기타'],
+  TYPES: ['근접', '원거리', '서포트', '후방지원', '전략', '올라운더', '특수', '기타'],
   STAT_KEYS: ['힘', '민첩', '체력', '마나', '마력', '재능', '잠재력', '행운', '신성력', '정신력', '투지', '집중력'],
 
   init: async function(container, options) {
@@ -259,7 +259,7 @@ window.Pages.jobs = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackJobs')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackJobs')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditJob')?.addEventListener('click', () => this._openForm(j, wid, container));
     document.getElementById('btnDelJobDetail')?.addEventListener('click', () => {
       Utils.confirm(`"${j.name}" 삭제`, '삭제하시겠습니까?', async () => {

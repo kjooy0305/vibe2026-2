@@ -57,7 +57,20 @@ window.Pages.characters = {
         <p class="page-desc" style="margin-top:4px;font-size:12px;color:var(--color-text-muted);">
           ${Utils.escHtml(world?.name || '현재 세계')} · ${chars.length}명
         </p>
-        <input class="input-field" id="charFilter" placeholder="이름, 종족, 국가, 길드 검색..." style="margin-top:8px;" />
+        <div style="display:flex;gap:6px;align-items:center;margin-top:8px;flex-wrap:wrap;">
+          <input class="input-field" id="charFilter" placeholder="이름, 종족, 국가, 지역, 길드 검색..." style="flex:1;min-width:0;" />
+          <select class="select-input" id="charSort" style="width:auto;font-size:12px;padding:6px 8px;">
+            <option value="created">등록순</option>
+            <option value="name">이름순</option>
+            <option value="level">레벨순</option>
+            <option value="importance">중요도순</option>
+          </select>
+        </div>
+        <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;">
+          <button class="char-imp-chip active" data-imp="" style="padding:2px 8px;border-radius:4px;border:1px solid var(--color-border);font-size:11px;cursor:pointer;background:var(--color-primary);color:#000;">전체</button>
+          <button class="char-imp-chip" data-imp="main" style="padding:2px 8px;border-radius:4px;border:1px solid #fbbf24;color:#fbbf24;font-size:11px;cursor:pointer;background:transparent;">★ 주요</button>
+          <button class="char-imp-chip" data-imp="sub" style="padding:2px 8px;border-radius:4px;border:1px solid #94a3b8;color:#94a3b8;font-size:11px;cursor:pointer;background:transparent;">☆ 서브</button>
+        </div>
       </div>
 
       <div id="charList" class="item-list">
@@ -75,95 +88,108 @@ window.Pages.characters = {
       this._openForm(null, wid, container);
     });
 
-    document.getElementById('charFilter')?.addEventListener('input', e => {
-      const q = e.target.value.toLowerCase();
-      container.querySelectorAll('.char-card').forEach(card => {
+    const self = this;
+    let activeImp = '';
+
+    const applySort = () => {
+      const sort = document.getElementById('charSort')?.value || 'created';
+      const q = (document.getElementById('charFilter')?.value || '').toLowerCase();
+      const listEl = document.getElementById('charList');
+      if (!listEl) return;
+      let sorted = [...chars];
+      if (sort === 'name') sorted.sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+      else if (sort === 'level') sorted.sort((a, b) => (b.level || 0) - (a.level || 0));
+      else if (sort === 'importance') sorted.sort((a, b) => {
+        const imp = { main: 0, sub: 1, '': 2 };
+        return (imp[a.importance || ''] ?? 2) - (imp[b.importance || ''] ?? 2);
+      });
+      listEl.innerHTML = sorted.length === 0
+        ? '<div class="empty-state" style="padding:48px;text-align:center;"><div style="font-size:48px;">👤</div><div>캐릭터가 없습니다</div></div>'
+        : sorted.map(c => self._charCard(c)).join('');
+      listEl.querySelectorAll('.char-card').forEach(card => {
         const text = card.dataset.searchText || '';
-        card.style.display = text.includes(q) ? '' : 'none';
-      });
-    });
-
-    container.querySelectorAll('.char-card').forEach(card => {
-      card.addEventListener('click', e => {
-        if (e.target.closest('.btn-del-char') || e.target.closest('.btn-copy-char')) return;
-        const id = card.dataset.id;
-        this._currentId = id;
-        DB.getAll('characters', wid).then(chars => {
-          const char = chars.find(c => c.id === id);
-          if (char) this._renderDetail(container, char, wid);
+        const impOk = !activeImp || chars.find(c => c.id === card.dataset.id)?.importance === activeImp;
+        card.style.display = (text.includes(q) && impOk) ? '' : 'none';
+        card.addEventListener('click', e => {
+          if (e.target.closest('.btn-del-char') || e.target.closest('.btn-copy-char')) return;
+          const id = card.dataset.id;
+          self._currentId = id;
+          DB.getAll('characters', wid).then(allChars => {
+            const ch = allChars.find(c => c.id === id);
+            if (ch) self._renderDetail(container, ch, wid);
+          });
         });
-      });
-    });
-
-    container.querySelectorAll('.btn-del-char').forEach(btn => {
-      btn.addEventListener('click', e => {
-        e.stopPropagation();
-        const id = btn.dataset.id;
-        const card = container.querySelector(`.char-card[data-id="${id}"]`);
-        const name = card?.querySelector('.char-name')?.textContent || '이 캐릭터';
-        Utils.confirm(
-          `"${name}"을(를) 삭제하시겠습니까?`,
-          '되돌릴 수 없습니다.',
-          async () => {
+        card.querySelector('.btn-del-char')?.addEventListener('click', e => {
+          e.stopPropagation();
+          const id = card.dataset.id;
+          const name = card.querySelector('.char-name')?.textContent || '이 캐릭터';
+          Utils.confirm(`"${name}"을(를) 삭제하시겠습니까?`, '되돌릴 수 없습니다.', async () => {
             await DB.del('characters', id);
             Utils.toast('삭제됨', 'info');
-            this.init(container);
-          }
-        );
+            self.init(container);
+          });
+        });
+        card.querySelector('.btn-copy-char')?.addEventListener('click', async e => {
+          e.stopPropagation();
+          const char = chars.find(c => c.id === card.dataset.id);
+          if (!char) return;
+          const worlds = AppStore.getState().worlds.filter(w => w.id !== wid);
+          if (!worlds.length) { Utils.toast('다른 세계가 없습니다', 'error'); return; }
+          const body = `<div class="form-group"><label class="form-label">복사할 세계 선택</label>
+            <select class="select-input" id="copyToWorld" style="width:100%;">
+              ${worlds.map(w => `<option value="${Utils.escHtml(w.id)}">${Utils.escHtml(w.name)}</option>`).join('')}
+            </select></div>`;
+          Utils.openModal('다른 세계로 복사', body, async () => {
+            const targetId = document.getElementById('copyToWorld')?.value;
+            if (!targetId) return false;
+            await DB.put('characters', { ...char, id: DB.genId(), worldId: targetId, createdAt: Date.now(), updatedAt: Date.now() });
+            Utils.toast('복사됨', 'success');
+            return true;
+          }, '복사');
+        });
+      });
+    };
+
+    document.getElementById('charFilter')?.addEventListener('input', applySort);
+    document.getElementById('charSort')?.addEventListener('change', applySort);
+
+    container.querySelectorAll('.char-imp-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.char-imp-chip').forEach(b => {
+          b.classList.remove('active');
+          b.style.background = 'transparent';
+        });
+        btn.classList.add('active');
+        btn.style.background = btn.dataset.imp === 'main' ? '#fbbf24' : btn.dataset.imp === 'sub' ? '#94a3b8' : 'var(--color-primary)';
+        btn.style.color = '#000';
+        activeImp = btn.dataset.imp;
+        applySort();
       });
     });
 
-    container.querySelectorAll('.btn-copy-char').forEach(btn => {
-      btn.addEventListener('click', async e => {
-        e.stopPropagation();
-        const id = btn.dataset.id;
-        const char = chars.find(c => c.id === id);
-        if (!char) return;
-        const worlds = AppStore.getState().worlds.filter(w => w.id !== wid);
-        if (!worlds.length) { Utils.toast('다른 세계가 없습니다', 'error'); return; }
-        const body = `
-          <div class="form-group">
-            <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">복사할 세계 선택</label>
-            <select class="select-input" id="copyToWorld" style="width:100%;">
-              ${worlds.map(w => `<option value="${Utils.escHtml(w.id)}">${Utils.escHtml(w.name)}</option>`).join('')}
-            </select>
-          </div>`;
-        Utils.openModal('다른 세계로 복사', body, async () => {
-          const targetId = document.getElementById('copyToWorld')?.value;
-          if (!targetId) return false;
-          const copy = {
-            ...char,
-            id: DB.genId(),
-            worldId: targetId,
-            createdAt: Date.now(),
-            updatedAt: Date.now(),
-          };
-          await DB.put('characters', copy);
-          Utils.toast('복사됨', 'success');
-          return true;
-        }, '복사');
-      });
-    });
+    applySort();
   },
 
   _charCard: function(c) {
-    const searchText = [c.name || '', c.race || '', c.country || '', c.guild || '', c.title || ''].join(' ').toLowerCase();
+    const searchText = [c.name || '', c.race || '', c.country || '', c.region || '', c.guild || '', c.title || ''].join(' ').toLowerCase();
+    const starColor = c.importance === 'main' ? '#fbbf24' : c.importance === 'sub' ? '#94a3b8' : 'transparent';
     return `
     <div class="list-item list-item--full char-card"
       data-id="${Utils.escHtml(c.id)}"
       data-search-text="${Utils.escHtml(searchText)}"
-      style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--color-surface2);border-radius:12px;border:1px solid var(--color-border);margin-bottom:8px;cursor:pointer;">
+      style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--color-surface2);border-radius:12px;border:1px solid var(--color-border);${c.importance === 'main' ? 'border-left:3px solid #fbbf24;' : ''}margin-bottom:8px;cursor:pointer;">
       ${c.image
         ? `<img src="${c.image}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0;" />`
         : `<div style="width:48px;height:48px;border-radius:10px;background:var(--color-surface3,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">👤</div>`}
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+          ${c.importance === 'main' ? `<span style="color:#fbbf24;font-size:14px;">★</span>` : c.importance === 'sub' ? `<span style="color:#94a3b8;font-size:12px;">☆</span>` : ''}
           <span class="char-name" style="font-weight:700;font-size:15px;">${Utils.escHtml(c.name || '이름 없음')}</span>
           ${c.level ? `<span class="badge" style="font-size:11px;padding:2px 6px;background:var(--color-primary);color:#fff;border-radius:4px;">Lv.${c.level}</span>` : ''}
           ${c.title ? `<span style="font-size:11px;color:var(--color-text-muted);">[${Utils.escHtml(c.title)}]</span>` : ''}
         </div>
         <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">
-          ${Utils.escHtml(c.race || '인간')}${c.country ? ' · ' + Utils.escHtml(c.country) : ''}${c.age ? ' · ' + c.age + '세' : ''}${c.gender && c.gender !== '미지정' ? ' · ' + Utils.escHtml(c.gender) : ''}
+          ${Utils.escHtml(c.race || '인간')}${c.country ? ' · ' + Utils.escHtml(c.country) : ''}${c.region ? ' · ' + Utils.escHtml(c.region) : ''}${c.age ? ' · ' + c.age + '세' : ''}${c.gender && c.gender !== '미지정' ? ' · ' + Utils.escHtml(c.gender) : ''}
         </div>
         ${c.guild ? `<div style="font-size:11px;color:var(--color-text-dim);">🏰 ${Utils.escHtml(c.guild)}</div>` : ''}
       </div>
@@ -239,6 +265,7 @@ window.Pages.characters = {
         ${char.title ? `<div class="status-row">ㅣ칭호: ${Utils.escHtml(char.title)}</div>` : ''}
         <div class="status-row">ㅣ이름: <strong>${Utils.escHtml(char.name || '')}</strong></div>
         ${char.country ? `<div class="status-row">ㅣ국가: ${Utils.escHtml(char.country)}</div>` : ''}
+        ${char.region ? `<div class="status-row">ㅣ지역: ${Utils.escHtml(char.region)}</div>` : ''}
         ${char.guild ? `<div class="status-row">ㅣ길드: ${Utils.escHtml(char.guild)}</div>` : ''}
         <div class="status-row">ㅣ종족: ${Utils.escHtml(char.race || '인간')}</div>
         ${char.age ? `<div class="status-row">ㅣ나이: ${char.age}</div>` : ''}
@@ -311,7 +338,7 @@ window.Pages.characters = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackChars')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackChars')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditChar')?.addEventListener('click', () => this._openForm(char, wid, container));
 
     document.getElementById('btnCopyCharText')?.addEventListener('click', () => {
@@ -458,21 +485,35 @@ window.Pages.characters = {
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">칭호</label>
           <input class="input-field" id="fCharTitle" value="${Utils.escHtml(char?.title || '')}" placeholder="칭호" style="width:100%;box-sizing:border-box;" />
         </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">중요도</label>
+          <select class="select-input" id="fCharImportance" style="width:100%;">
+            <option value="" ${!char?.importance ? 'selected' : ''}>일반</option>
+            <option value="main" ${char?.importance === 'main' ? 'selected' : ''}>★ 주요 캐릭터</option>
+            <option value="sub" ${char?.importance === 'sub' ? 'selected' : ''}>☆ 서브 캐릭터</option>
+          </select>
+        </div>
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
           <div class="form-group">
             <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">국가</label>
             <input class="input-field" id="fCharCountry" value="${Utils.escHtml(char?.country || '')}" placeholder="국가" style="width:100%;box-sizing:border-box;" />
           </div>
           <div class="form-group">
+            <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">지역</label>
+            <input class="input-field" id="fCharRegion" value="${Utils.escHtml(char?.region || '')}" placeholder="지역/도시" style="width:100%;box-sizing:border-box;" />
+          </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+          <div class="form-group">
             <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">길드</label>
             <input class="input-field" id="fCharGuild" value="${Utils.escHtml(char?.guild || '')}" style="width:100%;box-sizing:border-box;" />
           </div>
-        </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
           <div class="form-group">
             <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">종족</label>
             <input class="input-field" id="fCharRace" value="${Utils.escHtml(char?.race || '인간')}" style="width:100%;box-sizing:border-box;" />
           </div>
+        </div>
+        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;">
           <div class="form-group">
             <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">나이</label>
             <input type="number" class="input-field" id="fCharAge" value="${char?.age || ''}" style="width:100%;box-sizing:border-box;" />
@@ -525,10 +566,12 @@ window.Pages.characters = {
         level: Number(document.getElementById('fCharLevel')?.value || 0),
         title: document.getElementById('fCharTitle')?.value.trim() || '',
         country: document.getElementById('fCharCountry')?.value.trim() || '',
+        region: document.getElementById('fCharRegion')?.value.trim() || '',
         race: document.getElementById('fCharRace')?.value.trim() || '인간',
         age: ageVal ? Number(ageVal) : null,
         gender: document.getElementById('fCharGender')?.value || '미지정',
         guild: document.getElementById('fCharGuild')?.value.trim() || '',
+        importance: document.getElementById('fCharImportance')?.value || '',
         cycle: cycleVal !== '' && cycleVal !== null && cycleVal !== undefined ? Number(cycleVal) : null,
         stats: newStats,
         authorNotes: document.getElementById('fCharAuthorNotes')?.value.trim() || '',

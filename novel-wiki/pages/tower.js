@@ -104,7 +104,7 @@ window.Pages.tower = {
         const id = btn.dataset.id;
         const card = container.querySelector(`.tower-card[data-id="${id}"]`);
         const name = card?.querySelector('.tower-name')?.textContent || '이 탑';
-        Utils.confirm(`"${name}" 삭제`, '되돌릴 수 없습니다.', async () => {
+        Utils.confirmWithInput(`"${name}" 탑 삭제`, '탑의 모든 층 데이터가 삭제됩니다. 되돌릴 수 없습니다.', name, async () => {
           await DB.del('towers', id);
           Utils.toast('삭제됨', 'info');
           this.init(container);

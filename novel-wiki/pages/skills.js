@@ -246,7 +246,10 @@ window.Pages.skills = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackSkills')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackSkills')?.addEventListener('click', () => {
+      this._currentId = null;
+      this.init(container);
+    });
     document.getElementById('btnEditSkill')?.addEventListener('click', () => this._openForm(s, wid, container));
     document.getElementById('btnDelSkillDetail')?.addEventListener('click', () => {
       Utils.confirm(`"${s.name}" 삭제`, '삭제하면 캐릭터/몬스터에서 참조가 끊어집니다.', async () => {
@@ -347,8 +350,8 @@ window.Pages.skills = {
             <label class="form-label">쿨타임</label>
             <input class="input-field" id="fSkCooldown" value="${Utils.escHtml(skill?.cooldown || '')}" placeholder="예: 20초, 즉발" style="width:100%;box-sizing:border-box;" />
           </div>
-          <div class="form-group">
-            <label class="form-label">EX 레벨 (EX급만)</label>
+          <div class="form-group" id="exLevelGroup" style="display:${(skill?.grade || 'F') === 'EX' ? 'block' : 'none'};">
+            <label class="form-label">EX 레벨</label>
             <input type="number" class="input-field" id="fSkExLevel" value="${skill?.exLevel !== undefined ? skill.exLevel : ''}" placeholder="-" style="width:100%;box-sizing:border-box;" />
           </div>
         </div>
@@ -403,6 +406,15 @@ window.Pages.skills = {
       if (updated) this._renderDetail(container, updated, wid);
       return true;
     }, isEdit ? '저장' : '추가');
+
+    // Show/hide EX level field based on grade
+    setTimeout(() => {
+      const gradeEl = document.getElementById('fSkGrade');
+      const exGroup = document.getElementById('exLevelGroup');
+      gradeEl?.addEventListener('change', () => {
+        if (exGroup) exGroup.style.display = gradeEl.value === 'EX' ? 'block' : 'none';
+      });
+    }, 60);
   },
 
   destroy: function() {

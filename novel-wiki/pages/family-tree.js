@@ -62,7 +62,19 @@ window.Pages.familyTree = {
           <button class="btn btn-primary" style="margin-top:16px;" onclick="AppRouter.navigate('characters')">캐릭터 관리</button>
         </div>
       ` : `
-        <!-- Relationship List -->
+        <!-- SVG Visualization FIRST -->
+        <div style="background:var(--color-surface2);border-radius:12px;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch;margin-bottom:16px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;flex-wrap:wrap;gap:6px;">
+            <span style="font-size:12px;color:var(--color-text-muted);font-weight:600;">관계 시각화</span>
+            <div style="display:flex;gap:6px;align-items:center;">
+              <button class="btn btn-ghost btn-sm" id="btnTouchMode" title="터치 모드 전환" style="font-size:11px;">✋ 1손가락: 이동</button>
+              <button class="btn btn-ghost btn-sm" id="btnShowMain" style="font-size:11px;">★ 주요만</button>
+            </div>
+          </div>
+          <div data-svg-wrap="1">${this._renderSVG(chars, relData, REL_COLORS)}</div>
+        </div>
+
+        <!-- Relationship List BELOW -->
         <div id="relList" class="item-list" style="margin-bottom:16px;">
           ${relData.length === 0
             ? `<div class="empty-state" style="padding:24px;text-align:center;">
@@ -89,12 +101,6 @@ window.Pages.familyTree = {
                 </div>`;
               }).join('')}
         </div>
-
-        <!-- SVG Visualization -->
-        <div style="background:var(--color-surface2);border-radius:12px;padding:16px;overflow:auto;-webkit-overflow-scrolling:touch;">
-          <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;font-weight:600;">관계 시각화</div>
-          ${this._renderSVG(chars, relData, REL_COLORS)}
-        </div>
       `}
     </div>`;
 
@@ -104,6 +110,27 @@ window.Pages.familyTree = {
       });
       return;
     }
+
+    // Touch mode toggle (for SVG pan)
+    let touchModePan = true; // true = 1-finger pans, false = 1-finger does nothing (2-finger only)
+    document.getElementById('btnTouchMode')?.addEventListener('click', () => {
+      touchModePan = !touchModePan;
+      const btn = document.getElementById('btnTouchMode');
+      if (btn) btn.textContent = touchModePan ? '✋ 1손가락: 이동' : '✌️ 2손가락: 이동';
+      const svgEl = container.querySelector('svg[id="relSvg"]');
+      if (svgEl) svgEl.style.touchAction = touchModePan ? 'none' : 'pan-x pan-y';
+    });
+
+    // Show main characters only filter
+    let showMainOnly = false;
+    document.getElementById('btnShowMain')?.addEventListener('click', () => {
+      showMainOnly = !showMainOnly;
+      const btn = document.getElementById('btnShowMain');
+      if (btn) { btn.textContent = showMainOnly ? '★ 전체 보기' : '★ 주요만'; btn.style.background = showMainOnly ? 'var(--color-primary)' : ''; }
+      const filteredChars = showMainOnly ? chars.filter(c => c.importance === 'main') : chars;
+      const svgWrap = container.querySelector('[data-svg-wrap]');
+      if (svgWrap) svgWrap.innerHTML = self._renderSVG(filteredChars, relData, REL_COLORS);
+    });
 
     // Add relationship button
     document.getElementById('btnAddRel')?.addEventListener('click', () => {
@@ -206,7 +233,7 @@ window.Pages.familyTree = {
       };
     });
 
-    let svg = `<svg width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="min-width:${W}px;display:block;">
+    let svg = `<svg id="relSvg" width="${W}" height="${H}" xmlns="http://www.w3.org/2000/svg" style="min-width:${W}px;display:block;touch-action:none;">
     <defs>
       <marker id="arrow" markerWidth="8" markerHeight="8" refX="6" refY="3" orient="auto">
         <path d="M0,0 L0,6 L8,3 z" fill="#6b7280" />

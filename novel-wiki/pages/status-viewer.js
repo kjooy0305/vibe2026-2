@@ -144,19 +144,20 @@ window.Pages.statusViewer = {
         <pre id="statusPre" style="margin:0;white-space:pre;font-size:13px;line-height:1.85;color:#c8daff;font-family:inherit;letter-spacing:0.02em;">${Utils.escHtml(statusText)}</pre>
       </div>
 
-      <!-- Bottom UI elements (novel flavour) -->
+      <!-- Bottom UI elements (novel flavour) — community panels with lock toggle -->
       <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
         <div style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;cursor:default;">
           <div style="font-size:12px;color:#6b9de8;">[알림 기록실]</div>
+          <div style="font-size:11px;color:rgba(107,157,232,0.5);margin-top:4px;">새로운 알림이 없습니다</div>
         </div>
-        <div style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:default;">
+        <button class="sv-community-panel" data-locked="true" style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left;">
           <span style="font-size:12px;color:#6b9de8;">[커뮤니티]</span>
-          <span style="font-size:12px;color:#6b9de8;opacity:0.7;">🔒</span>
-        </div>
-        <div style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:default;">
+          <span class="lock-icon" style="font-size:12px;color:#6b9de8;opacity:0.7;">🔒</span>
+        </button>
+        <button class="sv-community-panel" data-locked="true" style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;display:flex;align-items:center;justify-content:space-between;cursor:pointer;text-align:left;">
           <span style="font-size:12px;color:#6b9de8;">[길드 커뮤니티]</span>
-          <span style="font-size:12px;color:#6b9de8;opacity:0.7;">🔒</span>
-        </div>
+          <span class="lock-icon" style="font-size:12px;color:#6b9de8;opacity:0.7;">🔒</span>
+        </button>
       </div>
 
       <!-- Raw text area for quick copy -->
@@ -190,6 +191,17 @@ window.Pages.statusViewer = {
     const doCopy = () => Utils.copyText(statusText);
     document.getElementById('btnCopyStatus')?.addEventListener('click', doCopy);
     document.getElementById('btnCopyRaw')?.addEventListener('click', doCopy);
+
+    // Community lock/unlock toggle
+    container.querySelectorAll('.sv-community-panel').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const isLocked = btn.dataset.locked === 'true';
+        btn.dataset.locked = isLocked ? 'false' : 'true';
+        const lockIcon = btn.querySelector('.lock-icon');
+        if (lockIcon) lockIcon.textContent = isLocked ? '🔓' : '🔒';
+        btn.style.borderColor = isLocked ? 'rgba(16,185,129,0.4)' : 'rgba(96,165,250,0.2)';
+      });
+    });
 
     // Manual edit overlay
     document.getElementById('btnEditStats')?.addEventListener('click', () => {

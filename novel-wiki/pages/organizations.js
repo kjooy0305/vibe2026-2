@@ -205,7 +205,7 @@ window.Pages.organizations = {
       </div>
     </div>`;
 
-    document.getElementById('btnBackOrg')?.addEventListener('click', () => this.init(container));
+    document.getElementById('btnBackOrg')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
 
     document.getElementById('btnEditOrg')?.addEventListener('click', () => {
       this._openForm(org, wid, container);

@@ -35,6 +35,54 @@
     });
   }
 
+  function setupHeaderMore() {
+    const btn = document.getElementById('btnHeaderMore');
+    if (!btn) return;
+
+    // Build dropdown menu
+    const menu = document.createElement('div');
+    menu.id = 'headerMoreMenu';
+    menu.style.cssText = `
+      position:fixed;top:56px;right:8px;
+      background:var(--color-surface);border:1px solid var(--color-border);
+      border-radius:12px;box-shadow:0 8px 24px rgba(0,0,0,0.5);
+      min-width:180px;z-index:500;display:none;
+      overflow:hidden;`;
+    const items = [
+      { icon: '🌍', label: '세계/차원 관리', page: 'world' },
+      { icon: '⚙️', label: '설정', page: 'settings' },
+      { icon: '📋', label: '템플릿 설정', page: 'templates' },
+      { icon: '📖', label: '상태창 뷰어', page: 'status-viewer' },
+    ];
+    menu.innerHTML = `
+      <div style="padding:10px 14px;border-bottom:1px solid var(--color-border);font-size:12px;color:var(--color-text-muted);font-weight:700;">빠른 이동</div>
+      ${items.map(item => `
+        <button data-page="${item.page}"
+          style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:none;border:none;color:var(--color-text);font-size:13px;cursor:pointer;text-align:left;border-bottom:1px solid rgba(45,55,72,0.3);">
+          <span>${item.icon}</span><span>${item.label}</span>
+        </button>`).join('')}
+      <div style="padding:10px 14px;border-top:1px solid var(--color-border);">
+        <div style="font-size:11px;color:var(--color-text-dim);">소설 창작 위키 v1.0</div>
+        <div style="font-size:10px;color:var(--color-text-dim);margin-top:2px;">오프라인 저장 · IndexedDB</div>
+      </div>`;
+    document.body.appendChild(menu);
+
+    btn.addEventListener('click', e => {
+      e.stopPropagation();
+      const isOpen = menu.style.display === 'block';
+      menu.style.display = isOpen ? 'none' : 'block';
+    });
+
+    menu.querySelectorAll('button[data-page]').forEach(b => {
+      b.addEventListener('click', () => {
+        menu.style.display = 'none';
+        AppRouter.navigate(b.dataset.page);
+      });
+    });
+
+    document.addEventListener('click', () => { menu.style.display = 'none'; });
+  }
+
   async function boot() {
     try {
       await DB.open();
@@ -70,6 +118,7 @@
       });
 
       setupDrawer();
+      setupHeaderMore();
       SearchEngine.init();
 
       // Remove loader

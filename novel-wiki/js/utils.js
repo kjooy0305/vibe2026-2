@@ -27,10 +27,12 @@ const Utils = (function() {
     okBtn.textContent = btnLabel;
     dialog.setAttribute('aria-hidden', 'false');
     dialog.style.display = 'flex';
+    dialog.classList.add('open');
 
     const cleanup = () => {
       dialog.setAttribute('aria-hidden', 'true');
       dialog.style.display = 'none';
+      dialog.classList.remove('open');
       okBtn.replaceWith(okBtn.cloneNode(true));
       cancelBtn.replaceWith(cancelBtn.cloneNode(true));
     };
@@ -87,6 +89,31 @@ const Utils = (function() {
     }
 
     return { close, body: bodyEl };
+  }
+
+  // Confirm with text input (for destructive delete operations)
+  function confirmWithInput(title, desc, requiredText, onConfirm, btnLabel = '삭제') {
+    const body = `
+      <div style="text-align:center;padding:8px 0;">
+        <div style="font-size:38px;margin-bottom:10px;">⚠️</div>
+        <div style="font-weight:700;font-size:16px;margin-bottom:8px;">${escHtml(title)}</div>
+        <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;line-height:1.6;">${escHtml(desc)}</div>
+        <div style="font-size:12px;color:var(--color-warning);margin-bottom:6px;">아래에 <strong style="color:var(--color-danger);">"${escHtml(requiredText)}"</strong> 를 입력하세요</div>
+        <input class="input-field" id="confirmInputField" placeholder="${escHtml(requiredText)}" style="width:100%;box-sizing:border-box;text-align:center;" />
+      </div>`;
+    openModal(title, body, () => {
+      const val = document.getElementById('confirmInputField')?.value.trim();
+      if (val !== requiredText) {
+        toast('입력이 일치하지 않습니다', 'error');
+        return false;
+      }
+      onConfirm();
+      return true;
+    }, btnLabel);
+    // Focus input after modal renders
+    setTimeout(() => {
+      document.getElementById('confirmInputField')?.focus();
+    }, 100);
   }
 
   function closeModal() {
@@ -174,6 +201,6 @@ const Utils = (function() {
     return out;
   }
 
-  return { toast, confirm, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport };
+  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport };
 })();
 window.Utils = Utils;

@@ -5,7 +5,7 @@ const AppRouter = (function() {
   const pageMap = {};
 
   const PAGE_TITLES = {
-    home: '대시보드',
+    home: '홈',
     world: '세계/차원',
     characters: '캐릭터',
     organizations: '조직/단체',
@@ -45,7 +45,7 @@ const AppRouter = (function() {
     const titleEl = document.getElementById('pageTitle');
     if (titleEl) {
       const title = PAGE_TITLES[pageId] || pageId;
-      titleEl.innerHTML = `소설 <span>${title}</span>`;
+      titleEl.textContent = title;
     }
 
     // Update drawer active state

@@ -144,11 +144,16 @@ window.Pages.worldRules = {
 
     container.querySelectorAll('.btn-del-rule').forEach(btn => {
       btn.addEventListener('click', () => {
-        Utils.confirm('규칙 삭제', '이 규칙을 삭제하시겠습니까?', async () => {
-          await DB.del('worldRules', btn.dataset.id);
-          Utils.toast('삭제됨', 'info');
-          self._refreshRules(container, wid);
-        });
+        Utils.confirmWithInput(
+          '세계관 규칙 삭제',
+          '이 규칙을 삭제하시겠습니까? 되돌릴 수 없습니다.',
+          '세계관 규칙',
+          async () => {
+            await DB.del('worldRules', btn.dataset.id);
+            Utils.toast('삭제됨', 'info');
+            self._refreshRules(container, wid);
+          }
+        );
       });
     });
 
