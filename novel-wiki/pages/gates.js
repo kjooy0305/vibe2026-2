@@ -9,6 +9,28 @@ window.Pages.gates = {
   TYPES: ['섬멸형','토벌형','스토리형(개입)','스토리형(빙의)','타임어택형','퍼즐형','루프형','폐쇄형','보스형'],
   BREAK_TYPES: ['방출형','침식형','자폭형','소멸형'],
 
+  _customTypes: null,
+  _customBreakTypes: null,
+
+  _loadCustomLists: async function(wid) {
+    const ct = await DB.getSetting('gateCustomTypes_' + wid);
+    const cbt = await DB.getSetting('gateCustomBreakTypes_' + wid);
+    this._customTypes = ct || [];
+    this._customBreakTypes = cbt || [];
+  },
+
+  _saveCustomType: async function(wid, value) {
+    if (!value || this.TYPES.includes(value) || (this._customTypes || []).includes(value)) return;
+    this._customTypes = [...(this._customTypes || []), value];
+    await DB.setSetting('gateCustomTypes_' + wid, this._customTypes);
+  },
+
+  _saveCustomBreakType: async function(wid, value) {
+    if (!value || this.BREAK_TYPES.includes(value) || (this._customBreakTypes || []).includes(value)) return;
+    this._customBreakTypes = [...(this._customBreakTypes || []), value];
+    await DB.setSetting('gateCustomBreakTypes_' + wid, this._customBreakTypes);
+  },
+
   init: async function(container, options) {
     options = options || {};
     this._container = container;
@@ -27,7 +49,10 @@ window.Pages.gates = {
     }
 
     if (options.highlightId) this._currentId = options.highlightId;
-    const gates = await DB.getAll('gates', wid);
+    const [gates] = await Promise.all([
+      DB.getAll('gates', wid),
+      this._loadCustomLists(wid),
+    ]);
 
     if (this._currentId) {
       const gate = gates.find(g => g.id === this._currentId);
@@ -172,6 +197,16 @@ window.Pages.gates = {
 
     const rewardsHtml = this._renderRewardsHtml(gate.rewards || '', wid);
     const hiddenRewardsHtml = this._renderRewardsHtml(gate.hiddenRewards || '', wid);
+    const images = Array.isArray(gate.images) ? gate.images : (gate.image ? [{ url: gate.image, caption: '' }] : []);
+    const imagesHtml = images.length > 0
+      ? `<div style="display:flex;gap:10px;flex-wrap:wrap;margin-bottom:12px;">
+          ${images.map(img => `
+            <div style="display:flex;flex-direction:column;align-items:center;gap:4px;">
+              <img src="${img.url}" style="max-width:140px;max-height:140px;border-radius:8px;object-fit:cover;border:1px solid var(--color-border);" />
+              ${img.caption ? `<div style="font-size:11px;color:var(--color-text-muted);max-width:140px;text-align:center;">${Utils.escHtml(img.caption)}</div>` : ''}
+            </div>`).join('')}
+        </div>`
+      : '';
 
     container.innerHTML = `
     <div class="page active">
@@ -190,6 +225,7 @@ window.Pages.gates = {
 
       <!-- AUTHOR VIEW -->
       <div id="gateAuthorView">
+        ${imagesHtml}
         <div style="background:var(--color-surface2);border-radius:10px;padding:16px;margin-bottom:10px;">
           <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:12px;letter-spacing:1px;">기본 정보</div>
           ${field('이름', gate.name)}
@@ -292,13 +328,30 @@ window.Pages.gates = {
   _openForm: function(gate, wid, container) {
     const isEdit = !!gate;
     const g = gate || {};
+    const self = this;
+
+    const allTypes = [...this.TYPES, ...(this._customTypes || [])];
+    const allBreakTypes = [...this.BREAK_TYPES, ...(this._customBreakTypes || [])];
+    const existingType = g.type || '';
+    const existingBreakType = g.breakType || '';
+    const typeIsCustom = existingType && !allTypes.includes(existingType);
+    const breakTypeIsCustom = existingBreakType && !allBreakTypes.includes(existingBreakType);
+    if (typeIsCustom && !allTypes.includes(existingType)) allTypes.push(existingType);
+    if (breakTypeIsCustom && !allBreakTypes.includes(existingBreakType)) allBreakTypes.push(existingBreakType);
 
     const gradeOptions = this.GRADES.map(gr =>
       `<option value="${gr}" ${g.grade === gr ? 'selected' : ''}>${gr}</option>`).join('');
-    const typeOptions = ['', ...this.TYPES].map(t =>
-      `<option value="${t}" ${(g.type || '') === t ? 'selected' : ''}>${t || '선택 안 함'}</option>`).join('');
-    const breakTypeOptions = ['', ...this.BREAK_TYPES].map(bt =>
-      `<option value="${bt}" ${(g.breakType || '') === bt ? 'selected' : ''}>${bt || '선택 안 함'}</option>`).join('');
+    const typeOptions = ['', ...allTypes, '__custom__'].map(t => {
+      if (t === '__custom__') return `<option value="__custom__">기타 (직접 입력)...</option>`;
+      return `<option value="${t}" ${existingType === t ? 'selected' : ''}>${t || '선택 안 함'}</option>`;
+    }).join('');
+    const breakTypeOptions = ['', ...allBreakTypes, '__custom__'].map(bt => {
+      if (bt === '__custom__') return `<option value="__custom__">기타 (직접 입력)...</option>`;
+      return `<option value="${bt}" ${existingBreakType === bt ? 'selected' : ''}>${bt || '선택 안 함'}</option>`;
+    }).join('');
+
+    // Build existing images list
+    const existingImages = Array.isArray(g.images) ? g.images : (g.image ? [{ url: g.image, caption: '' }] : []);
 
     const tf = (id, label, val, placeholder) => `
       <div class="form-group">
@@ -324,10 +377,12 @@ window.Pages.gates = {
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">종류</label>
           <select class="select-input" id="fGateType" style="width:100%;">${typeOptions}</select>
+          <input class="input-field" id="fGateTypeCustom" placeholder="종류 직접 입력..." style="width:100%;box-sizing:border-box;margin-top:4px;display:${typeIsCustom ? 'block' : 'none'};" value="${typeIsCustom ? Utils.escHtml(existingType) : ''}" />
         </div>
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">브레이크 유형</label>
           <select class="select-input" id="fGateBreakType" style="width:100%;">${breakTypeOptions}</select>
+          <input class="input-field" id="fGateBreakTypeCustom" placeholder="브레이크 유형 직접 입력..." style="width:100%;box-sizing:border-box;margin-top:4px;display:${breakTypeIsCustom ? 'block' : 'none'};" value="${breakTypeIsCustom ? Utils.escHtml(existingBreakType) : ''}" />
         </div>
         ${tf('fGateMotif', '모티브', g.motif, '모티브 설명')}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
@@ -349,19 +404,63 @@ window.Pages.gates = {
           ${ta('fGateDetails', '세부사항', g.details, '추가 세부사항', 3)}
           ${ta('fGateAuthorNotes', '작가 메모', g.authorNotes, '작가만 보는 메모', 3)}
         </div>
+        <div style="border-top:1px solid var(--color-border);padding-top:10px;">
+          <div style="font-size:12px;color:var(--color-primary);font-weight:700;margin-bottom:8px;">이미지</div>
+          <div id="gateImgList" style="display:flex;flex-direction:column;gap:8px;">
+            ${existingImages.map((img, i) => `
+              <div class="gate-img-slot" data-idx="${i}" style="display:flex;flex-direction:column;gap:4px;background:var(--color-surface3,#1e2030);padding:8px;border-radius:8px;border:1px solid var(--color-border);">
+                <div style="display:flex;align-items:center;gap:6px;">
+                  <img src="${img.url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+                  <div style="flex:1;min-width:0;">
+                    <input class="input-field gate-img-caption" data-idx="${i}" value="${Utils.escHtml(img.caption || '')}" placeholder="설명 (선택)" style="width:100%;box-sizing:border-box;font-size:12px;" />
+                  </div>
+                  <button class="btn btn-ghost btn-sm gate-img-del" data-idx="${i}" style="color:var(--color-danger);flex-shrink:0;">✕</button>
+                </div>
+                <input type="hidden" class="gate-img-url" data-idx="${i}" value="${img.url}" />
+              </div>`).join('')}
+          </div>
+          <div style="margin-top:8px;">
+            <label style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px;display:block;">이미지 추가</label>
+            <input type="file" id="fGateImageAdd" accept="image/*" style="font-size:12px;" />
+          </div>
+        </div>
       </div>`;
 
     Utils.openModal(isEdit ? '던전 편집' : '새 던전 추가', body, async () => {
       const name = document.getElementById('fGateName')?.value.trim();
       if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+
+      // Resolve type
+      let type = document.getElementById('fGateType')?.value || '';
+      if (type === '__custom__') {
+        type = document.getElementById('fGateTypeCustom')?.value.trim() || '';
+        await self._saveCustomType(wid, type);
+      }
+
+      // Resolve breakType
+      let breakType = document.getElementById('fGateBreakType')?.value || '';
+      if (breakType === '__custom__') {
+        breakType = document.getElementById('fGateBreakTypeCustom')?.value.trim() || '';
+        await self._saveCustomBreakType(wid, breakType);
+      }
+
+      // Collect images from slots
+      const imgSlots = document.querySelectorAll('#globalModalBody .gate-img-slot');
+      const images = [];
+      imgSlots.forEach(slot => {
+        const url = slot.querySelector('.gate-img-url')?.value;
+        const caption = slot.querySelector('.gate-img-caption')?.value.trim() || '';
+        if (url) images.push({ url, caption });
+      });
+
       const data = {
         id: g.id || DB.genId(),
         worldId: wid,
         name,
         trueName: document.getElementById('fGateTrueName')?.value.trim() || '',
         grade: document.getElementById('fGateGrade')?.value || '',
-        type: document.getElementById('fGateType')?.value || '',
-        breakType: document.getElementById('fGateBreakType')?.value || '',
+        type,
+        breakType,
         motif: document.getElementById('fGateMotif')?.value.trim() || '',
         levelLimit: document.getElementById('fGateLevelLimit')?.value.trim() || '',
         maxPlayers: document.getElementById('fGateMaxPlayers')?.value.trim() || '',
@@ -377,6 +476,9 @@ window.Pages.gates = {
         hiddenRewards: document.getElementById('fGateHiddenRewards')?.value.trim() || '',
         details: document.getElementById('fGateDetails')?.value.trim() || '',
         authorNotes: document.getElementById('fGateAuthorNotes')?.value.trim() || '',
+        images,
+        createdAt: g.createdAt || Date.now(),
+        updatedAt: Date.now(),
       };
       await DB.put('gates', data);
       Utils.toast(isEdit ? '저장됨' : '추가됨', 'success');
@@ -387,6 +489,57 @@ window.Pages.gates = {
       else this.init(container);
       return true;
     }, isEdit ? '저장' : '추가');
+
+    // Wire custom type/breakType toggles and image upload — after modal renders
+    setTimeout(() => {
+      const typeSelect = document.getElementById('fGateType');
+      const typeCustom = document.getElementById('fGateTypeCustom');
+      typeSelect?.addEventListener('change', () => {
+        typeCustom.style.display = typeSelect.value === '__custom__' ? 'block' : 'none';
+      });
+
+      const btSelect = document.getElementById('fGateBreakType');
+      const btCustom = document.getElementById('fGateBreakTypeCustom');
+      btSelect?.addEventListener('change', () => {
+        btCustom.style.display = btSelect.value === '__custom__' ? 'block' : 'none';
+      });
+
+      // Delete image slot
+      document.getElementById('globalModalBody')?.addEventListener('click', e => {
+        const delBtn = e.target.closest('.gate-img-del');
+        if (delBtn) {
+          const idx = delBtn.dataset.idx;
+          document.querySelector(`#globalModalBody .gate-img-slot[data-idx="${idx}"]`)?.remove();
+        }
+      });
+
+      // Add new image
+      document.getElementById('fGateImageAdd')?.addEventListener('change', async e => {
+        const file = e.target.files?.[0];
+        if (!file) return;
+        try {
+          const url = await Utils.imageToBase64(file);
+          const list = document.getElementById('gateImgList');
+          if (!list) return;
+          const newIdx = Date.now();
+          const div = document.createElement('div');
+          div.className = 'gate-img-slot';
+          div.dataset.idx = newIdx;
+          div.style.cssText = 'display:flex;flex-direction:column;gap:4px;background:var(--color-surface3,#1e2030);padding:8px;border-radius:8px;border:1px solid var(--color-border);';
+          div.innerHTML = `
+            <div style="display:flex;align-items:center;gap:6px;">
+              <img src="${url}" style="width:60px;height:60px;object-fit:cover;border-radius:6px;flex-shrink:0;" />
+              <div style="flex:1;min-width:0;">
+                <input class="input-field gate-img-caption" data-idx="${newIdx}" value="" placeholder="설명 (선택)" style="width:100%;box-sizing:border-box;font-size:12px;" />
+              </div>
+              <button class="btn btn-ghost btn-sm gate-img-del" data-idx="${newIdx}" style="color:var(--color-danger);flex-shrink:0;">✕</button>
+            </div>
+            <input type="hidden" class="gate-img-url" data-idx="${newIdx}" value="${url}" />`;
+          list.appendChild(div);
+          e.target.value = '';
+        } catch(err) { Utils.toast('이미지 처리 오류', 'error'); }
+      });
+    }, 50);
   },
 
   // ── EXPORT ──────────────────────────────────────────────────────────────────

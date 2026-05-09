@@ -43,11 +43,23 @@ window.Pages.items = {
 
   // ── LIST ────────────────────────────────────────────────────────────────────
 
-  _renderList: function(container, items, wid) {
+  _renderList: async function(container, items, wid) {
     this._currentId = null;
     const world = AppStore.getState().currentWorld;
     let activeGrade = '';
     let activeType = '';
+    let activeTower = '';
+
+    const towers = await DB.getAll('towers', wid);
+    const towerMap = {};
+    towers.forEach(t => { towerMap[t.id] = t.name; });
+
+    const towerFilterHtml = towers.length > 0
+      ? `<div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:6px;" id="towerFilters">
+          <button class="filter-chip-tower active" data-tower="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface2);color:var(--color-text);font-size:11px;cursor:pointer;">전체 탑</button>
+          ${towers.map(t => `<button class="filter-chip-tower" data-tower="${Utils.escHtml(t.id)}" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);font-size:11px;cursor:pointer;">🗼 ${Utils.escHtml(t.name)}</button>`).join('')}
+        </div>`
+      : '';
 
     container.innerHTML = `
     <div class="page active">
@@ -68,6 +80,7 @@ window.Pages.items = {
           <button class="filter-chip-type active" data-type="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface2);color:var(--color-text);font-size:11px;cursor:pointer;">전체 종류</button>
           ${this.TYPES.map(t => `<button class="filter-chip-type" data-type="${t}" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);font-size:11px;cursor:pointer;">${t}</button>`).join('')}
         </div>
+        ${towerFilterHtml}
       </div>
 
       <div id="itemList" class="item-list">
@@ -77,7 +90,7 @@ window.Pages.items = {
                <div style="font-weight:700;font-size:16px;margin-bottom:4px;">아이템이 없습니다</div>
                <div style="font-size:13px;color:var(--color-text-muted);">+ 추가 버튼으로 아이템을 등록하세요</div>
              </div>`
-          : items.map(it => this._itemCard(it)).join('')}
+          : items.map(it => this._itemCard(it, towerMap)).join('')}
       </div>
     </div>`;
 
@@ -91,7 +104,7 @@ window.Pages.items = {
         btn.style.background = btn.dataset.grade ? Utils.gradeColor(btn.dataset.grade) : 'var(--color-primary)';
         btn.style.color = '#000';
         activeGrade = btn.dataset.grade;
-        this._applyFilter(container, document.getElementById('itemFilter')?.value || '', activeGrade, activeType);
+        this._applyFilter(container, document.getElementById('itemFilter')?.value || '', activeGrade, activeType, activeTower);
       });
     });
 
@@ -105,12 +118,26 @@ window.Pages.items = {
         btn.style.background = 'var(--color-surface2)';
         btn.style.color = 'var(--color-text)';
         activeType = btn.dataset.type;
-        this._applyFilter(container, document.getElementById('itemFilter')?.value || '', activeGrade, activeType);
+        this._applyFilter(container, document.getElementById('itemFilter')?.value || '', activeGrade, activeType, activeTower);
+      });
+    });
+
+    // Tower filter
+    container.querySelectorAll('.filter-chip-tower[data-tower]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        container.querySelectorAll('.filter-chip-tower[data-tower]').forEach(b => {
+          b.style.background = 'transparent';
+          b.style.color = 'var(--color-text-muted)';
+        });
+        btn.style.background = 'var(--color-surface2)';
+        btn.style.color = 'var(--color-text)';
+        activeTower = btn.dataset.tower;
+        this._applyFilter(container, document.getElementById('itemFilter')?.value || '', activeGrade, activeType, activeTower);
       });
     });
 
     document.getElementById('itemFilter')?.addEventListener('input', e => {
-      this._applyFilter(container, e.target.value, activeGrade, activeType);
+      this._applyFilter(container, e.target.value, activeGrade, activeType, activeTower);
     });
 
     document.getElementById('btnAddItem')?.addEventListener('click', () => {
@@ -150,28 +177,33 @@ window.Pages.items = {
     });
   },
 
-  _applyFilter: function(container, query, grade, type) {
+  _applyFilter: function(container, query, grade, type, tower) {
     const q = (query || '').toLowerCase();
     container.querySelectorAll('.item-card').forEach(card => {
       const text = (card.dataset.searchText || '').toLowerCase();
       const cardGrade = card.dataset.grade || '';
       const cardType = card.dataset.type || '';
+      const cardTower = card.dataset.towerId || '';
       const gradeOk = !grade || cardGrade === grade;
       const typeOk = !type || cardType === type;
+      const towerOk = !tower || cardTower === tower;
       const textOk = !q || text.includes(q);
-      card.style.display = gradeOk && typeOk && textOk ? '' : 'none';
+      card.style.display = gradeOk && typeOk && towerOk && textOk ? '' : 'none';
     });
   },
 
-  _itemCard: function(it) {
+  _itemCard: function(it, towerMap) {
+    towerMap = towerMap || {};
     const gc = Utils.gradeColor(it.grade || 'F');
     const hasWarning = !it.effects && !it.description;
-    const searchText = [it.name, it.grade, it.type, it.effects, it.description, it.source].filter(Boolean).join(' ').toLowerCase();
+    const towerName = it.towerId ? (towerMap[it.towerId] || '') : '';
+    const searchText = [it.name, it.grade, it.type, it.effects, it.description, it.source, towerName].filter(Boolean).join(' ').toLowerCase();
     return `
     <div class="item-card list-item"
       data-id="${Utils.escHtml(it.id)}"
       data-grade="${Utils.escHtml(it.grade || '')}"
       data-type="${Utils.escHtml(it.type || '')}"
+      data-tower-id="${Utils.escHtml(it.towerId || '')}"
       data-search-text="${Utils.escHtml(searchText)}"
       style="cursor:pointer;border-left:3px solid ${gc};display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--color-surface2);border-radius:10px;border:1px solid var(--color-border);margin-bottom:8px;">
       ${it.image
@@ -183,6 +215,7 @@ window.Pages.items = {
           <span style="font-weight:700;font-size:14px;">${Utils.escHtml(it.name || '이름 없음')}</span>
           ${hasWarning ? '<span title="효과/설명 누락" style="color:var(--color-warning);font-size:13px;">⚠️</span>' : ''}
           ${it.type ? `<span style="font-size:11px;padding:1px 6px;background:var(--color-border);border-radius:3px;color:var(--color-text-muted);">${Utils.escHtml(it.type)}</span>` : ''}
+          ${towerName ? `<span style="font-size:11px;padding:1px 6px;background:rgba(59,130,246,0.1);border:1px solid rgba(59,130,246,0.25);border-radius:3px;color:#60a5fa;">🗼 ${Utils.escHtml(towerName)}</span>` : ''}
         </div>
         ${it.effects ? `<div style="font-size:12px;color:var(--color-text-dim);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(it.effects)}</div>` : ''}
         ${it.source ? `<div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">획득처: ${Utils.escHtml(it.source)}</div>` : ''}
@@ -196,10 +229,16 @@ window.Pages.items = {
 
   // ── DETAIL ──────────────────────────────────────────────────────────────────
 
-  _renderDetail: function(container, it, wid) {
+  _renderDetail: async function(container, it, wid) {
     const gc = Utils.gradeColor(it.grade || 'F');
     const isGradient = gc.startsWith('linear');
     const borderColor = isGradient ? '#fbbf24' : gc;
+
+    let towerName = '';
+    if (it.towerId) {
+      const tower = await DB.get('towers', it.towerId).catch(() => null);
+      towerName = tower?.name || '';
+    }
 
     // Author view (full info)
     const authorViewHtml = `
@@ -228,6 +267,11 @@ window.Pages.items = {
             <div>
               <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:3px;">획득처</div>
               <div style="font-size:13px;">${Utils.escHtml(it.source)}</div>
+            </div>` : ''}
+          ${towerName ? `
+            <div style="margin-top:8px;">
+              <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:3px;">연결된 탑</div>
+              <div style="font-size:13px;">🗼 <button class="btn btn-ghost btn-sm" onclick="AppRouter.navigate('tower')" style="font-size:12px;padding:0 4px;">${Utils.escHtml(towerName)}</button></div>
             </div>` : ''}
         </div>
 
@@ -344,10 +388,17 @@ window.Pages.items = {
     const self = this;
     const it = item || {};
 
-    // Load skills for relatedSkill picker
-    const allSkills = await DB.getAll('skills', wid);
+    // Load skills and towers for pickers
+    const [allSkills, allTowers] = await Promise.all([
+      DB.getAll('skills', wid),
+      DB.getAll('towers', wid),
+    ]);
     const relSkillOpts = ['<option value="">없음</option>',
       ...allSkills.map(sk => `<option value="${Utils.escHtml(sk.id)}" ${it.relatedSkill?.id === sk.id ? 'selected' : ''}>${Utils.escHtml(sk.name)} (${sk.grade || 'F'})</option>`)
+    ].join('');
+
+    const towerOpts = ['<option value="">연결 안 함</option>',
+      ...allTowers.map(t => `<option value="${Utils.escHtml(t.id)}" ${(it.towerId || '') === t.id ? 'selected' : ''}>${Utils.escHtml(t.name)}</option>`)
     ].join('');
 
     const body = `
@@ -371,6 +422,11 @@ window.Pages.items = {
             </select>
           </div>
         </div>
+        ${allTowers.length > 0 ? `
+        <div class="form-group">
+          <label class="form-label">연결된 탑</label>
+          <select class="select-input" id="fItTower" style="width:100%;">${towerOpts}</select>
+        </div>` : ''}
         <div class="form-group">
           <label class="form-label">효과 (작가+소설 표시)</label>
           <textarea class="textarea-field" id="fItEffects" rows="3" placeholder="아이템 효과 (스탯 증가, 특수 효과 등)..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(it.effects || '')}</textarea>
@@ -418,12 +474,15 @@ window.Pages.items = {
         if (sk) relatedSkill = { id: sk.id, name: sk.name, grade: sk.grade || '' };
       }
 
+      const towerId = document.getElementById('fItTower')?.value || '';
+
       const record = {
         ...(it || {}),
         worldId: wid,
         name,
         grade: document.getElementById('fItGrade')?.value || 'F',
         type: document.getElementById('fItType')?.value || '',
+        towerId: towerId || null,
         effects: document.getElementById('fItEffects')?.value.trim() || '',
         description: document.getElementById('fItDesc')?.value.trim() || '',
         authorNotes: document.getElementById('fItAuthor')?.value.trim() || '',
