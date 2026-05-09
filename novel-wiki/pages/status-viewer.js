@@ -81,11 +81,24 @@ window.Pages.statusViewer = {
     return merged;
   },
 
-  _renderPage: function(container, chars, char, wid) {
+  _renderPage: async function(container, chars, char, wid) {
     const self = this;
     const novelView = this._novelView;
     const displayChar = this._applyOverrides(char);
-    const statusText = this._buildStatusText(displayChar, novelView);
+
+    // Load linked achievements from DB
+    const allAchievements = await DB.getAll('achievements', wid);
+    const charAchievementIds = Array.isArray(char.achievementIds) ? char.achievementIds : [];
+    const linkedAchievements = charAchievementIds.map(id => allAchievements.find(a => a.id === id)).filter(Boolean);
+
+    // Load constellations linked to this character
+    const allConstellations = await DB.getAll('constellations', wid);
+    const linkedConstellations = allConstellations.filter(c =>
+      (c.contractors || []).includes(char.id) ||
+      (c.provisionalContractors || []).includes(char.id)
+    );
+
+    const statusText = this._buildStatusText(displayChar, novelView, linkedAchievements, linkedConstellations);
 
     container.innerHTML = `
     <div class="page active">
@@ -205,13 +218,14 @@ window.Pages.statusViewer = {
 
     // Manual edit overlay
     document.getElementById('btnEditStats')?.addEventListener('click', () => {
-      self._openEditOverlay(char, wid, chars, container);
+      self._openEditOverlay(char, wid, chars, container, linkedAchievements);
     });
   },
 
-  _openEditOverlay: function(char, wid, chars, container) {
+  _openEditOverlay: function(char, wid, chars, container, linkedAchievements) {
     const self = this;
     const ov = this._editOverrides;
+    linkedAchievements = linkedAchievements || [];
 
     // Build current stats text
     const statsObj = ov.statsRaw !== undefined
@@ -223,10 +237,11 @@ window.Pages.statusViewer = {
       ? ov.skillsRaw
       : (char.skills || []).map(s => typeof s === 'string' ? s : (s.grade ? `${s.name}(${s.grade})` : s.name)).join('\n');
 
-    // Build current achievements text
+    // Build current achievements text (prefer DB-linked if available)
+    const achSource = linkedAchievements.length > 0 ? linkedAchievements : (char.achievements || []);
     const achStr = ov.achievementsRaw !== undefined
       ? ov.achievementsRaw
-      : (char.achievements || []).map(a => typeof a === 'string' ? a : (a.grade ? `${a.name}(${a.grade})` : a.name)).join('\n');
+      : achSource.map(a => typeof a === 'string' ? a : (a.grade ? `${a.name}(${a.grade})` : a.name)).join('\n');
 
     const body = `
       <div style="display:flex;flex-direction:column;gap:12px;">
@@ -272,7 +287,7 @@ window.Pages.statusViewer = {
           <input class="input-field" id="ovGender" value="${Utils.escHtml(ov.gender !== undefined ? ov.gender : (char.gender || ''))}" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
-          <label class="form-label">업적목록 (한 줄에 하나, 형식: 이름(등급) 또는 이름)</label>
+          <label class="form-label">보유칭호 목록 (한 줄에 하나, 형식: 이름(등급) 또는 이름)</label>
           <textarea class="textarea-field" id="ovAchievements" rows="3" style="width:100%;box-sizing:border-box;font-family:monospace;">${Utils.escHtml(achStr)}</textarea>
         </div>
         <div class="form-group">
@@ -318,26 +333,35 @@ window.Pages.statusViewer = {
     }, 50);
   },
 
-  _buildStatusText: function(char, novelView) {
+  _buildStatusText: function(char, novelView, linkedAchievements, linkedConstellations) {
+    linkedAchievements = linkedAchievements || [];
+    linkedConstellations = linkedConstellations || [];
     const bar = 'ㅡ'.repeat(8);
     const lines = [bar];
 
     lines.push(`ㅣ레벨:${char.level !== undefined && char.level !== '' ? char.level : 0}`);
-    if (char.title !== undefined) lines.push(`ㅣ칭호:${char.title || ''}`);
     lines.push(`ㅣ이름:${char.name || ''}`);
     if (char.nation !== undefined && char.nation !== '') lines.push(`ㅣ국가:${char.nation}`);
-    if (char.guild !== undefined) lines.push(`ㅣ길드:${char.guild || ''}`);
+    if (char.guild !== undefined && char.guild !== '') lines.push(`ㅣ길드:${char.guild}`);
     if (char.race !== undefined && char.race !== '') lines.push(`ㅣ종족:${char.race}`);
     if (char.age !== undefined && char.age !== '') lines.push(`ㅣ나이:${char.age}`);
     if (char.gender !== undefined && char.gender !== '') lines.push(`ㅣ성별:${char.gender}`);
 
-    // Achievements
-    const achievements = char.achievements || [];
-    lines.push('ㅣ[업적]');
-    if (achievements.length === 0) {
+    // 핵심칭호 (main title)
+    if (char.title !== undefined && char.title !== '') {
+      lines.push(`ㅣ[핵심칭호]`);
+      lines.push(`ㄴ${char.title}`);
+    }
+
+    // 보유칭호 (owned achievements/titles list)
+    const manualAchievements = char.achievements || [];
+    // Use DB-linked achievements if available, otherwise fall back to manual
+    const achievementList = linkedAchievements.length > 0 ? linkedAchievements : manualAchievements;
+    lines.push('ㅣ[보유칭호]');
+    if (achievementList.length === 0) {
       lines.push('ㄴ(없음)');
     } else {
-      achievements.forEach(a => {
+      achievementList.forEach(a => {
         const name = typeof a === 'string' ? a : (a.name || '');
         const grade = typeof a === 'object' && a.grade ? `(${a.grade})` : '';
         lines.push(`ㄴ${name}${grade}`);
@@ -371,6 +395,19 @@ window.Pages.statusViewer = {
         const name = typeof s === 'string' ? s : (s.name || '');
         const grade = typeof s === 'object' && s.grade ? `(${s.grade})` : '';
         lines.push(`ㄴ${name}${grade}`);
+      });
+    }
+
+    // Constellations (성좌 계약)
+    if (linkedConstellations.length > 0) {
+      lines.push('ㅣ[성좌 계약]');
+      linkedConstellations.forEach(c => {
+        const charId = char.id;
+        const isContractor = (c.contractors || []).includes(charId);
+        const isProvisional = (c.provisionalContractors || []).includes(charId);
+        const status = isContractor ? '계약' : isProvisional ? '가계약' : '연관';
+        const tier = c.tier ? `[${c.tier}]` : '';
+        lines.push(`ㄴ${c.name || ''}${tier} (${status})`);
       });
     }
 
