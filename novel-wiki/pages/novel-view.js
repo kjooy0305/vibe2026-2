@@ -42,7 +42,7 @@ window.Pages.novelView = {
       DB.getSetting('novelDraft_' + wid, ''),
       DB.getAll('characters', wid),
       DB.getAll('skills', wid),
-      DB.getAll('tower', wid),
+      DB.getAll('towers', wid),
       DB.getAll('gates', wid),
       DB.getSetting('novelFontSize', 13),
       DB.getSetting('novelQuestions', null),
