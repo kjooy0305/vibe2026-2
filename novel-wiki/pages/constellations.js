@@ -444,6 +444,22 @@ window.Pages.constellations = {
 
   // ── FORM ──────────────────────────────────────────────────────────────────────
 
+  _buildIconGrid: function(presets, customs, currentIcon) {
+    const presetHtml = presets.map(ic =>
+      `<button type="button" class="const-icon-btn" data-icon="${ic}"
+        style="font-size:18px;width:34px;height:34px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:7px;background:var(--color-surface3,#2a2a3a);cursor:pointer;">${ic}</button>`
+    ).join('');
+    const customHtml = customs.map(ic =>
+      `<span style="position:relative;display:inline-block;">
+        <button type="button" class="const-icon-btn" data-icon="${ic}"
+          style="font-size:18px;width:34px;height:34px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:7px;background:var(--color-surface3,#2a2a3a);cursor:pointer;">${ic}</button>
+        <button type="button" class="icon-del-btn" data-icon="${ic}"
+          style="position:absolute;top:-4px;right:-4px;font-size:10px;width:16px;height:16px;border-radius:50%;background:var(--color-danger);color:#fff;border:none;cursor:pointer;line-height:16px;text-align:center;padding:0;">×</button>
+      </span>`
+    ).join('');
+    return presetHtml + (customHtml ? `<div style="width:100%;height:1px;background:var(--color-border);margin:6px 0;"></div>${customHtml}` : '');
+  },
+
   _openForm: async function(constellation, wid, container) {
     const isEdit = !!constellation;
     const c = constellation || {};
@@ -465,6 +481,7 @@ window.Pages.constellations = {
     const skills = skillsRaw.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
 
     let selectedIcon = c.icon || '⭐';
+    let constCustomIcons = (await DB.getSetting('constCustomIcons', [])) || [];
     const allSeries = this._C.constellationSeries;
     const allTiers = this._C.constellationTiers;
 
@@ -542,15 +559,13 @@ window.Pages.constellations = {
         <!-- 아이콘 -->
         <div class="form-group">
           <label class="form-label">아이콘</label>
+          <div style="font-size:30px;text-align:center;margin-bottom:6px;" id="constIconPreview">${Utils.escHtml(selectedIcon)}</div>
           <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;" id="constIconPicker">
-            ${(this._C?.iconPresets || []).map(ic => `<button type="button" class="const-icon-btn" data-icon="${ic}"
-              style="font-size:18px;width:34px;height:34px;border:2px solid ${selectedIcon === ic ? 'var(--color-primary)' : 'transparent'};border-radius:7px;background:var(--color-surface3,#2a2a3a);cursor:pointer;">${ic}</button>`).join('')}
+            ${this._buildIconGrid(this._C?.iconPresets || [], constCustomIcons, selectedIcon)}
           </div>
-          <div style="display:flex;align-items:center;gap:8px;">
-            <span style="font-size:11px;color:var(--color-text-muted);">직접 입력:</span>
-            <input id="fConstIconCustom" class="input-field" value="" placeholder="이모지..." style="width:80px;font-size:16px;text-align:center;padding:4px 8px;" maxlength="4" />
-            <button type="button" id="btnApplyConstIcon" class="btn btn-ghost btn-sm">적용</button>
-            <span id="constIconPreview" style="font-size:26px;">${Utils.escHtml(selectedIcon)}</span>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input id="fConstIconCustom" class="form-input" placeholder="이모지 직접 입력 후 추가" style="flex:1;font-size:18px;"/>
+            <button type="button" id="btnAddConstIcon" class="btn btn-ghost btn-sm" style="white-space:nowrap;">+ 추가</button>
           </div>
         </div>
 
@@ -685,23 +700,41 @@ window.Pages.constellations = {
     // ── Post-render wiring ─────────────────────────────────────
     setTimeout(() => {
       // Icon picker
-      document.getElementById('constIconPicker')?.addEventListener('click', e => {
-        const btn = e.target.closest('.const-icon-btn');
-        if (!btn) return;
-        selectedIcon = btn.dataset.icon;
-        document.querySelectorAll('#constIconPicker .const-icon-btn').forEach(b => {
-          b.style.borderColor = b === btn ? 'var(--color-primary)' : 'transparent';
+      const rebindConstIcons = () => {
+        const picker = document.getElementById('constIconPicker');
+        const preview = document.getElementById('constIconPreview');
+        picker?.querySelectorAll('.const-icon-btn').forEach(btn => {
+          btn.onclick = () => {
+            selectedIcon = btn.dataset.icon;
+            picker.querySelectorAll('.const-icon-btn').forEach(b => b.style.borderColor = 'transparent');
+            btn.style.borderColor = 'var(--color-primary)';
+            if (preview) preview.textContent = selectedIcon;
+          };
         });
-        const prev = document.getElementById('constIconPreview');
-        if (prev) prev.textContent = selectedIcon;
-      });
-      document.getElementById('btnApplyConstIcon')?.addEventListener('click', () => {
+        picker?.querySelectorAll('.icon-del-btn').forEach(btn => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            constCustomIcons = constCustomIcons.filter(x => x !== btn.dataset.icon);
+            await DB.setSetting('constCustomIcons', constCustomIcons);
+            if (picker) picker.innerHTML = self._buildIconGrid(self._C?.iconPresets || [], constCustomIcons, selectedIcon);
+            rebindConstIcons();
+          };
+        });
+      };
+      rebindConstIcons();
+
+      document.getElementById('btnAddConstIcon')?.addEventListener('click', async () => {
         const val = document.getElementById('fConstIconCustom')?.value.trim();
         if (!val) return;
-        selectedIcon = val;
-        document.querySelectorAll('#constIconPicker .const-icon-btn').forEach(b => { b.style.borderColor = 'transparent'; });
-        const prev = document.getElementById('constIconPreview');
-        if (prev) prev.textContent = selectedIcon;
+        if (!constCustomIcons.includes(val)) {
+          constCustomIcons = [...constCustomIcons, val];
+          await DB.setSetting('constCustomIcons', constCustomIcons);
+        }
+        const picker = document.getElementById('constIconPicker');
+        if (picker) picker.innerHTML = self._buildIconGrid(self._C?.iconPresets || [], constCustomIcons, selectedIcon);
+        rebindConstIcons();
+        const inp = document.getElementById('fConstIconCustom');
+        if (inp) inp.value = '';
       });
 
       // Series/tier custom select toggle
