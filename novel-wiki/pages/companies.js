@@ -181,26 +181,44 @@ window.Pages.companies = {
     </div>`;
   },
 
-  _openForm: function(container, item, wid, all) {
+  _buildIconGrid: function(presets, customs, currentIcon) {
+    const presetHtml = presets.map(ic =>
+      `<button type="button" class="icon-pick-btn" data-icon="${ic}" data-custom="0"
+        style="font-size:22px;padding:6px;border-radius:8px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};background:none;cursor:pointer;">${ic}</button>`
+    ).join('');
+    const customHtml = customs.map(ic =>
+      `<span style="position:relative;display:inline-block;">
+        <button type="button" class="icon-pick-btn" data-icon="${ic}" data-custom="1"
+          style="font-size:22px;padding:6px;border-radius:8px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};background:none;cursor:pointer;">${ic}</button>
+        <button type="button" class="icon-del-btn" data-icon="${ic}"
+          style="position:absolute;top:-4px;right:-4px;font-size:10px;width:16px;height:16px;border-radius:50%;background:var(--color-danger);color:#fff;border:none;cursor:pointer;line-height:16px;text-align:center;padding:0;">×</button>
+      </span>`
+    ).join('');
+    return presetHtml + (customHtml ? `<div style="width:100%;height:1px;background:var(--color-border);margin:6px 0;"></div>${customHtml}` : '');
+  },
+
+  _openForm: async function(container, item, wid, all) {
     const self = this;
     const isEdit = !!item;
+    const currentIcon = item?.icon || '🏢';
+
+    let customIcons = (await DB.getSetting('companyCustomIcons', [])) || [];
 
     const indOpts = this.INDUSTRIES.map(v =>
       `<option value="${Utils.escHtml(v)}" ${item?.industry === v ? 'selected' : ''}>${Utils.escHtml(v)}</option>`).join('');
     const scaleOpts = this.SCALES.map(v =>
       `<option value="${Utils.escHtml(v)}" ${item?.scale === v ? 'selected' : ''}>${Utils.escHtml(v)}</option>`).join('');
 
-    const iconGrid = this.ICONS.map(ic =>
-      `<button type="button" class="icon-pick-btn" data-icon="${ic}"
-        style="font-size:22px;padding:6px;border-radius:8px;border:2px solid ${(item?.icon||'🏢')===ic?'var(--color-primary)':'transparent'};background:none;cursor:pointer;">${ic}</button>`
-    ).join('');
-
     const body = `
       <div style="padding:4px 0 12px;">
         <div style="margin-bottom:14px;">
           <label style="font-size:12px;color:var(--color-text-muted);display:block;margin-bottom:6px;">아이콘</label>
-          <div id="iconDisplay" style="font-size:36px;text-align:center;margin-bottom:8px;">${item?.icon||'🏢'}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;">${iconGrid}</div>
+          <div id="iconDisplay" style="font-size:36px;text-align:center;margin-bottom:8px;">${currentIcon}</div>
+          <div id="iconGrid" style="display:flex;flex-wrap:wrap;gap:4px;">${self._buildIconGrid(self.ICONS, customIcons, currentIcon)}</div>
+          <div style="display:flex;gap:6px;margin-top:8px;align-items:center;">
+            <input id="fCustomIcon" class="form-input" placeholder="이모지 직접 입력 후 추가" style="flex:1;font-size:18px;"/>
+            <button type="button" id="btnAddIcon" class="btn btn-ghost btn-sm" style="white-space:nowrap;">+ 추가</button>
+          </div>
         </div>
         <div style="margin-bottom:12px;">
           <label style="font-size:12px;color:var(--color-text-muted);display:block;margin-bottom:4px;">기업명 *</label>
@@ -306,13 +324,48 @@ window.Pages.companies = {
     // Icon picker
     setTimeout(() => {
       const display = document.getElementById('iconDisplay');
-      if (display) display.dataset.icon = item?.icon || '🏢';
-      document.querySelectorAll('.icon-pick-btn').forEach(btn => {
-        btn.addEventListener('click', () => {
-          document.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
-          btn.style.borderColor = 'var(--color-primary)';
-          if (display) { display.textContent = btn.dataset.icon; display.dataset.icon = btn.dataset.icon; }
+      if (display) display.dataset.icon = currentIcon;
+
+      function bindIconEvents() {
+        document.querySelectorAll('.icon-pick-btn').forEach(btn => {
+          btn.onclick = () => {
+            document.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
+            btn.style.borderColor = 'var(--color-primary)';
+            if (display) { display.textContent = btn.dataset.icon; display.dataset.icon = btn.dataset.icon; }
+          };
         });
+        document.querySelectorAll('.icon-del-btn').forEach(btn => {
+          btn.onclick = async (e) => {
+            e.stopPropagation();
+            const ic = btn.dataset.icon;
+            customIcons = customIcons.filter(x => x !== ic);
+            await DB.setSetting('companyCustomIcons', customIcons);
+            const grid = document.getElementById('iconGrid');
+            if (grid) {
+              const sel = display?.dataset.icon || currentIcon;
+              grid.innerHTML = self._buildIconGrid(self.ICONS, customIcons, sel);
+              bindIconEvents();
+            }
+          };
+        });
+      }
+      bindIconEvents();
+
+      document.getElementById('btnAddIcon')?.addEventListener('click', async () => {
+        const val = document.getElementById('fCustomIcon')?.value.trim();
+        if (!val) return;
+        if (!customIcons.includes(val)) {
+          customIcons = [...customIcons, val];
+          await DB.setSetting('companyCustomIcons', customIcons);
+        }
+        const grid = document.getElementById('iconGrid');
+        if (grid) {
+          const sel = display?.dataset.icon || currentIcon;
+          grid.innerHTML = self._buildIconGrid(self.ICONS, customIcons, sel);
+          bindIconEvents();
+        }
+        const inp = document.getElementById('fCustomIcon');
+        if (inp) inp.value = '';
       });
     }, 50);
   },
