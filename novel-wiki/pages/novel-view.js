@@ -84,14 +84,14 @@ window.Pages.novelView = {
       <div style="display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 8px;flex-shrink:0;align-items:center;">
         <button class="btn btn-primary btn-sm" id="btnSaveNow">저장</button>
         <button class="btn btn-ghost btn-sm" id="btnClearDraft" style="color:var(--color-danger);">비우기</button>
-        <div style="display:flex;align-items:center;gap:4px;margin-left:auto;background:var(--color-surface2);border-radius:8px;padding:4px 10px;border:1px solid var(--color-border);">
-          <span style="font-size:10px;color:var(--color-text-dim);user-select:none;">글씨크기</span>
+        <div style="display:flex;align-items:center;gap:6px;margin-left:auto;background:var(--color-surface2);border-radius:10px;padding:5px 12px;border:1px solid var(--color-border);">
+          <span style="font-size:10px;color:var(--color-text-dim);user-select:none;">글씨</span>
           <button id="btnFontSmaller"
-            style="width:28px;height:28px;border-radius:5px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-text);cursor:pointer;font-size:13px;font-weight:700;display:flex;align-items:center;justify-content:center;">A-</button>
+            style="width:34px;height:34px;border-radius:7px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-text);cursor:pointer;font-size:16px;font-weight:900;display:flex;align-items:center;justify-content:center;line-height:1;touch-action:manipulation;">가−</button>
           <span id="fontSizeDisplay"
-            style="font-size:11px;color:var(--color-primary);font-weight:700;min-width:32px;text-align:center;">${fs}px</span>
+            style="font-size:12px;color:var(--color-primary);font-weight:800;min-width:36px;text-align:center;">${fs}px</span>
           <button id="btnFontLarger"
-            style="width:28px;height:28px;border-radius:5px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-text);cursor:pointer;font-size:15px;font-weight:700;display:flex;align-items:center;justify-content:center;">A+</button>
+            style="width:34px;height:34px;border-radius:7px;background:var(--color-surface);border:1px solid var(--color-border);color:var(--color-text);cursor:pointer;font-size:18px;font-weight:900;display:flex;align-items:center;justify-content:center;line-height:1;touch-action:manipulation;">가+</button>
         </div>
       </div>
 
@@ -142,17 +142,20 @@ window.Pages.novelView = {
     };
 
     // ── Font size ──────────────────────────────────────────────
-    document.getElementById('btnFontLarger')?.addEventListener('click', async () => {
-      self._fontSize = Math.min(22, self._fontSize + 1);
-      if (textarea) textarea.style.fontSize = self._fontSize + 'px';
-      if (fontSizeDisplay) fontSizeDisplay.textContent = self._fontSize + 'px';
-      await DB.setSetting('novelFontSize', self._fontSize);
+    const applyFontSize = (size) => {
+      self._fontSize = size;
+      if (textarea) textarea.style.setProperty('font-size', size + 'px', 'important');
+      if (fontSizeDisplay) fontSizeDisplay.textContent = size + 'px';
+      DB.setSetting('novelFontSize', size);
+    };
+    // Apply immediately on load
+    if (textarea) textarea.style.setProperty('font-size', self._fontSize + 'px', 'important');
+
+    document.getElementById('btnFontLarger')?.addEventListener('click', () => {
+      applyFontSize(Math.min(32, self._fontSize + 2));
     });
-    document.getElementById('btnFontSmaller')?.addEventListener('click', async () => {
-      self._fontSize = Math.max(9, self._fontSize - 1);
-      if (textarea) textarea.style.fontSize = self._fontSize + 'px';
-      if (fontSizeDisplay) fontSizeDisplay.textContent = self._fontSize + 'px';
-      await DB.setSetting('novelFontSize', self._fontSize);
+    document.getElementById('btnFontSmaller')?.addEventListener('click', () => {
+      applyFontSize(Math.max(10, self._fontSize - 2));
     });
 
     // ── Char count & autosave ──────────────────────────────────
