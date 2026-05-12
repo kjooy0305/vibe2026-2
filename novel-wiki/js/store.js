@@ -225,8 +225,12 @@ const MISSION_POOL = [
   { id: 'mc_ach_add',    text: '업적 1개 추가',         store: 'achievements',  isNew: true,  target: 1, reward: 15 },
   { id: 'mc_event_add',  text: '사건 1개 추가',         store: 'events',        isNew: true,  target: 1, reward: 15 },
   { id: 'mc_const_any',  text: '성좌 편집/추가',        store: 'constellations',isNew: null,  target: 1, reward: 20 },
-  { id: 'mc_any3',       text: '무언가 3번 편집/추가',  store: '__any__',       isNew: null,  target: 3, reward: 25 },
-  { id: 'mc_quest',      text: '오늘의 과제 클리어',    store: '__quest__',     isNew: null,  target: 1, reward: 30 },
+  { id: 'mc_any3',          text: '무언가 3번 편집/추가',  store: '__any__',       isNew: null,  target: 3, reward: 25 },
+  { id: 'mc_quest',         text: '오늘의 과제 클리어',    store: '__quest__',     isNew: null,  target: 1, reward: 30 },
+  { id: 'mc_country_add',   text: '국가 1개 추가',          store: 'countries',     isNew: true,  target: 1, reward: 20 },
+  { id: 'mc_country_any',   text: '국가 편집/추가',          store: 'countries',     isNew: null,  target: 1, reward: 15 },
+  { id: 'mc_company_add',   text: '기업 1개 추가',          store: 'companies',     isNew: true,  target: 1, reward: 20 },
+  { id: 'mc_company_any',   text: '기업 편집/추가',          store: 'companies',     isNew: null,  target: 1, reward: 15 },
 ];
 
 const SHIELD_COST = 100;

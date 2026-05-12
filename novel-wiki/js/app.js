@@ -110,6 +110,9 @@
         ['status-viewer', window.Pages?.statusViewer],
         ['novel-view', window.Pages?.novelView],
         ['settings', window.Pages?.settings],
+        ['countries', window.Pages?.countries],
+        ['companies', window.Pages?.companies],
+        ['reminders', window.Pages?.reminders],
       ];
 
       pageModules.forEach(([id, mod]) => {
@@ -120,6 +123,9 @@
       setupDrawer();
       setupHeaderMore();
       SearchEngine.init();
+
+      // Start reminder engine (fires notifications while app is open)
+      if (window.ReminderEngine) ReminderEngine.init();
 
       // Remove loader
       document.getElementById('initialLoader')?.remove();

@@ -14,6 +14,7 @@ const AppRouter = (function() {
     'family-tree': '가계도', 'world-rules': '세계관 규칙', items: '아이템',
     jobs: '직업', templates: '템플릿 설정', 'status-viewer': '상태창 뷰어',
     'novel-view': '소설 보기', settings: '설정',
+    countries: '국가', companies: '기업', reminders: '리마인더',
   };
 
   function register(pageId, module) {

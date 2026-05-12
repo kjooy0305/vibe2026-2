@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v26';
+const CACHE_VERSION = 'novel-wiki-v27';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
@@ -41,7 +41,10 @@ const PRECACHE_ASSETS = [
   './pages/templates.js',
   './pages/status-viewer.js',
   './pages/novel-view.js',
-  './pages/settings.js'
+  './pages/settings.js',
+  './pages/countries.js',
+  './pages/companies.js',
+  './pages/reminders.js'
 ];
 
 // ─── Install ──────────────────────────────────────────────────────────────────

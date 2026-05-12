@@ -12,6 +12,8 @@ const SearchEngine = (function() {
     { name: 'organizations', label: '조직', page: 'organizations', icon: '🏛️' },
     { name: 'events', label: '사건', page: 'event-graph', icon: '📌' },
     { name: 'jobs', label: '직업', page: 'jobs', icon: '🏷️' },
+    { name: 'countries', label: '국가', page: 'countries', icon: '🌍' },
+    { name: 'companies', label: '기업', page: 'companies', icon: '🏢' },
   ];
 
   function getSearchableText(item, storeName) {
@@ -20,6 +22,17 @@ const SearchEngine = (function() {
     if (item.effects) parts.push(item.effects);
     if (item.features) parts.push(item.features);
     if (item.title) parts.push(item.title);
+    // Countries
+    if (item.capital) parts.push(item.capital);
+    if (item.laws) parts.push(item.laws);
+    if (item.culture) parts.push(item.culture);
+    if (item.leader) parts.push(item.leader);
+    // Companies
+    if (item.products) parts.push(item.products);
+    if (item.desc) parts.push(item.desc);
+    if (item.special) parts.push(item.special);
+    if (item.ceo) parts.push(item.ceo);
+    if (item.hq) parts.push(item.hq);
     return parts.join(' ').toLowerCase();
   }
 

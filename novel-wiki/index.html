@@ -167,6 +167,25 @@
         </button>
       </div>
 
+      <!-- ② 세계 설정 — 국가/기업 추가 -->
+      <div class="drawer__section" style="margin-top:-4px;">
+        <div class="drawer__section-label">세계 구성</div>
+        <button class="drawer__item" role="listitem" data-page="countries">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"/>
+            <path d="M2 12h20M12 2a15.3 15.3 0 010 20M12 2a15.3 15.3 0 000 20"/>
+          </svg>
+          국가
+        </button>
+        <button class="drawer__item" role="listitem" data-page="companies">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <rect x="2" y="7" width="20" height="14" rx="2"/>
+            <path d="M16 21V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v16"/>
+          </svg>
+          기업
+        </button>
+      </div>
+
       <!-- ③ 인물 -->
       <div class="drawer__section">
         <div class="drawer__section-label">인물</div>
@@ -296,6 +315,13 @@
             <path d="M19.07 4.93l-1.41 1.41M4.93 4.93l1.41 1.41M12 2v2M12 20v2M20 12h2M2 12h2M17.66 17.66l1.41 1.41M4.93 19.07l1.41-1.41"/>
           </svg>
           설정
+        </button>
+        <button class="drawer__item" role="listitem" data-page="reminders">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9"/>
+            <path d="M13.73 21a2 2 0 01-3.46 0"/>
+          </svg>
+          리마인더
         </button>
       </div>
     </div>
@@ -571,6 +597,9 @@
 <script src="pages/status-viewer.js"></script>
 <script src="pages/novel-view.js"></script>
 <script src="pages/settings.js"></script>
+<script src="pages/countries.js"></script>
+<script src="pages/companies.js"></script>
+<script src="pages/reminders.js"></script>
 
 <!-- Router & App bootstrap -->
 <script src="js/router.js"></script>
