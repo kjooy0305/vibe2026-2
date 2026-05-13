@@ -18,9 +18,7 @@ window.Pages.settings = {
     '잘못된 희생은 피해를 야기한다.',
   ],
 
-  // ── Feature flag definitions ─────────────────────────────────────────────
   FEATURE_FLAGS: [
-    // 표시
     { key: 'gradeColors',              group: '표시', default: true,
       label: '등급 색상 배지',
       desc: 'F~EX 등급을 색상으로 구분해 표시합니다. 비활성 시 단색 배지를 사용합니다.' },
@@ -36,7 +34,6 @@ window.Pages.settings = {
     { key: 'showConstellationsInStatus', group: '표시', default: true,
       label: '상태창 성좌 계약 섹션',
       desc: '상태창 뷰어에서 성좌 계약 정보 섹션을 표시합니다.' },
-    // 조작
     { key: 'deleteConfirmInput',       group: '조작', default: true,
       label: '삭제 시 이름 확인 입력',
       desc: '항목 삭제 전 이름을 직접 입력해 확인합니다. 비활성 시 버튼 클릭만으로 삭제됩니다.' },
@@ -46,11 +43,18 @@ window.Pages.settings = {
     { key: 'autoResetFilters',         group: '조작', default: false,
       label: '검색 시 필터 자동 초기화',
       desc: '검색어 입력 시 활성화된 등급·타입 필터를 자동으로 해제합니다.' },
-    // 검색
     { key: 'searchScope',              group: '검색', default: 'world',
       label: '검색 범위',
       desc: '(아래 버튼으로 변경하세요)',
       isScope: true },
+  ],
+
+  ICON_CATS: [
+    { key: 'world',   label: '세계관', emoji: '🌍', dbKey: 'worldCustomIcons' },
+    { key: 'const',   label: '성좌',   emoji: '✨', dbKey: 'constCustomIcons' },
+    { key: 'org',     label: '조직',   emoji: '⚔️', dbKey: 'orgCustomIcons' },
+    { key: 'country', label: '국가',   emoji: '🗺️', dbKey: 'countryCustomIcons' },
+    { key: 'company', label: '기업',   emoji: '🏢', dbKey: 'companyCustomIcons' },
   ],
 
   init: async function(container, options) {
@@ -65,7 +69,7 @@ window.Pages.settings = {
     const streak = state.streak || { count: 0 };
     const currentWorld = state.currentWorld;
 
-    // Load all flag values from DB (source of truth) and sync to AppFlags
+    // Load all flag values
     const flagValues = {};
     await Promise.all(this.FEATURE_FLAGS.map(async f => {
       const dbVal = await DB.getSetting('flag_' + f.key, null);
@@ -74,11 +78,16 @@ window.Pages.settings = {
       AppFlags.set(f.key, val);
     }));
 
-    // Load icon presets
+    // Load const_iconPresets for 성좌 sub-section
     const savedIcons = await DB.getSetting('const_iconPresets', null);
     const iconList = savedIcons ? [...savedIcons] : [...AppConstants.DEFAULTS.iconPresets];
 
-    // Helper: render toggle switch HTML
+    // Load per-category custom icons
+    const catIcons = {};
+    await Promise.all(this.ICON_CATS.map(async cat => {
+      catIcons[cat.key] = (await DB.getSetting(cat.dbKey, [])) || [];
+    }));
+
     const toggleHtml = (key, val) => `
       <button class="feat-toggle" data-key="${Utils.escHtml(key)}" aria-label="토글" style="
         position:relative;width:44px;height:26px;border-radius:13px;border:none;cursor:pointer;
@@ -89,19 +98,74 @@ window.Pages.settings = {
           transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
       </button>`;
 
-    // Group flags
     const groups = {};
     this.FEATURE_FLAGS.filter(f => !f.isScope).forEach(f => {
       if (!groups[f.group]) groups[f.group] = [];
       groups[f.group].push(f);
     });
 
-    // Scope setting
     const searchScope = flagValues['searchScope'] || 'world';
 
     const secStyle = 'background:var(--color-surface2);border-radius:12px;padding:16px;margin-bottom:14px;border:1px solid var(--color-border);';
     const secLabel = 'font-weight:700;font-size:11px;color:var(--color-text-muted);margin-bottom:12px;text-transform:uppercase;letter-spacing:0.8px;';
     const rowDivider = 'border-bottom:1px solid var(--color-border);';
+
+    // Build tab HTML
+    const tabsHtml = this.ICON_CATS.map((cat, i) => `
+      <button class="icon-cat-tab${i === 0 ? ' _active' : ''}" data-cat="${cat.key}"
+        style="padding:5px 11px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;white-space:nowrap;
+          border:1px solid ${i === 0 ? 'var(--color-primary)' : 'var(--color-border)'};
+          background:${i === 0 ? 'var(--color-primary)' : 'var(--color-surface2)'};
+          color:${i === 0 ? '#000' : 'var(--color-text)'};">
+        ${cat.emoji} ${cat.label} <span class="cat-tab-count" style="font-size:10px;opacity:.8;">(${catIcons[cat.key].length})</span>
+      </button>`).join('');
+
+    const panelsHtml = this.ICON_CATS.map((cat, i) => {
+      const icons = catIcons[cat.key];
+      const chipsHtml = icons.length === 0
+        ? `<span style="font-size:12px;color:var(--color-text-dim);">추가된 아이콘 없음</span>`
+        : icons.map((ic, j) => `
+            <button class="cat-icon-chip" data-cat="${cat.key}" data-idx="${j}"
+              title="클릭하여 삭제"
+              style="font-size:22px;padding:4px 6px;border-radius:8px;border:1px solid var(--color-border);
+                background:var(--color-bg);cursor:pointer;line-height:1.2;position:relative;"
+              onmouseover="this.style.background='rgba(239,68,68,0.12)'"
+              onmouseout="this.style.background='var(--color-bg)'">
+              ${Utils.escHtml(ic)}
+            </button>`).join('');
+
+      const presetSection = cat.key === 'const' ? `
+        <div style="margin-top:14px;padding-top:12px;border-top:1px solid var(--color-border);">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">공용 성좌 프리셋 (${iconList.length}개)</div>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-ghost btn-sm" id="btnResetPresets" style="font-size:11px;color:var(--color-warning);">기본값 복원</button>
+              <button class="btn btn-primary btn-sm" id="btnSavePresets" style="font-size:11px;">저장</button>
+            </div>
+          </div>
+          <div id="constPresetGrid" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input id="presetIconInput" class="input-field" placeholder="이모지 (예: 🌠)"
+              style="width:110px;text-align:center;font-size:18px;" maxlength="8"/>
+            <button class="btn btn-ghost btn-sm" id="btnAddPresetIcon">+ 추가</button>
+          </div>
+        </div>` : '';
+
+      return `
+        <div class="icon-cat-panel" data-cat="${cat.key}" style="display:${i === 0 ? 'block' : 'none'};">
+          <div id="catGrid_${cat.key}" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;margin-bottom:8px;">
+            ${chipsHtml}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;">
+            <input class="input-field cat-icon-input" data-cat="${cat.key}"
+              placeholder="이모지 (예: 🦋)" style="width:110px;text-align:center;font-size:18px;" maxlength="8"/>
+            <button class="btn btn-ghost btn-sm btn-add-cat-icon" data-cat="${cat.key}">+ 추가</button>
+            <span class="cat-icon-count" id="catCount_${cat.key}"
+              style="font-size:11px;color:var(--color-text-dim);">${icons.length}개</span>
+          </div>
+          ${presetSection}
+        </div>`;
+    }).join('');
 
     container.innerHTML = `
     <div class="page active">
@@ -127,25 +191,19 @@ window.Pages.settings = {
         </div>
       </div>
 
-      <!-- ② 아이콘 관리 -->
+      <!-- ② 카테고리별 아이콘 관리 -->
       <div style="${secStyle}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
-          <div style="${secLabel}margin-bottom:0;">🎨 아이콘 관리</div>
-          <div style="display:flex;gap:6px;">
-            <button class="btn btn-ghost btn-sm" id="btnResetIcons" style="color:var(--color-warning);font-size:11px;">기본값 복원</button>
-            <button class="btn btn-primary btn-sm" id="btnSaveIcons" style="font-size:11px;">저장</button>
-          </div>
+        <div style="${secLabel}">🎨 카테고리별 아이콘 관리</div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:12px;">
+          카테고리를 선택해 커스텀 아이콘을 추가하거나 삭제하세요. 기본 아이콘은 항상 유지됩니다.
         </div>
-        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:10px;">
-          성좌 등 아이콘 선택 시 사용할 이모지 목록입니다. 클릭하여 제거하거나 아래에서 추가하세요.
+        <!-- Category tabs -->
+        <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px;" id="iconCatTabs">
+          ${tabsHtml}
         </div>
-        <!-- Icon grid -->
-        <div id="iconGrid" style="display:flex;flex-wrap:wrap;gap:6px;min-height:36px;margin-bottom:10px;"></div>
-        <!-- Add icon input -->
-        <div style="display:flex;gap:6px;align-items:center;">
-          <input id="iconAddInput" class="input-field" placeholder="이모지 직접 입력 (예: 🦋)" style="width:120px;box-sizing:border-box;text-align:center;font-size:18px;" maxlength="8" />
-          <button class="btn btn-ghost btn-sm" id="btnAddIcon">+ 추가</button>
-          <span style="font-size:11px;color:var(--color-text-dim);">총 ${iconList.length}개</span>
+        <!-- Panels -->
+        <div id="iconCatPanels">
+          ${panelsHtml}
         </div>
       </div>
 
@@ -153,9 +211,8 @@ window.Pages.settings = {
       <div style="${secStyle}">
         <div style="${secLabel}">⚙️ 기능 설정</div>
         <div style="font-size:11px;color:var(--color-text-dim);margin-bottom:12px;">
-          비활성화해도 기존 데이터는 유지됩니다. 일부 기능은 다음 페이지 방문 시 적용됩니다.
+          비활성화해도 기존 데이터는 유지됩니다.
         </div>
-
         ${Object.entries(groups).map(([groupName, flags]) => `
           <div style="margin-bottom:14px;">
             <div style="font-size:10px;color:var(--color-text-dim);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:8px;padding-left:2px;">${Utils.escHtml(groupName)}</div>
@@ -223,54 +280,136 @@ window.Pages.settings = {
       </div>
     </div>`;
 
-    // ── Icon grid management ────────────────────────────────────────────────
-    const iconGrid = container.querySelector('#iconGrid');
-    const iconCountEl = container.querySelector('#iconAddInput')?.parentElement?.querySelector('span');
-
-    function renderIconGrid() {
-      if (!iconGrid) return;
-      iconGrid.innerHTML = iconList.map((ic, i) => `
-        <button class="icon-chip" data-idx="${i}" title="클릭하여 제거"
-          style="font-size:22px;padding:4px 6px;border-radius:8px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;position:relative;transition:background .1s;line-height:1.2;"
-          onmouseover="this.style.background='rgba(239,68,68,0.12)'" onmouseout="this.style.background='var(--color-bg)'">
-          ${Utils.escHtml(ic)}
-        </button>`).join('');
-      iconGrid.querySelectorAll('.icon-chip').forEach(btn => {
-        btn.addEventListener('click', () => {
-          const i = Number(btn.dataset.idx);
-          iconList.splice(i, 1);
-          renderIconGrid();
+    // ── Category icon tab switching ────────────────────────────────────────
+    container.querySelectorAll('.icon-cat-tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        const cat = tab.dataset.cat;
+        container.querySelectorAll('.icon-cat-tab').forEach(t => {
+          t.style.background = 'var(--color-surface2)';
+          t.style.color = 'var(--color-text)';
+          t.style.borderColor = 'var(--color-border)';
+        });
+        tab.style.background = 'var(--color-primary)';
+        tab.style.color = '#000';
+        tab.style.borderColor = 'var(--color-primary)';
+        container.querySelectorAll('.icon-cat-panel').forEach(p => {
+          p.style.display = p.dataset.cat === cat ? 'block' : 'none';
         });
       });
-      if (iconCountEl) iconCountEl.textContent = `총 ${iconList.length}개`;
-    }
-    renderIconGrid();
+    });
 
-    container.querySelector('#btnAddIcon')?.addEventListener('click', () => {
-      const inp = container.querySelector('#iconAddInput');
+    // ── Render a category's custom icon grid ───────────────────────────────
+    const renderCatGrid = (catKey, icons) => {
+      const grid = container.querySelector(`#catGrid_${catKey}`);
+      const countEl = container.querySelector(`#catCount_${catKey}`);
+      const tabCountEl = container.querySelector(`.icon-cat-tab[data-cat="${catKey}"] .cat-tab-count`);
+      if (!grid) return;
+
+      grid.innerHTML = icons.length === 0
+        ? `<span style="font-size:12px;color:var(--color-text-dim);">추가된 아이콘 없음</span>`
+        : icons.map((ic, j) => `
+            <button class="cat-icon-chip" data-cat="${catKey}" data-idx="${j}"
+              title="클릭하여 삭제"
+              style="font-size:22px;padding:4px 6px;border-radius:8px;border:1px solid var(--color-border);
+                background:var(--color-bg);cursor:pointer;line-height:1.2;"
+              onmouseover="this.style.background='rgba(239,68,68,0.12)'"
+              onmouseout="this.style.background='var(--color-bg)'">
+              ${Utils.escHtml(ic)}
+            </button>`).join('');
+
+      if (countEl) countEl.textContent = icons.length + '개';
+      if (tabCountEl) tabCountEl.textContent = `(${icons.length})`;
+
+      grid.querySelectorAll('.cat-icon-chip').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const key = btn.dataset.cat;
+          const idx = parseInt(btn.dataset.idx);
+          const catDef = self.ICON_CATS.find(d => d.key === key);
+          if (!catDef) return;
+          catIcons[key].splice(idx, 1);
+          await DB.setSetting(catDef.dbKey, catIcons[key]);
+          renderCatGrid(key, catIcons[key]);
+        });
+      });
+    };
+
+    // Init all grids (re-bind click handlers for initial render)
+    this.ICON_CATS.forEach(cat => renderCatGrid(cat.key, catIcons[cat.key]));
+
+    // ── Add icon button per category ───────────────────────────────────────
+    container.querySelectorAll('.btn-add-cat-icon').forEach(btn => {
+      btn.addEventListener('click', async () => {
+        const catKey = btn.dataset.cat;
+        const input = container.querySelector(`.cat-icon-input[data-cat="${catKey}"]`);
+        const val = input?.value.trim();
+        if (!val) return;
+        if (catIcons[catKey].includes(val)) { Utils.toast('이미 있는 아이콘입니다', 'error'); return; }
+        const catDef = self.ICON_CATS.find(d => d.key === catKey);
+        if (!catDef) return;
+        catIcons[catKey] = [...catIcons[catKey], val];
+        await DB.setSetting(catDef.dbKey, catIcons[catKey]);
+        renderCatGrid(catKey, catIcons[catKey]);
+        if (input) input.value = '';
+      });
+    });
+
+    container.querySelectorAll('.cat-icon-input').forEach(input => {
+      input.addEventListener('keydown', e => {
+        if (e.key === 'Enter') {
+          container.querySelector(`.btn-add-cat-icon[data-cat="${input.dataset.cat}"]`)?.click();
+        }
+      });
+    });
+
+    // ── Constellation preset management (sub-section in 성좌 tab) ──────────
+    const renderPresetGrid = () => {
+      const grid = container.querySelector('#constPresetGrid');
+      if (!grid) return;
+      grid.innerHTML = iconList.map((ic, j) => `
+        <button class="preset-chip" data-idx="${j}"
+          title="클릭하여 삭제"
+          style="font-size:22px;padding:4px 6px;border-radius:8px;border:1px solid var(--color-border);
+            background:var(--color-bg);cursor:pointer;line-height:1.2;"
+          onmouseover="this.style.background='rgba(239,68,68,0.12)'"
+          onmouseout="this.style.background='var(--color-bg)'">
+          ${Utils.escHtml(ic)}
+        </button>`).join('');
+      grid.querySelectorAll('.preset-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          iconList.splice(parseInt(btn.dataset.idx), 1);
+          renderPresetGrid();
+          // Update count in header
+          const hdr = container.querySelector('#constPresetGrid')?.closest('.icon-cat-panel')?.querySelector('div div');
+          if (hdr) hdr.textContent = `공용 성좌 프리셋 (${iconList.length}개)`;
+        });
+      });
+    };
+    renderPresetGrid();
+
+    container.querySelector('#btnAddPresetIcon')?.addEventListener('click', () => {
+      const inp = container.querySelector('#presetIconInput');
       const val = inp?.value.trim();
       if (!val) return;
       if (iconList.includes(val)) { Utils.toast('이미 있는 아이콘입니다', 'error'); return; }
       iconList.push(val);
-      renderIconGrid();
+      renderPresetGrid();
       if (inp) inp.value = '';
     });
-    container.querySelector('#iconAddInput')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') container.querySelector('#btnAddIcon')?.click();
+    container.querySelector('#presetIconInput')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') container.querySelector('#btnAddPresetIcon')?.click();
     });
-
-    container.querySelector('#btnSaveIcons')?.addEventListener('click', async () => {
+    container.querySelector('#btnSavePresets')?.addEventListener('click', async () => {
       await DB.setSetting('const_iconPresets', [...iconList]);
       AppConstants.invalidate();
-      Utils.toast('아이콘 저장됨', 'success');
+      Utils.toast('성좌 프리셋 저장됨', 'success');
     });
-    container.querySelector('#btnResetIcons')?.addEventListener('click', () => {
-      Utils.confirm('아이콘 기본값 복원', '아이콘 목록을 기본값으로 되돌리시겠습니까?', async () => {
+    container.querySelector('#btnResetPresets')?.addEventListener('click', () => {
+      Utils.confirm('기본값 복원', '성좌 아이콘 프리셋을 기본값으로 되돌리시겠습니까?', async () => {
         await DB.setSetting('const_iconPresets', null);
         AppConstants.invalidate();
         iconList.length = 0;
         AppConstants.DEFAULTS.iconPresets.forEach(ic => iconList.push(ic));
-        renderIconGrid();
+        renderPresetGrid();
         Utils.toast('기본값으로 복원됨', 'info');
       }, '복원');
     });
@@ -283,27 +422,23 @@ window.Pages.settings = {
         const current = flagValues[key] !== undefined ? flagValues[key] : (flagDef?.default ?? true);
         const newVal = !current;
         flagValues[key] = newVal;
-
-        // Update UI immediately
         btn.style.background = newVal ? 'var(--color-primary)' : '#4b5563';
         const knob = btn.querySelector('div');
         if (knob) knob.style.left = newVal ? '21px' : '3px';
-
-        // Persist
         AppFlags.set(key, newVal);
         await DB.setSetting('flag_' + key, newVal);
         Utils.toast(`'${Utils.escHtml(flagDef?.label || key)}' ${newVal ? '활성화' : '비활성화'}`, 'info', 1500);
       });
     });
 
-    // ── Search scope buttons ───────────────────────────────────────────────
+    // ── Search scope ───────────────────────────────────────────────────────
     container.querySelectorAll('.scope-btn[data-scope]').forEach(btn => {
       btn.addEventListener('click', async () => {
         const scope = btn.dataset.scope;
         flagValues['searchScope'] = scope;
         AppFlags.set('searchScope', scope);
         await DB.setSetting('flag_searchScope', scope);
-        await DB.setSetting('searchScope', scope); // keep existing key too
+        await DB.setSetting('searchScope', scope);
         AppStore.setState({ searchScope: scope });
         Utils.toast(scope === 'all' ? '전체 세계 검색으로 변경됨' : '현재 세계만 검색으로 변경됨', 'success');
         await self._renderPage(container);
