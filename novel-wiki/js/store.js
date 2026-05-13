@@ -310,47 +310,57 @@ const AppStore = (function() {
     return state.currentWorldId;
   }
 
-  // Keep old updateStreak behavior (any activity = streak day)
+  // Streak advances ONLY when daily quest is cleared (_onQuestDone).
+  // This function only handles new-day detection and resets streak if previous day's quest wasn't done.
   async function updateStreak() {
     const today = new Date().toDateString();
     const todayIso = new Date().toISOString().slice(0, 10);
     let sd = await DB.get('streak', 'main') || { id: 'main', count: 0, lastDate: null, history: [], totalCleared: 0, longestStreak: 0, shields: 0, points: 0 };
 
-    if (sd.lastDate !== today) {
+    if (sd.lastDate === today) return sd;
+
+    const hist = sd.history || [];
+
+    if (sd.lastDate) {
       const yesterday = new Date();
       yesterday.setDate(yesterday.getDate() - 1);
-      const yesterdayStr = yesterday.toDateString();
+      const yesterdayIso = yesterday.toISOString().slice(0, 10);
+      const lastD = new Date(sd.lastDate);
+      const diffDays = Math.round((new Date(today) - lastD) / 86400000);
 
-      if (sd.lastDate === yesterdayStr) {
-        sd.count = (sd.count || 0) + 1;
-      } else if (sd.lastDate) {
-        // Missed days — check if shield can save it
-        const lastD = new Date(sd.lastDate);
-        const diffDays = Math.round((new Date(today) - lastD) / 86400000);
-        if (diffDays === 2 && (sd.shields || 0) > 0) {
-          sd.shields--;
-          sd.count = (sd.count || 0) + 1;
-        } else {
-          sd.count = 1;
+      if (diffDays === 1) {
+        // Check if yesterday's quest was cleared (c === 1)
+        const yHist = hist.find(h => h.d === yesterdayIso);
+        if (!yHist || yHist.c !== 1) {
+          if ((sd.shields || 0) > 0) {
+            sd.shields--;
+          } else {
+            sd.count = 0;
+          }
         }
+        // If quest was cleared, count was already advanced in _onQuestDone — keep it
+      } else if (diffDays === 2 && (sd.shields || 0) > 0) {
+        sd.shields--;
+        const twoDaysAgo = new Date();
+        twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+        const tdaIso = twoDaysAgo.toISOString().slice(0, 10);
+        const tdaHist = hist.find(h => h.d === tdaIso);
+        if (!tdaHist || tdaHist.c !== 1) sd.count = 0;
       } else {
-        sd.count = 1;
+        sd.count = 0;
       }
-
-      sd.lastDate = today;
-      sd.longestStreak = Math.max(sd.longestStreak || 0, sd.count);
-
-      // Add activity marker to history (c=0: active, c=1: quest cleared)
-      const hist = sd.history || [];
-      if (!hist.find(h => h.d === todayIso)) {
-        hist.push({ d: todayIso, c: 0 });
-        if (hist.length > 366) hist.shift();
-      }
-      sd.history = hist;
-
-      await DB.put('streak', sd);
-      setState({ streak: sd });
     }
+
+    sd.lastDate = today;
+
+    if (!hist.find(h => h.d === todayIso)) {
+      hist.push({ d: todayIso, c: 0 });
+      if (hist.length > 366) hist.shift();
+    }
+    sd.history = hist;
+
+    await DB.put('streak', sd);
+    setState({ streak: sd });
     return sd;
   }
 
@@ -431,9 +441,13 @@ const AppStore = (function() {
   }
 
   async function _onQuestDone(todayIso) {
-    let sd = await DB.get('streak', 'main') || { id: 'main', count: 0 };
+    let sd = await DB.get('streak', 'main') || { id: 'main', count: 0, lastDate: null, history: [], totalCleared: 0, longestStreak: 0, shields: 0, points: 0 };
     sd.totalCleared = (sd.totalCleared || 0) + 1;
-    sd.points = (sd.points || 0) + 50; // quest clear bonus
+    sd.points = (sd.points || 0) + 50;
+
+    // Streak advances here — quest cleared = counts as a writing day
+    sd.count = (sd.count || 0) + 1;
+    sd.longestStreak = Math.max(sd.longestStreak || 0, sd.count);
 
     const hist = sd.history || [];
     const existing = hist.find(h => h.d === todayIso);
