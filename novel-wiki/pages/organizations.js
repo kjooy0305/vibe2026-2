@@ -396,27 +396,11 @@ window.Pages.organizations = {
 
   // ── FORM ──────────────────────────────────────────────────────────────────────
 
-  _buildIconGrid: function(presets, customs, currentIcon) {
-    const presetHtml = presets.map(ic =>
-      `<button type="button" class="icon-pick-btn" data-icon="${ic}"
-        style="font-size:20px;width:38px;height:38px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:8px;background:var(--color-surface3,#2a2a3a);cursor:pointer;display:flex;align-items:center;justify-content:center;">${ic}</button>`
-    ).join('');
-    const customHtml = customs.map(ic =>
-      `<span style="position:relative;display:inline-block;">
-        <button type="button" class="icon-pick-btn" data-icon="${ic}"
-          style="font-size:20px;width:38px;height:38px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:8px;background:var(--color-surface3,#2a2a3a);cursor:pointer;display:flex;align-items:center;justify-content:center;">${ic}</button>
-        <button type="button" class="icon-del-btn" data-icon="${ic}"
-          style="position:absolute;top:-4px;right:-4px;font-size:10px;width:16px;height:16px;border-radius:50%;background:var(--color-danger);color:#fff;border:none;cursor:pointer;line-height:16px;text-align:center;padding:0;">×</button>
-      </span>`
-    ).join('');
-    return presetHtml + (customHtml ? `<div style="width:100%;height:1px;background:var(--color-border);margin:6px 0;"></div>${customHtml}` : '');
-  },
-
   _openForm: async function(org, wid, container, orgs) {
     const isEdit = !!org;
     const self = this;
     let selectedIcon = org?.icon || '🏛️';
-    let customIcons = (await DB.getSetting('orgCustomIcons', [])) || [];
+    const iconPool = (await DB.getSetting('iconList_org', null)) || this.ICONS;
     const allTypes = this._getAllTypes();
     const otherOrgs = (orgs || []).filter(o => o.id !== org?.id);
 
@@ -482,12 +466,8 @@ window.Pages.organizations = {
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">아이콘</label>
           <div style="font-size:32px;text-align:center;margin-bottom:6px;" id="orgIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;gap:6px;flex-wrap:wrap;margin-bottom:8px;" id="orgIconPicker">
-            ${this._buildIconGrid(this.ICONS, customIcons, selectedIcon)}
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input id="fOrgIconCustom" class="form-input" placeholder="이모지 직접 입력 후 추가" style="flex:1;font-size:18px;"/>
-            <button type="button" id="btnAddOrgIcon" class="btn btn-ghost btn-sm" style="white-space:nowrap;">+ 추가</button>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;" id="orgIconPicker">
+            ${iconPool.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:22px;padding:5px;border-radius:8px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>
 
@@ -549,41 +529,15 @@ window.Pages.organizations = {
 
     setTimeout(() => {
       // Icon picker
-      const rebindOrgIcons = () => {
-        const picker = document.getElementById('orgIconPicker');
-        const preview = document.getElementById('orgIconPreview');
-        picker?.querySelectorAll('.icon-pick-btn').forEach(btn => {
-          btn.onclick = () => {
-            selectedIcon = btn.dataset.icon;
-            picker.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
-            btn.style.borderColor = 'var(--color-primary)';
-            if (preview) preview.textContent = selectedIcon;
-          };
+      const orgPicker = document.getElementById('orgIconPicker');
+      const orgPreview = document.getElementById('orgIconPreview');
+      orgPicker?.querySelectorAll('.icon-pick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedIcon = btn.dataset.icon;
+          orgPicker.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
+          btn.style.borderColor = 'var(--color-primary)';
+          if (orgPreview) orgPreview.textContent = selectedIcon;
         });
-        picker?.querySelectorAll('.icon-del-btn').forEach(btn => {
-          btn.onclick = async (e) => {
-            e.stopPropagation();
-            customIcons = customIcons.filter(x => x !== btn.dataset.icon);
-            await DB.setSetting('orgCustomIcons', customIcons);
-            if (picker) picker.innerHTML = self._buildIconGrid(self.ICONS, customIcons, selectedIcon);
-            rebindOrgIcons();
-          };
-        });
-      };
-      rebindOrgIcons();
-
-      document.getElementById('btnAddOrgIcon')?.addEventListener('click', async () => {
-        const val = document.getElementById('fOrgIconCustom')?.value.trim();
-        if (!val) return;
-        if (!customIcons.includes(val)) {
-          customIcons = [...customIcons, val];
-          await DB.setSetting('orgCustomIcons', customIcons);
-        }
-        const picker = document.getElementById('orgIconPicker');
-        if (picker) picker.innerHTML = self._buildIconGrid(self.ICONS, customIcons, selectedIcon);
-        rebindOrgIcons();
-        const inp = document.getElementById('fOrgIconCustom');
-        if (inp) inp.value = '';
       });
 
       // Type toggle

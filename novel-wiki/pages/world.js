@@ -72,25 +72,9 @@ window.Pages.world = {
     </div>`;
   },
 
-  _buildIconGrid: function(presets, customs, currentIcon) {
-    const presetHtml = presets.map(ic =>
-      `<button type="button" class="icon-pick-btn" data-icon="${Utils.escHtml(ic)}"
-        style="font-size:22px;padding:6px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:8px;background:var(--color-surface2);cursor:pointer;min-width:40px;">${ic}</button>`
-    ).join('');
-    const customHtml = customs.map(ic =>
-      `<span style="position:relative;display:inline-block;">
-        <button type="button" class="icon-pick-btn" data-icon="${Utils.escHtml(ic)}"
-          style="font-size:22px;padding:6px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:8px;background:var(--color-surface2);cursor:pointer;min-width:40px;">${ic}</button>
-        <button type="button" class="icon-del-btn" data-icon="${Utils.escHtml(ic)}"
-          style="position:absolute;top:-4px;right:-4px;font-size:10px;width:16px;height:16px;border-radius:50%;background:var(--color-danger);color:#fff;border:none;cursor:pointer;line-height:16px;text-align:center;padding:0;">×</button>
-      </span>`
-    ).join('');
-    return presetHtml + (customHtml ? `<div style="width:100%;height:1px;background:var(--color-border);margin:6px 0;"></div>${customHtml}` : '');
-  },
-
   _openForm: async function(world, onSave) {
     const customTypes = await DB.getSetting('worldTypes', null) || this.DEFAULT_TYPES;
-    let worldCustomIcons = (await DB.getSetting('worldCustomIcons', [])) || [];
+    const iconPool = (await DB.getSetting('iconList_world', null)) || this.DEFAULT_ICONS;
     const isEdit = !!world;
     let selectedIcon = world?.icon || '🌍';
     let currentColor = world?.color || '#3b82f6';
@@ -127,13 +111,8 @@ window.Pages.world = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:32px;text-align:center;margin-bottom:6px;" id="worldIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:8px;" id="iconPicker">
-            ${this._buildIconGrid(this.DEFAULT_ICONS, worldCustomIcons, selectedIcon)}
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input class="input-field" id="fCustomIcon" placeholder="이모지 직접 입력 후 추가"
-              style="flex:1;font-size:16px;" />
-            <button type="button" class="btn btn-ghost btn-sm" id="btnAddCustomIcon" style="white-space:nowrap;">+ 추가</button>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;" id="iconPicker">
+            ${iconPool.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:22px;padding:5px;border-radius:8px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>
         <div class="form-group">
@@ -193,41 +172,13 @@ window.Pages.world = {
       // Icon picker
       const iconPickerEl = document.getElementById('iconPicker');
       const worldPreview = document.getElementById('worldIconPreview');
-      const rebindWorldIcons = () => {
-        iconPickerEl?.querySelectorAll('.icon-pick-btn').forEach(btn => {
-          btn.onclick = () => {
-            selectedIcon = btn.dataset.icon;
-            iconPickerEl.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
-            btn.style.borderColor = 'var(--color-primary)';
-            if (worldPreview) worldPreview.textContent = selectedIcon;
-          };
+      iconPickerEl?.querySelectorAll('.icon-pick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedIcon = btn.dataset.icon;
+          iconPickerEl.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
+          btn.style.borderColor = 'var(--color-primary)';
+          if (worldPreview) worldPreview.textContent = selectedIcon;
         });
-        iconPickerEl?.querySelectorAll('.icon-del-btn').forEach(btn => {
-          btn.onclick = async (e) => {
-            e.stopPropagation();
-            worldCustomIcons = worldCustomIcons.filter(x => x !== btn.dataset.icon);
-            await DB.setSetting('worldCustomIcons', worldCustomIcons);
-            if (iconPickerEl) iconPickerEl.innerHTML = self._buildIconGrid(self.DEFAULT_ICONS, worldCustomIcons, selectedIcon);
-            rebindWorldIcons();
-          };
-        });
-      };
-      rebindWorldIcons();
-
-      // Add custom icon
-      document.getElementById('btnAddCustomIcon')?.addEventListener('click', async () => {
-        const val = document.getElementById('fCustomIcon')?.value.trim();
-        if (!val) return;
-        if (!worldCustomIcons.includes(val)) {
-          worldCustomIcons = [...worldCustomIcons, val];
-          await DB.setSetting('worldCustomIcons', worldCustomIcons);
-        }
-        selectedIcon = val;
-        if (iconPickerEl) iconPickerEl.innerHTML = self._buildIconGrid(self.DEFAULT_ICONS, worldCustomIcons, selectedIcon);
-        rebindWorldIcons();
-        const inp = document.getElementById('fCustomIcon');
-        if (inp) inp.value = '';
-        if (worldPreview) worldPreview.textContent = selectedIcon;
       });
 
       // ── Inline type management ──────────────────────────────

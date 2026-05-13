@@ -444,22 +444,6 @@ window.Pages.constellations = {
 
   // ── FORM ──────────────────────────────────────────────────────────────────────
 
-  _buildIconGrid: function(presets, customs, currentIcon) {
-    const presetHtml = presets.map(ic =>
-      `<button type="button" class="const-icon-btn" data-icon="${ic}"
-        style="font-size:18px;width:34px;height:34px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:7px;background:var(--color-surface3,#2a2a3a);cursor:pointer;">${ic}</button>`
-    ).join('');
-    const customHtml = customs.map(ic =>
-      `<span style="position:relative;display:inline-block;">
-        <button type="button" class="const-icon-btn" data-icon="${ic}"
-          style="font-size:18px;width:34px;height:34px;border:2px solid ${currentIcon===ic?'var(--color-primary)':'transparent'};border-radius:7px;background:var(--color-surface3,#2a2a3a);cursor:pointer;">${ic}</button>
-        <button type="button" class="icon-del-btn" data-icon="${ic}"
-          style="position:absolute;top:-4px;right:-4px;font-size:10px;width:16px;height:16px;border-radius:50%;background:var(--color-danger);color:#fff;border:none;cursor:pointer;line-height:16px;text-align:center;padding:0;">×</button>
-      </span>`
-    ).join('');
-    return presetHtml + (customHtml ? `<div style="width:100%;height:1px;background:var(--color-border);margin:6px 0;"></div>${customHtml}` : '');
-  },
-
   _openForm: async function(constellation, wid, container) {
     const isEdit = !!constellation;
     const c = constellation || {};
@@ -481,7 +465,7 @@ window.Pages.constellations = {
     const skills = skillsRaw.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
 
     let selectedIcon = c.icon || '⭐';
-    let constCustomIcons = (await DB.getSetting('constCustomIcons', [])) || [];
+    const iconPool = (await DB.getSetting('iconList_const', null)) || this._C?.iconPresets || [];
     const allSeries = this._C.constellationSeries;
     const allTiers = this._C.constellationTiers;
 
@@ -560,12 +544,8 @@ window.Pages.constellations = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:30px;text-align:center;margin-bottom:6px;" id="constIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:6px;" id="constIconPicker">
-            ${this._buildIconGrid(this._C?.iconPresets || [], constCustomIcons, selectedIcon)}
-          </div>
-          <div style="display:flex;gap:6px;align-items:center;">
-            <input id="fConstIconCustom" class="form-input" placeholder="이모지 직접 입력 후 추가" style="flex:1;font-size:18px;"/>
-            <button type="button" id="btnAddConstIcon" class="btn btn-ghost btn-sm" style="white-space:nowrap;">+ 추가</button>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;max-height:160px;overflow-y:auto;" id="constIconPicker">
+            ${iconPool.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:20px;padding:5px;border-radius:7px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>
 
@@ -700,41 +680,15 @@ window.Pages.constellations = {
     // ── Post-render wiring ─────────────────────────────────────
     setTimeout(() => {
       // Icon picker
-      const rebindConstIcons = () => {
-        const picker = document.getElementById('constIconPicker');
-        const preview = document.getElementById('constIconPreview');
-        picker?.querySelectorAll('.const-icon-btn').forEach(btn => {
-          btn.onclick = () => {
-            selectedIcon = btn.dataset.icon;
-            picker.querySelectorAll('.const-icon-btn').forEach(b => b.style.borderColor = 'transparent');
-            btn.style.borderColor = 'var(--color-primary)';
-            if (preview) preview.textContent = selectedIcon;
-          };
+      const constPicker = document.getElementById('constIconPicker');
+      const constPreview = document.getElementById('constIconPreview');
+      constPicker?.querySelectorAll('.icon-pick-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          selectedIcon = btn.dataset.icon;
+          constPicker.querySelectorAll('.icon-pick-btn').forEach(b => b.style.borderColor = 'transparent');
+          btn.style.borderColor = 'var(--color-primary)';
+          if (constPreview) constPreview.textContent = selectedIcon;
         });
-        picker?.querySelectorAll('.icon-del-btn').forEach(btn => {
-          btn.onclick = async (e) => {
-            e.stopPropagation();
-            constCustomIcons = constCustomIcons.filter(x => x !== btn.dataset.icon);
-            await DB.setSetting('constCustomIcons', constCustomIcons);
-            if (picker) picker.innerHTML = self._buildIconGrid(self._C?.iconPresets || [], constCustomIcons, selectedIcon);
-            rebindConstIcons();
-          };
-        });
-      };
-      rebindConstIcons();
-
-      document.getElementById('btnAddConstIcon')?.addEventListener('click', async () => {
-        const val = document.getElementById('fConstIconCustom')?.value.trim();
-        if (!val) return;
-        if (!constCustomIcons.includes(val)) {
-          constCustomIcons = [...constCustomIcons, val];
-          await DB.setSetting('constCustomIcons', constCustomIcons);
-        }
-        const picker = document.getElementById('constIconPicker');
-        if (picker) picker.innerHTML = self._buildIconGrid(self._C?.iconPresets || [], constCustomIcons, selectedIcon);
-        rebindConstIcons();
-        const inp = document.getElementById('fConstIconCustom');
-        if (inp) inp.value = '';
       });
 
       // Series/tier custom select toggle
