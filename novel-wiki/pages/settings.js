@@ -334,16 +334,18 @@ window.Pages.settings = {
       if (tabCountEl) tabCountEl.textContent = `(${icons.length})`;
 
       grid.querySelectorAll('.settings-icon-chip').forEach(btn => {
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
           const key = btn.dataset.cat;
           const idx = parseInt(btn.dataset.idx);
+          const ic = catIcons[key][idx];
           const catDef = self.ICON_CATS.find(d => d.key === key);
           if (!catDef) return;
-          catIcons[key].splice(idx, 1);
-          await DB.setSetting(catDef.dbKey, catIcons[key]);
-          renderGrid(key, catIcons[key]);
-          // Sync to legacy key for compat
-          await self._syncLegacy(catDef, catIcons[key]);
+          Utils.confirm('아이콘 삭제', `${ic} 아이콘을 삭제하시겠습니까?`, async () => {
+            catIcons[key].splice(idx, 1);
+            await DB.setSetting(catDef.dbKey, catIcons[key]);
+            renderGrid(key, catIcons[key]);
+            await self._syncLegacy(catDef, catIcons[key]);
+          }, '삭제');
         });
       });
     };
