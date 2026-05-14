@@ -14,6 +14,7 @@ const SearchEngine = (function() {
     { name: 'jobs', label: '직업', page: 'jobs', icon: '🏷️' },
     { name: 'countries', label: '국가', page: 'countries', icon: '🌍' },
     { name: 'companies', label: '기업', page: 'companies', icon: '🏢' },
+    { name: 'keywords', label: '키워드', page: 'keywords', icon: '🔖' },
   ];
 
   function getSearchableText(item, storeName) {
@@ -33,6 +34,9 @@ const SearchEngine = (function() {
     if (item.special) parts.push(item.special);
     if (item.ceo) parts.push(item.ceo);
     if (item.hq) parts.push(item.hq);
+    // Keywords
+    if (item.definition) parts.push(item.definition);
+    if (Array.isArray(item.tags)) parts.push(item.tags.join(' '));
     return parts.join(' ').toLowerCase();
   }
 

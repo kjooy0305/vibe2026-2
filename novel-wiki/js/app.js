@@ -113,6 +113,7 @@
         ['countries', window.Pages?.countries],
         ['companies', window.Pages?.companies],
         ['reminders', window.Pages?.reminders],
+        ['keywords', window.Pages?.keywords],
       ];
 
       pageModules.forEach(([id, mod]) => {
