@@ -687,6 +687,16 @@ window.Pages.characters = {
       DB.getAll('statDefs', wid),
       DB.getAll('skills', wid),
     ]);
+
+    if (allStatDefs.length === 0) {
+      const catMap = { '힘 특화': '전투스텟', '민첩 특화': '전투스텟', '체력 특화': '전투스텟', '마나 계열': '마나계열', '정신 계열': '정신계열', '기타': '기타' };
+      this.HIDDEN_STATS.forEach(group => {
+        const cat = catMap[group.group] || '기타';
+        group.stats.forEach(name => allStatDefs.push({ id: DB.genId(), worldId: wid, name, shortName: '', category: cat, description: '', createdAt: Date.now() }));
+      });
+      await Promise.all(allStatDefs.map(d => DB.put('statDefs', d)));
+    }
+
     const statNames = allStatDefs.map(d => d.name);
     const allSkillsSorted = allSkillsRaw.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
 
@@ -781,35 +791,7 @@ window.Pages.characters = {
           style="flex:1;padding:6px 8px;max-width:120px;" />
       </div>`).join('');
 
-    const hiddenStatInputs = this.HIDDEN_STATS.map(group => `
-      <div style="margin-top:12px;">
-        <div style="font-size:12px;color:var(--color-text-muted);font-weight:600;margin-bottom:6px;">${group.group}</div>
-        ${statInputs(group.stats)}
-      </div>`).join('');
-
     let newImage = char?.image || null;
-
-    const _sdCats = ['기본스텟', '전투스텟', '마나계열', '정신계열', '저항', '기타'];
-    const _sdGrouped = {};
-    _sdCats.forEach(c => { _sdGrouped[c] = []; });
-    allStatDefs.forEach(d => {
-      const cat = d.category || '기타';
-      if (!_sdGrouped[cat]) _sdGrouped[cat] = [];
-      _sdGrouped[cat].push(d);
-    });
-    const _existingStatNames = new Set((char?.customStats || []).map(cs => cs.name));
-    const statChipPalette = allStatDefs.length ? `<div id="statPickerPalette" style="margin-bottom:8px;">${
-      _sdCats.filter(c => _sdGrouped[c].length).map(c =>
-        `<div style="margin-bottom:4px;display:flex;flex-wrap:wrap;align-items:center;">
-          <span style="font-size:10px;color:var(--color-text-dim);font-weight:600;width:52px;flex-shrink:0;">${Utils.escHtml(c)}</span>
-          <span style="display:flex;flex-wrap:wrap;gap:3px;">${_sdGrouped[c].map(d => {
-            const act = _existingStatNames.has(d.name);
-            return `<button type="button" class="stat-picker-chip" data-statname="${Utils.escHtml(d.name)}"
-              style="background:${act ? 'rgba(99,102,241,0.2)' : 'var(--color-surface2)'};border:1px solid ${act ? 'rgba(99,102,241,0.5)' : 'var(--color-border)'};border-radius:6px;padding:2px 7px;font-size:11px;cursor:pointer;color:${act ? 'var(--color-primary)' : 'inherit'};">${Utils.escHtml(d.name)}${d.shortName ? ` <span style="font-size:9px;opacity:0.6;">(${Utils.escHtml(d.shortName)})</span>` : ''}${act ? ' ✓' : ''}</button>`;
-          }).join('')}</span>
-        </div>`
-      ).join('')
-    }</div>` : '';
 
     const body = `
       <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
@@ -904,7 +886,10 @@ window.Pages.characters = {
             <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">커스텀 스텟</label>
             <button type="button" id="btnAddCustomStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 직접 추가</button>
           </div>
-          ${statChipPalette || `<div style="font-size:11px;color:var(--color-text-muted);margin-bottom:8px;">스텟명·수치·보조설명 자유 입력</div>`}
+          <div style="position:relative;margin-bottom:8px;">
+            <input class="input-field" id="statDefSearch" placeholder="스텟 이름 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="statDefSearchResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:150px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
           ${charStatDatalist}
           <div id="customStatRows">
             ${(char?.customStats || []).map((cs, i) => `
@@ -934,10 +919,6 @@ window.Pages.characters = {
               </div>`).join('')}
           </div>
         </div>
-        <details style="border:1px solid var(--color-border);border-radius:8px;padding:8px 12px;">
-          <summary style="cursor:pointer;font-weight:600;font-size:13px;padding:4px 0;list-style:none;">세부 히든 스텟 (클릭하여 펼치기)</summary>
-          <div style="margin-top:12px;">${hiddenStatInputs}</div>
-        </details>
         ${sortedConsts.length > 0 ? `
         <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">성좌 계약</label>
@@ -1119,37 +1100,42 @@ window.Pages.characters = {
         rows.appendChild(div);
       };
 
-      const refreshStatChips = () => {
-        const rows = document.getElementById('customStatRows');
-        const palette = document.getElementById('statPickerPalette');
-        if (!rows || !palette) return;
-        const activeNames = new Set([...rows.querySelectorAll('.cs-name')].map(i => i.value.trim()).filter(Boolean));
-        palette.querySelectorAll('.stat-picker-chip').forEach(btn => {
-          const act = activeNames.has(btn.dataset.statname);
-          btn.style.background = act ? 'rgba(99,102,241,0.2)' : 'var(--color-surface2)';
-          btn.style.borderColor = act ? 'rgba(99,102,241,0.5)' : 'var(--color-border)';
-          btn.style.color = act ? 'var(--color-primary)' : '';
-          btn.innerHTML = btn.innerHTML.replace(/ ✓$/, '') + (act ? ' ✓' : '');
+      const statDefSearch = document.getElementById('statDefSearch');
+      const statDefResults = document.getElementById('statDefSearchResults');
+      if (statDefSearch && statDefResults) {
+        statDefSearch.addEventListener('input', () => {
+          const q = statDefSearch.value.trim().toLowerCase();
+          if (!q) { statDefResults.style.display = 'none'; return; }
+          const existingNames = new Set([...document.querySelectorAll('#customStatRows .cs-name')].map(i => i.value.trim()).filter(Boolean));
+          const matches = allStatDefs.filter(d => (d.name||'').toLowerCase().includes(q)).slice(0, 12);
+          if (!matches.length) { statDefResults.style.display = 'none'; return; }
+          statDefResults.style.display = 'block';
+          statDefResults.innerHTML = matches.map(d => `
+            <div class="stat-def-result-row" data-statname="${Utils.escHtml(d.name)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;justify-content:space-between;">
+              <span>${Utils.escHtml(d.name)}${d.shortName ? ` <span style="font-size:11px;color:var(--color-text-dim);">(${Utils.escHtml(d.shortName)})</span>` : ''}${d.category ? ` <span style="font-size:10px;color:var(--color-text-dim);margin-left:4px;">[${Utils.escHtml(d.category)}]</span>` : ''}</span>
+              ${existingNames.has(d.name) ? '<span style="font-size:11px;color:var(--color-text-dim);">이미 추가됨</span>' : ''}
+            </div>`).join('');
+          statDefResults.querySelectorAll('.stat-def-result-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              const name = row.dataset.statname;
+              const existing2 = new Set([...document.querySelectorAll('#customStatRows .cs-name')].map(i => i.value.trim()).filter(Boolean));
+              if (!existing2.has(name)) addCSRow(name, '', '');
+              statDefSearch.value = '';
+              statDefResults.style.display = 'none';
+              const valueInput = document.querySelector('#customStatRows .cs-row:last-child .cs-value');
+              if (valueInput) valueInput.focus();
+            });
+          });
         });
-      };
+        statDefSearch.addEventListener('blur', () => setTimeout(() => { statDefResults.style.display = 'none'; }, 150));
+      }
 
-      document.getElementById('statPickerPalette')?.addEventListener('click', e => {
-        const chip = e.target.closest('.stat-picker-chip');
-        if (!chip) return;
-        const name = chip.dataset.statname;
-        const rows = document.getElementById('customStatRows');
-        const alreadyHas = rows && [...rows.querySelectorAll('.cs-name')].some(i => i.value.trim() === name);
-        if (!alreadyHas) addCSRow(name, '', '');
-        refreshStatChips();
-      });
-
-      document.getElementById('btnAddCustomStat')?.addEventListener('click', () => { addCSRow('', '', ''); refreshStatChips(); });
+      document.getElementById('btnAddCustomStat')?.addEventListener('click', () => addCSRow('', '', ''));
 
       document.getElementById('customStatRows')?.addEventListener('click', e => {
-        if (e.target.closest('.btn-del-cs')) {
-          e.target.closest('.cs-row')?.remove();
-          refreshStatChips();
-        }
+        if (e.target.closest('.btn-del-cs')) e.target.closest('.cs-row')?.remove();
       });
 
       const addCondStatRow = () => {

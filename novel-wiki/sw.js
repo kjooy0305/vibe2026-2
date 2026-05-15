@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v46';
+const CACHE_VERSION = 'novel-wiki-v47';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
