@@ -332,25 +332,43 @@ window.Pages.novelView = {
       }, '내보내기');
     });
 
-    // ── Temp save ────────────────────────────────────────────
+    // ── Temp save (with confirmation) ────────────────────────
     document.getElementById('btnTempSave')?.addEventListener('click', async () => {
       const text = textarea?.value || '';
-      await DB.setSetting('novelTempSave_' + wid, { text, savedAt: Date.now() });
-      Utils.toast('임시저장 완료', 'success');
-      // Update toolbar label without re-rendering
-      const timeStr = new Date().toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
-      const existingLabel = container.querySelector('#btnTempLoad')?.nextElementSibling;
-      const newLabel = `임시저장: ${timeStr}`;
-      const loadBtn = document.getElementById('btnTempLoad');
-      if (loadBtn) loadBtn.style.opacity = '1';
-      if (existingLabel && existingLabel.tagName === 'SPAN') {
-        existingLabel.textContent = newLabel;
-      } else if (loadBtn) {
-        const sp = document.createElement('span');
-        sp.style.cssText = 'font-size:10px;color:var(--color-text-muted);';
-        sp.textContent = newLabel;
-        loadBtn.insertAdjacentElement('afterend', sp);
-      }
+      const charCount = self._countChars(text);
+      const existing = await DB.getSetting('novelTempSave_' + wid, null);
+      const body = `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="background:var(--color-surface2);border-radius:8px;padding:12px 14px;">
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">저장할 내용</div>
+            <div style="font-size:13px;font-weight:600;">${charCount.toLocaleString()}자</div>
+            ${text ? `<div style="font-size:12px;color:var(--color-text-dim);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(text.substring(0, 60))}${text.length > 60 ? '...' : ''}</div>` : ''}
+          </div>
+          ${existing ? `
+          <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:10px 14px;">
+            <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:4px;">⚠️ 기존 임시저장 덮어씀</div>
+            <div style="font-size:11px;color:var(--color-text-muted);">저장 시각: ${new Date(existing.savedAt).toLocaleString('ko-KR')}</div>
+            <div style="font-size:11px;color:var(--color-text-muted);">${self._countChars(existing.text).toLocaleString()}자</div>
+          </div>` : ''}
+        </div>`;
+      Utils.openModal('임시저장 확인', body, async () => {
+        await DB.setSetting('novelTempSave_' + wid, { text, savedAt: Date.now() });
+        Utils.toast('임시저장 완료', 'success');
+        const timeStr = new Date().toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+        const existingLabel = container.querySelector('#btnTempLoad')?.nextElementSibling;
+        const newLabel = `임시저장: ${timeStr}`;
+        const loadBtn = document.getElementById('btnTempLoad');
+        if (loadBtn) loadBtn.style.opacity = '1';
+        if (existingLabel && existingLabel.tagName === 'SPAN') {
+          existingLabel.textContent = newLabel;
+        } else if (loadBtn) {
+          const sp = document.createElement('span');
+          sp.style.cssText = 'font-size:10px;color:var(--color-text-muted);';
+          sp.textContent = newLabel;
+          loadBtn.insertAdjacentElement('afterend', sp);
+        }
+        return true;
+      }, '임시저장');
     });
 
     // ── Temp load (with confirmation) ────────────────────────

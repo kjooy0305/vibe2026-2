@@ -3,7 +3,7 @@ window.Pages = window.Pages || {};
 window.Pages.world = {
   _container: null,
 
-  DEFAULT_TYPES: ['지구(메인)', '천계', '마계', '이면세계', '거울세계', '몽환세계', '탑내부', '커스텀'],
+  DEFAULT_TYPES: ['천국', '지옥', '현재 세계', '커스텀'],
   DEFAULT_ICONS: ['🌍', '🌙', '👁️', '🪞', '💫', '🏰', '⚡', '🌀', '🌟', '🔮', '☀️', '🌊'],
 
   init: async function(container) {

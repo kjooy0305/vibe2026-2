@@ -4,6 +4,7 @@ window.Pages.keywords = {
   _currentFolderId: null,
   _currentKeywordId: null,
   _container: null,
+  _viewMode: 'all', // 'all' | 'current'
 
   // ── FOLDER COLORS ─────────────────────────────────────────────────────────
   _COLORS: [
@@ -22,21 +23,8 @@ window.Pages.keywords = {
   init: async function(container, options) {
     options = options || {};
     this._container = container;
-    const wid = AppStore.getCurrentWorldId();
-
-    if (!wid) {
-      container.innerHTML = `
-        <div class="empty-state" style="padding:48px;text-align:center;">
-          <div style="font-size:48px;margin-bottom:12px;">🌍</div>
-          <div style="font-weight:700;font-size:16px;margin-bottom:4px;">세계를 먼저 선택하세요</div>
-          <div style="font-size:13px;color:var(--color-text-muted);">홈에서 세계를 선택하거나 새로 만드세요</div>
-          <button class="btn btn-primary" style="margin-top:16px;" onclick="AppRouter.navigate('world')">세계 관리</button>
-        </div>`;
-      return;
-    }
 
     if (options.highlightId) {
-      // highlightId could be keyword id — find its folder
       const kw = await DB.get('keywords', options.highlightId);
       if (kw) {
         this._currentFolderId = kw.folderId;
@@ -46,13 +34,13 @@ window.Pages.keywords = {
 
     if (this._currentKeywordId) {
       const kw = await DB.get('keywords', this._currentKeywordId);
-      if (kw) { this._renderKeywordDetail(container, kw, wid); return; }
+      if (kw) { this._renderKeywordDetail(container, kw); return; }
     }
     if (this._currentFolderId) {
       const folder = await DB.get('keywordFolders', this._currentFolderId);
-      if (folder) { this._renderKeywordList(container, folder, wid); return; }
+      if (folder) { this._renderKeywordList(container, folder); return; }
     }
-    this._renderFolderList(container, wid);
+    this._renderFolderList(container);
   },
 
   destroy: function() {
@@ -62,15 +50,38 @@ window.Pages.keywords = {
   },
 
   // ── FOLDER LIST ───────────────────────────────────────────────────────────
-  _renderFolderList: async function(container, wid) {
+  _renderFolderList: async function(container) {
     this._currentFolderId = null;
     this._currentKeywordId = null;
+    const wid = AppStore.getCurrentWorldId();
     const world = AppStore.getState().currentWorld;
-    const folders = await DB.getAll('keywordFolders', wid);
-    const allKeywords = await DB.getAll('keywords', wid);
+    const worlds = AppStore.getState().worlds || [];
+    const worldMap = Object.fromEntries(worlds.map(w => [w.id, w]));
 
+    // Load folders based on view mode
+    let folders;
+    if (this._viewMode === 'all') {
+      folders = await DB.getAll('keywordFolders'); // all worlds
+    } else {
+      // current world + shared
+      const [worldFolders, sharedFolders] = await Promise.all([
+        wid ? DB.getAll('keywordFolders', wid) : Promise.resolve([]),
+        DB.getAll('keywordFolders', '__shared__'),
+      ]);
+      folders = [...worldFolders, ...sharedFolders];
+    }
+
+    // Count keywords per folder
+    const allKws = await DB.getAll('keywords');
     const countMap = {};
-    allKeywords.forEach(k => { countMap[k.folderId] = (countMap[k.folderId] || 0) + 1; });
+    allKws.forEach(k => { countMap[k.folderId] = (countMap[k.folderId] || 0) + 1; });
+    const totalKws = allKws.length;
+
+    const showWorldBadge = this._viewMode === 'all';
+
+    // Tab HTML
+    const tabStyle = (active) =>
+      `padding:4px 12px;border-radius:20px;font-size:12px;font-weight:600;cursor:pointer;border:1px solid ${active?'var(--color-primary)':'var(--color-border)'};background:${active?'var(--color-primary)':'transparent'};color:${active?'#000':'var(--color-text-muted)'};`;
 
     container.innerHTML = `
     <div class="page active">
@@ -79,8 +90,12 @@ window.Pages.keywords = {
           <h2 class="page-title">키워드 메모장</h2>
           <button class="btn btn-primary btn-sm" id="btnAddFolder">+ 폴더 추가</button>
         </div>
-        <p style="margin-top:4px;font-size:12px;color:var(--color-text-muted);">
-          ${Utils.escHtml(world?.name || '현재 세계')} · 폴더 ${folders.length}개 · 키워드 ${allKeywords.length}개
+        <div style="display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;">
+          <button class="kw-view-tab" data-mode="all" style="${tabStyle(this._viewMode==='all')}">전체</button>
+          ${wid ? `<button class="kw-view-tab" data-mode="current" style="${tabStyle(this._viewMode==='current')}">현재 차원: ${Utils.escHtml(world?.name||'')}</button>` : ''}
+        </div>
+        <p style="margin-top:6px;font-size:12px;color:var(--color-text-muted);">
+          폴더 ${folders.length}개 · 키워드 ${totalKws}개
         </p>
         <input class="input-field" id="folderSearch" placeholder="폴더 이름 검색..." style="margin-top:8px;width:100%;box-sizing:border-box;" />
       </div>
@@ -92,12 +107,23 @@ window.Pages.keywords = {
                <div style="font-weight:700;font-size:16px;margin-bottom:4px;">폴더가 없습니다</div>
                <div style="font-size:13px;color:var(--color-text-muted);">+ 폴더 추가로 키워드를 분류하세요</div>
              </div>`
-          : folders.map(f => this._folderCard(f, countMap[f.id] || 0)).join('')}
+          : folders.map(f => this._folderCard(f, countMap[f.id] || 0, worldMap, showWorldBadge)).join('')}
       </div>
     </div>`;
 
+    // Tab switching
+    container.querySelectorAll('.kw-view-tab').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.mode === 'current' && !wid) {
+          Utils.toast('먼저 세계를 선택하세요', 'error'); return;
+        }
+        this._viewMode = btn.dataset.mode;
+        this._renderFolderList(container);
+      });
+    });
+
     document.getElementById('btnAddFolder')?.addEventListener('click', () => {
-      this._openFolderForm(null, wid, container);
+      this._openFolderForm(null, container);
     });
 
     document.getElementById('folderSearch')?.addEventListener('input', e => {
@@ -112,7 +138,7 @@ window.Pages.keywords = {
         if (e.target.closest('.btn-edit-folder') || e.target.closest('.btn-del-folder')) return;
         const fid = card.dataset.id;
         DB.get('keywordFolders', fid).then(f => {
-          if (f) { this._currentFolderId = f.id; this._renderKeywordList(container, f, wid); }
+          if (f) { this._currentFolderId = f.id; this._renderKeywordList(container, f); }
         });
       });
     });
@@ -121,7 +147,7 @@ window.Pages.keywords = {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
         const f = await DB.get('keywordFolders', btn.dataset.id);
-        if (f) this._openFolderForm(f, wid, container);
+        if (f) this._openFolderForm(f, container);
       });
     });
 
@@ -134,27 +160,38 @@ window.Pages.keywords = {
           '폴더 삭제',
           `"${f?.name || '폴더'}"${cnt > 0 ? `와 그 안의 키워드 ${cnt}개` : ''}를 삭제합니다. 되돌릴 수 없습니다.`,
           async () => {
-            const kws = await DB.getAll('keywords', wid);
+            const kws = await DB.getAll('keywords', f.worldId);
             await Promise.all(kws.filter(k => k.folderId === btn.dataset.id).map(k => DB.del('keywords', k.id)));
             await DB.del('keywordFolders', btn.dataset.id);
             Utils.toast('삭제됨', 'info');
-            this._renderFolderList(container, wid);
+            this._renderFolderList(container);
           }, '삭제'
         );
       });
     });
   },
 
-  _folderCard: function(f, count) {
-    const color = f.color || 'var(--color-primary)';
+  _folderCard: function(f, count, worldMap, showWorldBadge) {
     const borderStyle = f.color ? `3px solid ${f.color}` : '3px solid var(--color-primary)';
+    let worldBadge = '';
+    if (showWorldBadge) {
+      if (f.worldId === '__shared__') {
+        worldBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3);">🔗 공유</span>`;
+      } else {
+        const w = worldMap?.[f.worldId];
+        if (w) worldBadge = `<span style="font-size:9px;padding:1px 5px;border-radius:8px;background:var(--color-surface2);color:var(--color-text-muted);border:1px solid var(--color-border);">${Utils.escHtml(w.name)}</span>`;
+      }
+    }
     return `
     <div class="kw-folder-card"
       data-id="${Utils.escHtml(f.id)}"
       data-name="${Utils.escHtml(f.name || '')}"
       style="cursor:pointer;background:var(--color-surface2);border:1px solid var(--color-border);border-left:${borderStyle};border-radius:10px;padding:14px 12px;position:relative;min-height:90px;display:flex;flex-direction:column;justify-content:space-between;">
       <div>
-        <div style="font-size:24px;margin-bottom:6px;">${Utils.escHtml(f.icon || '📁')}</div>
+        <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+          <span style="font-size:22px;">${Utils.escHtml(f.icon || '📁')}</span>
+          ${worldBadge}
+        </div>
         <div style="font-weight:700;font-size:13px;line-height:1.3;word-break:break-all;">${Utils.escHtml(f.name || '이름 없음')}</div>
         ${f.description ? `<div style="font-size:11px;color:var(--color-text-muted);margin-top:3px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(f.description)}</div>` : ''}
       </div>
@@ -169,9 +206,13 @@ window.Pages.keywords = {
   },
 
   // ── FOLDER FORM ───────────────────────────────────────────────────────────
-  _openFolderForm: function(folder, wid, container) {
+  _openFolderForm: function(folder, container) {
     const isEdit = !!folder;
     const f = folder || {};
+    const wid = AppStore.getCurrentWorldId();
+    const worlds = AppStore.getState().worlds || [];
+    const currentWorld = AppStore.getState().currentWorld;
+
     const colorOpts = this._COLORS.map(c => `
       <label style="display:flex;align-items:center;gap:6px;cursor:pointer;padding:4px 0;">
         <input type="radio" name="fFolderColor" value="${c.value}" ${(f.color || '') === c.value ? 'checked' : ''} />
@@ -179,10 +220,24 @@ window.Pages.keywords = {
         <span style="font-size:12px;">${c.label}</span>
       </label>`).join('');
 
+    // World selector (only for new folders)
+    const worldSelectorHtml = isEdit
+      ? (f.worldId === '__shared__'
+          ? `<div style="font-size:11px;color:#818cf8;padding:6px 0;">🔗 공유 폴더 (모든 차원에서 보입니다)</div>`
+          : `<div style="font-size:11px;color:var(--color-text-muted);padding:6px 0;">차원: ${Utils.escHtml(worlds.find(w=>w.id===f.worldId)?.name || f.worldId || '알 수 없음')}</div>`)
+      : `<div class="form-group">
+          <label class="form-label">차원 배치</label>
+          <select class="select-input" id="fFolderWorldId" style="width:100%;">
+            ${wid ? `<option value="${Utils.escHtml(wid)}" selected>${Utils.escHtml(currentWorld?.name || '현재 차원')}</option>` : ''}
+            ${worlds.filter(w => w.id !== wid).map(w => `<option value="${Utils.escHtml(w.id)}">${Utils.escHtml(w.name)}</option>`).join('')}
+            <option value="__shared__">🔗 공유 (모든 차원에서 보임)</option>
+          </select>
+        </div>`;
+
     const body = `
       <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
-          <label class="form-label">폴더 이름 *</label>
+          <label class="form-label">폴더 이름 (필수)</label>
           <input class="input-field" id="fFolderName" value="${Utils.escHtml(f.name || '')}" placeholder="예: 상태이상, 개념, 용어집" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
@@ -193,6 +248,7 @@ window.Pages.keywords = {
           <label class="form-label">폴더 색상</label>
           <div style="display:flex;flex-wrap:wrap;gap:8px 16px;">${colorOpts}</div>
         </div>
+        ${worldSelectorHtml}
         <div class="form-group">
           <label class="form-label">설명 (선택)</label>
           <input class="input-field" id="fFolderDesc" value="${Utils.escHtml(f.description || '')}" placeholder="이 폴더에 대한 설명" style="width:100%;box-sizing:border-box;" />
@@ -203,9 +259,12 @@ window.Pages.keywords = {
       const name = document.getElementById('fFolderName')?.value.trim();
       if (!name) { Utils.toast('폴더 이름을 입력하세요', 'error'); return false; }
       const color = document.querySelector('input[name="fFolderColor"]:checked')?.value || '';
+      const folderWorldId = isEdit
+        ? f.worldId
+        : (document.getElementById('fFolderWorldId')?.value || wid || '__shared__');
       const record = {
         ...(f || {}),
-        worldId: wid,
+        worldId: folderWorldId,
         name,
         icon: document.getElementById('fFolderIcon')?.value.trim() || '📁',
         color,
@@ -215,27 +274,32 @@ window.Pages.keywords = {
       };
       await DB.put('keywordFolders', record);
       Utils.toast(isEdit ? '저장됨' : '폴더 추가됨', 'success');
-      this._renderFolderList(container, wid);
+      this._renderFolderList(container);
       return true;
     }, isEdit ? '저장' : '추가');
   },
 
   // ── KEYWORD LIST ──────────────────────────────────────────────────────────
-  _renderKeywordList: async function(container, folder, wid) {
+  _renderKeywordList: async function(container, folder) {
     this._currentFolderId = folder.id;
     this._currentKeywordId = null;
-    const keywords = await DB.getAll('keywords', wid);
+    // Use folder's worldId for keyword fetching
+    const keywords = await DB.getAll('keywords', folder.worldId);
     const folderKws = keywords.filter(k => k.folderId === folder.id);
     const color = folder.color || 'var(--color-primary)';
+
+    const sharedBadge = folder.worldId === '__shared__'
+      ? `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:rgba(99,102,241,0.2);color:#818cf8;border:1px solid rgba(99,102,241,0.3);margin-left:4px;">🔗 공유</span>`
+      : '';
 
     container.innerHTML = `
     <div class="page active">
       <div class="page-header" style="border-left:4px solid ${folder.color || 'var(--color-primary)'};padding-left:12px;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-          <div style="display:flex;align-items:center;gap:10px;">
+          <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap;">
             <button class="btn btn-ghost btn-sm" id="btnBackFolders">← 폴더</button>
             <span style="font-size:20px;">${Utils.escHtml(folder.icon || '📁')}</span>
-            <h2 class="page-title" style="margin:0;font-size:17px;">${Utils.escHtml(folder.name)}</h2>
+            <h2 class="page-title" style="margin:0;font-size:17px;">${Utils.escHtml(folder.name)}${sharedBadge}</h2>
           </div>
           <button class="btn btn-primary btn-sm" id="btnAddKeyword">+ 키워드</button>
         </div>
@@ -256,11 +320,11 @@ window.Pages.keywords = {
 
     document.getElementById('btnBackFolders')?.addEventListener('click', () => {
       this._currentFolderId = null;
-      this._renderFolderList(container, wid);
+      this._renderFolderList(container);
     });
 
     document.getElementById('btnAddKeyword')?.addEventListener('click', () => {
-      this._openKeywordForm(null, folder, wid, container);
+      this._openKeywordForm(null, folder, container);
     });
 
     document.getElementById('kwSearch')?.addEventListener('input', e => {
@@ -275,7 +339,7 @@ window.Pages.keywords = {
         if (e.target.closest('.btn-edit-kw') || e.target.closest('.btn-del-kw')) return;
         const id = card.dataset.id;
         DB.get('keywords', id).then(kw => {
-          if (kw) { this._currentKeywordId = kw.id; this._renderKeywordDetail(container, kw, wid); }
+          if (kw) { this._currentKeywordId = kw.id; this._renderKeywordDetail(container, kw); }
         });
       });
     });
@@ -284,7 +348,7 @@ window.Pages.keywords = {
       btn.addEventListener('click', async e => {
         e.stopPropagation();
         const kw = await DB.get('keywords', btn.dataset.id);
-        if (kw) this._openKeywordForm(kw, folder, wid, container);
+        if (kw) this._openKeywordForm(kw, folder, container);
       });
     });
 
@@ -295,7 +359,7 @@ window.Pages.keywords = {
         Utils.confirm('키워드 삭제', `"${kw?.name || '키워드'}"를 삭제합니다.`, async () => {
           await DB.del('keywords', btn.dataset.id);
           Utils.toast('삭제됨', 'info');
-          this._renderKeywordList(container, folder, wid);
+          this._renderKeywordList(container, folder);
         }, '삭제');
       });
     });
@@ -328,7 +392,7 @@ window.Pages.keywords = {
   },
 
   // ── KEYWORD DETAIL ────────────────────────────────────────────────────────
-  _renderKeywordDetail: async function(container, kw, wid) {
+  _renderKeywordDetail: async function(container, kw) {
     this._currentKeywordId = kw.id;
     const folder = await DB.get('keywordFolders', kw.folderId).catch(() => null);
     const accentColor = folder?.color || 'var(--color-primary)';
@@ -355,6 +419,7 @@ window.Pages.keywords = {
           <div style="display:inline-flex;align-items:center;gap:6px;font-size:12px;color:var(--color-text-muted);margin-bottom:14px;padding:4px 10px;background:var(--color-surface2);border-radius:20px;border:1px solid var(--color-border);">
             <span>${Utils.escHtml(folder.icon || '📁')}</span>
             <span>${Utils.escHtml(folder.name)}</span>
+            ${folder.worldId === '__shared__' ? '<span style="font-size:10px;color:#818cf8;">🔗 공유</span>' : ''}
           </div>` : ''}
 
         ${kw.definition ? `
@@ -384,14 +449,14 @@ window.Pages.keywords = {
     document.getElementById('btnBackKwList')?.addEventListener('click', () => {
       this._currentKeywordId = null;
       if (folder) {
-        this._renderKeywordList(container, folder, wid);
+        this._renderKeywordList(container, folder);
       } else {
-        this._renderFolderList(container, wid);
+        this._renderFolderList(container);
       }
     });
 
     document.getElementById('btnEditKw')?.addEventListener('click', () => {
-      if (folder) this._openKeywordForm(kw, folder, wid, container);
+      if (folder) this._openKeywordForm(kw, folder, container);
     });
 
     document.getElementById('btnDelKwDetail')?.addEventListener('click', () => {
@@ -399,8 +464,8 @@ window.Pages.keywords = {
         await DB.del('keywords', kw.id);
         Utils.toast('삭제됨', 'info');
         this._currentKeywordId = null;
-        if (folder) this._renderKeywordList(container, folder, wid);
-        else this._renderFolderList(container, wid);
+        if (folder) this._renderKeywordList(container, folder);
+        else this._renderFolderList(container);
       }, '삭제');
     });
 
@@ -411,7 +476,7 @@ window.Pages.keywords = {
   },
 
   // ── KEYWORD FORM ──────────────────────────────────────────────────────────
-  _openKeywordForm: function(kw, folder, wid, container) {
+  _openKeywordForm: function(kw, folder, container) {
     const isEdit = !!kw;
     const k = kw || {};
     const tagsVal = Array.isArray(k.tags) ? k.tags.join(', ') : '';
@@ -419,7 +484,7 @@ window.Pages.keywords = {
     const body = `
       <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
-          <label class="form-label">키워드 이름 *</label>
+          <label class="form-label">키워드 이름 (필수)</label>
           <input class="input-field" id="fKwName" value="${Utils.escHtml(k.name || '')}" placeholder="예: 마나중독, 헌터, 게이트 폭주..." style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
@@ -443,7 +508,7 @@ window.Pages.keywords = {
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
       const record = {
         ...(k || {}),
-        worldId: wid,
+        worldId: folder.worldId, // inherit folder's worldId (including '__shared__')
         folderId: folder.id,
         name,
         definition: document.getElementById('fKwDef')?.value.trim() || '',
@@ -457,7 +522,7 @@ window.Pages.keywords = {
       Utils.toast(isEdit ? '저장됨' : '키워드 추가됨', 'success');
       this._currentKeywordId = record.id;
       const updated = await DB.get('keywords', record.id);
-      if (updated) this._renderKeywordDetail(container, updated, wid);
+      if (updated) this._renderKeywordDetail(container, updated);
       return true;
     }, isEdit ? '저장' : '추가');
   },
