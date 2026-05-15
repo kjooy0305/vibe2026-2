@@ -51,13 +51,12 @@ window.Pages.home = {
     const wid = AppStore.getCurrentWorldId();
 
     const [chars, skills, items, events, monsters, orgs, constellations, gates,
-           streak, ta, missionState] = await Promise.all([
+           streak, missionState] = await Promise.all([
       DB.getAll('characters', wid), DB.getAll('skills', wid),
       DB.getAll('items', wid), DB.getAll('events', wid),
       DB.getAll('monsters', wid), DB.getAll('organizations', wid),
       DB.getAll('constellations', wid), DB.getAll('gates', wid),
       DB.get('streak', 'main').then(s => s || { id: 'main', count: 0, lastDate: null, history: [], totalCleared: 0, longestStreak: 0, shields: 0, points: 0 }),
-      AppStore.getTodayActivity(),
       AppStore.getMissionState(),
     ]);
 
@@ -65,15 +64,6 @@ window.Pages.home = {
     const dateStr = `${today.getFullYear()}년 ${today.getMonth() + 1}월 ${today.getDate()}일 (${['일','월','화','수','목','금','토'][today.getDay()]}요일)`;
 
     const quoteIdx = Math.floor(Date.now() / 86400000) % this.QUOTES.length;
-
-    // Quest
-    const quest = AppStore.getTodayQuest();
-    const questDone = ta.questDone === true;
-    const textIdx = AppStore.getTodayTextIdx(questDone ? quest.cleared : quest.texts);
-    const questMainText = questDone ? quest.cleared[textIdx] : quest.texts[textIdx];
-    const questSubText = questDone
-      ? `+50⭐ 획득! 내일의 과제도 기다리겠습니다 🌙`
-      : quest.hint;
 
     // Streak history → last 7 days chart
     const history = streak.history || [];
@@ -188,23 +178,11 @@ window.Pages.home = {
         </div>
       </div>
 
-      <!-- ── 오늘의 과제 ── -->
-      <div style="background:var(--color-surface2);border-left:3px solid ${questDone ? '#10b981' : 'var(--color-primary)'};border-radius:8px;padding:12px 16px;margin-bottom:14px;transition:border-color 0.3s;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">📝 오늘의 과제</div>
-          ${questDone
-            ? '<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:#10b98122;color:#10b981;border:1px solid #10b98144;font-weight:700;">✓ 완료!</span>'
-            : ''}
-        </div>
-        <div style="font-weight:600;color:${questDone ? '#10b981' : 'var(--color-text)'};font-size:13px;line-height:1.5;">${Utils.escHtml(questMainText)}</div>
-        <div style="font-size:11px;color:var(--color-text-dim);margin-top:5px;">${Utils.escHtml(questSubText)}</div>
-      </div>
-
       <!-- ── 연속 기록 리마인더 ── -->
       ${showReminder ? `
       <div style="background:linear-gradient(135deg,rgba(249,115,22,0.12),rgba(239,68,68,0.12));border:1px solid rgba(249,115,22,0.3);border-radius:8px;padding:10px 14px;margin-bottom:14px;">
         <div style="font-size:13px;font-weight:600;color:#f97316;">${Utils.escHtml(reminderMsg)}</div>
-        <div style="font-size:11px;color:var(--color-text-muted);margin-top:3px;">오늘의 과제를 클리어하면 기록이 갱신됩니다.</div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-top:3px;">미션을 클리어하면 기록이 갱신됩니다.</div>
       </div>` : ''}
 
       <!-- ── 도전 미션 ── -->

@@ -209,11 +209,11 @@ window.Pages.templates = {
 
     const tabHeader = `
       <div style="display:flex;gap:6px;margin-bottom:16px;position:sticky;top:0;z-index:20;background:var(--color-bg);padding:12px 0 4px;">
-        <button id="tabFieldsBtn" style="${tabBtnStyle(this._activeTab === 'fields')}">📋 필드 템플릿</button>
-        <button id="tabConstBtn"  style="${tabBtnStyle(this._activeTab === 'constants')}">⚙️ 전역 상수</button>
+        <button id="tabFieldsBtn" style="${tabBtnStyle(this._activeTab === 'fields')}">📋 항목 입력 양식</button>
+        <button id="tabConstBtn"  style="${tabBtnStyle(this._activeTab === 'constants')}">⚙️ 선택지/목록 관리</button>
       </div>`;
 
-    container.innerHTML = `<div class="page active"><div class="page-header"><h2 class="page-title">템플릿 관리</h2></div>${tabHeader}<div id="tabContent"></div></div>`;
+    container.innerHTML = `<div class="page active"><div class="page-header"><h2 class="page-title">기본 설정 관리</h2></div>${tabHeader}<div id="tabContent"></div></div>`;
 
     container.querySelector('#tabFieldsBtn')?.addEventListener('click', async () => {
       self._activeTab = 'fields';

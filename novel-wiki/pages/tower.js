@@ -139,9 +139,11 @@ window.Pages.tower = {
   },
 
   // ── TOWER FORM ──────────────────────────────────────────────
-  _openTowerForm: function(tower, wid, container, world) {
+  _openTowerForm: async function(tower, wid, container, world) {
     const isEdit = !!tower;
     const t = tower || {};
+    const allCountries = await DB.getAll('countries', wid);
+    const countryOptions = allCountries.map(c => `<option value="${Utils.escHtml(c.name || '')}"></option>`).join('');
     const body = `
       <div style="display:flex;flex-direction:column;gap:10px;">
         <div class="form-group">
@@ -150,7 +152,9 @@ window.Pages.tower = {
         </div>
         <div class="form-group">
           <label class="form-label">국가</label>
-          <input class="input-field" id="fTowerCountry" value="${Utils.escHtml(t.country || '')}" placeholder="어느 나라의 탑인지" style="width:100%;box-sizing:border-box;" />
+          <input class="input-field" id="fTowerCountry" list="towerCountryList" value="${Utils.escHtml(t.country || '')}" placeholder="국가 선택 또는 직접 입력" style="width:100%;box-sizing:border-box;" />
+          <datalist id="towerCountryList">${countryOptions}</datalist>
+          ${allCountries.length === 0 ? '<div style="font-size:11px;color:var(--color-text-dim);margin-top:2px;">국가 페이지에서 국가를 추가하면 목록에서 선택할 수 있습니다.</div>' : ''}
         </div>
         <div class="form-group">
           <label class="form-label">설명</label>
@@ -521,6 +525,11 @@ window.Pages.tower = {
     const f = floor || {};
     let newImage = f.image || null;
 
+    const existingFloors = tower.floors || [];
+    const defaultFloorNum = !isEdit
+      ? (existingFloors.length > 0 ? Math.max(...existingFloors.map(ff => ff.floorNum || 0)) + 1 : 1)
+      : undefined;
+
     const allMonsters = await DB.getAll('monsters', wid);
 
     const ta = (id, label, val, rows, placeholder) => `
@@ -543,9 +552,9 @@ window.Pages.tower = {
         <div class="form-group">
           <label class="form-label">층 번호 *</label>
           <input class="input-field" id="fFloorNum" type="number"
-            value="${f.floorNum !== undefined ? f.floorNum : ''}" placeholder="예: 1, 50, 100"
+            value="${f.floorNum !== undefined ? f.floorNum : (defaultFloorNum !== undefined ? defaultFloorNum : '')}" placeholder="예: 1, 50, 100"
             style="width:100%;box-sizing:border-box;" ${isEdit ? 'readonly' : ''} />
-          ${isEdit ? '<div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">층 번호는 수정할 수 없습니다</div>' : ''}
+          ${isEdit ? '<div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">층 번호는 수정할 수 없습니다</div>' : '<div id="fFloorNumHint" style="font-size:11px;color:var(--color-text-dim);margin-top:2px;"></div>'}
         </div>
         <div class="form-group">
           <label class="form-label">테마</label>
@@ -624,6 +633,19 @@ window.Pages.tower = {
     }, isEdit ? '저장' : '추가');
 
     setTimeout(() => {
+      // Real-time duplicate floor number detection
+      const floorNumInput = document.getElementById('fFloorNum');
+      if (floorNumInput && !isEdit) {
+        floorNumInput.addEventListener('input', () => {
+          const val = parseInt(floorNumInput.value, 10);
+          const isDup = !isNaN(val) && existingFloors.some(ff => ff.floorNum === val);
+          floorNumInput.style.borderColor = isDup ? 'var(--color-danger)' : '';
+          const hint = document.getElementById('fFloorNumHint');
+          if (hint) hint.textContent = isDup ? `${val}층이 이미 존재합니다` : '';
+          if (hint) hint.style.color = isDup ? 'var(--color-danger)' : 'var(--color-text-dim)';
+        });
+      }
+
       // Image upload preview
       document.getElementById('floorImageFile')?.addEventListener('change', async e => {
         const file = e.target.files?.[0];

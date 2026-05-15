@@ -12,7 +12,7 @@ const AppRouter = (function() {
     constellations: '성좌', gates: '게이트', monsters: '몬스터',
     tower: '탑 관리', timeline: '타임라인', 'event-graph': '사건 그래프',
     'family-tree': '가계도', 'world-rules': '세계관 규칙', items: '아이템',
-    jobs: '직업', templates: '기본 설정 수정', 'status-viewer': '상태창 뷰어',
+    jobs: '직업', templates: '기본 설정 관리', 'status-viewer': '상태창 뷰어',
     'novel-view': '소설 쓰기', settings: '설정',
     countries: '국가', companies: '기업', reminders: '리마인더',
     keywords: '키워드 메모장',
