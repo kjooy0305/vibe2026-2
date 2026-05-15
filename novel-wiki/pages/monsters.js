@@ -355,25 +355,35 @@ window.Pages.monsters = {
     if (!allSkills.length) { Utils.toast('스킬 라이브러리가 비어 있습니다', 'error'); return; }
 
     const currentIds = new Set((m.skills || []).map(s => s.id));
-    const rows = allSkills.map(sk => {
+    const allSkillsSorted = allSkills.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+    const rows = allSkillsSorted.map(sk => {
       const col = Utils.gradeColor(sk.grade || 'F');
+      const searchVal = [sk.name||'', sk.grade||'', sk.series||''].join(' ').toLowerCase();
       return `
-        <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer;border-bottom:1px solid var(--color-border);">
-          <input type="checkbox" data-skid="${Utils.escHtml(sk.id)}" ${currentIds.has(sk.id) ? 'checked' : ''} style="width:16px;height:16px;flex-shrink:0;" />
-          <div style="flex:1;min-width:0;">
-            <div style="display:flex;align-items:center;gap:6px;">
-              <span style="font-weight:600;font-size:13px;">⚡ ${Utils.escHtml(sk.name || '')}</span>
-              ${sk.grade ? `<span style="font-size:11px;padding:1px 5px;border-radius:3px;background:${col}22;color:${col};border:1px solid ${col}55;">${Utils.escHtml(sk.grade)}</span>` : ''}
+        <div class="skill-pick-row" data-search="${Utils.escHtml(searchVal)}">
+          <label style="display:flex;align-items:center;gap:10px;padding:8px 4px;cursor:pointer;border-bottom:1px solid var(--color-border);">
+            <input type="checkbox" data-skid="${Utils.escHtml(sk.id)}" ${currentIds.has(sk.id) ? 'checked' : ''} style="width:16px;height:16px;flex-shrink:0;" />
+            <div style="flex:1;min-width:0;">
+              <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
+                <span style="font-weight:600;font-size:13px;">⚡ ${Utils.escHtml(sk.name || '')}</span>
+                ${sk.grade ? `<span style="font-size:11px;padding:1px 5px;border-radius:3px;background:${col}22;color:${col};border:1px solid ${col}55;">${Utils.escHtml(sk.grade)}</span>` : ''}
+                ${sk.series ? `<span style="font-size:11px;color:var(--color-text-dim);">${Utils.escHtml(sk.series)}</span>` : ''}
+              </div>
+              ${sk.cooldown ? `<div style="font-size:11px;color:var(--color-text-muted);">쿨타임: ${Utils.escHtml(sk.cooldown)}</div>` : ''}
             </div>
-            ${sk.cooldown ? `<div style="font-size:11px;color:var(--color-text-muted);">쿨타임: ${Utils.escHtml(sk.cooldown)}</div>` : ''}
-          </div>
-        </label>`;
+          </label>
+        </div>`;
     }).join('');
 
-    Utils.openModal('스킬 선택', `<div style="">${rows}</div>`, async () => {
-      const selected = [...document.querySelectorAll('input[data-skid]:checked')]
+    Utils.openModal('스킬 선택', `
+      <div style="margin-bottom:8px;">
+        <input class="input-field" id="skillPickSearch" placeholder="스킬 이름, 등급, 계열 검색..." autocomplete="off"
+          style="width:100%;box-sizing:border-box;" />
+      </div>
+      <div id="skillPickList">${rows}</div>`, async () => {
+      const selected = [...document.querySelectorAll('#skillPickList input[data-skid]:checked')]
         .map(cb => {
-          const sk = allSkills.find(s => s.id === cb.dataset.skid);
+          const sk = allSkillsSorted.find(s => s.id === cb.dataset.skid);
           return sk ? { id: sk.id, name: sk.name, grade: sk.grade || '', effects: sk.effects || '', cooldown: sk.cooldown || '' } : null;
         }).filter(Boolean);
       m.skills = selected;
@@ -383,6 +393,15 @@ window.Pages.monsters = {
       this._renderDetail(container, m, wid);
       return true;
     }, '저장');
+
+    setTimeout(() => {
+      document.getElementById('skillPickSearch')?.addEventListener('input', e => {
+        const q = e.target.value.trim().toLowerCase();
+        document.querySelectorAll('#skillPickList .skill-pick-row').forEach(row => {
+          row.style.display = !q || (row.dataset.search || '').includes(q) ? '' : 'none';
+        });
+      });
+    }, 50);
   },
 
   // ── COPY TO WORLD ────────────────────────────────────────────────────────────
