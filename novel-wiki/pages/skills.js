@@ -234,6 +234,7 @@ window.Pages.skills = {
           <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">효과</div>
           <div style="white-space:pre-wrap;font-size:13px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(s.effects||'(없음)'))}</div>
         </div>
+        ${(s.conditionalEffects||[]).length?`<div style="margin-top:12px;"><div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">조건부 효과</div>${(s.conditionalEffects||[]).map(ce=>`<div style="display:flex;flex-direction:column;gap:2px;background:rgba(99,102,241,0.08);border:1px solid rgba(99,102,241,0.2);border-radius:6px;padding:8px 10px;margin-bottom:6px;"><div style="font-size:11px;color:#818cf8;font-weight:600;">📌 ${Utils.escHtml(ce.condition||'')}</div><div style="white-space:pre-wrap;font-size:13px;line-height:1.6;">${Utils.nl2br(Utils.escHtml(ce.effect||''))}</div></div>`).join('')}</div>`:''}
         ${s.description?`<div style="margin-top:12px;"><div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">소설 내 설명</div><div style="white-space:pre-wrap;font-size:13px;font-style:italic;color:var(--color-text-muted);line-height:1.7;">${Utils.nl2br(Utils.escHtml(s.description))}</div></div>`:''}
       </div>
 
@@ -478,9 +479,26 @@ window.Pages.skills = {
       </div>
 
       <div class="form-group">
-        <label class="form-label">효과 * <span style="color:var(--color-warning);font-size:11px;">(비어 있으면 ⚠️ 표시)</span></label>
+        <label class="form-label">효과 (필수)</label>
         <textarea class="textarea-field" id="fSkEffects" rows="4" placeholder="이 스킬이 발동되면 어떤 일이 일어나는지 상세히 입력..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(skill?.effects||'')}</textarea>
       </div>
+
+      <!-- 조건부 효과 -->
+      <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+          <label class="form-label" style="margin:0;">조건부 효과 <span style="font-size:11px;color:var(--color-text-muted);">(예: 하늘을 날 때 이속 +30%)</span></label>
+          <button type="button" id="btnAddCondEff" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+        </div>
+        <div id="condEffRows">
+          ${(skill?.conditionalEffects||[]).map((ce,i)=>`
+            <div class="cond-eff-row" style="display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:start;">
+              <textarea class="textarea-field ce-condition" rows="2" placeholder="조건 (예: 하늘을 날 때)" style="font-size:12px;padding:6px 8px;min-height:unset;word-break:break-word;">${Utils.escHtml(ce.condition||'')}</textarea>
+              <textarea class="textarea-field ce-effect" rows="2" placeholder="효과 (예: 이속 +30%)" style="font-size:12px;padding:6px 8px;min-height:unset;word-break:break-word;">${Utils.escHtml(ce.effect||'')}</textarea>
+              <button type="button" class="btn-del-cond-eff" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;height:36px;">✕</button>
+            </div>`).join('')}
+        </div>
+      </div>
+
       <div class="form-group">
         <label class="form-label">소설 내 설명 (독자가 읽는 텍스트)</label>
         <textarea class="textarea-field" id="fSkDesc" rows="3" placeholder="소설 본문에 표시될 스킬 설명..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(skill?.description||'')}</textarea>
@@ -509,6 +527,15 @@ window.Pages.skills = {
         exLevel:    grade==='EX'&&exVal!==''&&exVal!==undefined ? Number(exVal) : undefined,
         evolvedFromId: evoFromId||'',
         effects:    document.getElementById('fSkEffects')?.value.trim()||'',
+        conditionalEffects: (() => {
+          const rows = [];
+          document.querySelectorAll('#globalModalBody .cond-eff-row').forEach(row => {
+            const cond = row.querySelector('.ce-condition')?.value.trim();
+            const eff  = row.querySelector('.ce-effect')?.value.trim();
+            if (cond || eff) rows.push({ condition: cond||'', effect: eff||'' });
+          });
+          return rows;
+        })(),
         description: document.getElementById('fSkDesc')?.value.trim()||'',
         authorNotes: document.getElementById('fSkAuthor')?.value.trim()||'',
         id: skill?.id||DB.genId(),
@@ -527,6 +554,24 @@ window.Pages.skills = {
     }, isEdit?'저장':'추가');
 
     setTimeout(async () => {
+      // 조건부 효과 행 추가/삭제
+      const makeCondEffRow = () => {
+        const div = document.createElement('div');
+        div.className = 'cond-eff-row';
+        div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr auto;gap:6px;margin-bottom:6px;align-items:start;';
+        div.innerHTML = `
+          <textarea class="textarea-field ce-condition" rows="2" placeholder="조건 (예: 하늘을 날 때)" style="font-size:12px;padding:6px 8px;min-height:unset;word-break:break-word;"></textarea>
+          <textarea class="textarea-field ce-effect" rows="2" placeholder="효과 (예: 이속 +30%)" style="font-size:12px;padding:6px 8px;min-height:unset;word-break:break-word;"></textarea>
+          <button type="button" class="btn-del-cond-eff" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;height:36px;">✕</button>`;
+        return div;
+      };
+      document.getElementById('btnAddCondEff')?.addEventListener('click', () => {
+        document.getElementById('condEffRows')?.appendChild(makeCondEffRow());
+      });
+      document.getElementById('condEffRows')?.addEventListener('click', e => {
+        if (e.target.closest('.btn-del-cond-eff')) e.target.closest('.cond-eff-row')?.remove();
+      });
+
       // 등급 → EX 레벨 표시
       document.getElementById('fSkGrade')?.addEventListener('change', e => {
         const eg = document.getElementById('exLevelGroup');

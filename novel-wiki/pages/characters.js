@@ -333,6 +333,14 @@ window.Pages.characters = {
       </div>`
     ).join('');
 
+    const conditionalStatRows = (char.conditionalStats || []).map(cs =>
+      `<div style="display:flex;align-items:baseline;padding:2px 0;gap:6px;">
+        <span style="color:#fb923c;font-size:11px;flex-shrink:0;">📌</span>
+        <span style="color:var(--color-text-muted);font-size:12px;">${Utils.escHtml(cs.condition||'')}${cs.condition?' →':''}</span>
+        <span style="font-weight:600;white-space:nowrap;">${Utils.escHtml(cs.stat||'')} ${Number(cs.value)>0?'+':''}${Utils.escHtml(String(cs.value||''))}</span>
+      </div>`
+    ).join('');
+
     container.innerHTML = `
     <div class="page active" style="overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;">
       <div class="page-header">
@@ -392,6 +400,10 @@ window.Pages.characters = {
           <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
           <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[커스텀 스텟]</div>
           ${customStatRows}` : ''}
+        ${conditionalStatRows ? `
+          <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
+          <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[조건부 스텟]</div>
+          ${conditionalStatRows}` : ''}
         <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
         <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[스킬]</div>
         ${skillsList || '<div class="status-row" style="color:rgba(150,170,200,0.6);">ㄴ(없음)</div>'}
@@ -411,6 +423,7 @@ window.Pages.characters = {
         <div style="margin-top:8px;color:#aaccff;">ㅣ[스텟]</div>
         ${baseStatRows}
         ${customStatRows ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[커스텀 스텟]</div>${customStatRows}` : ''}
+        ${conditionalStatRows ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[조건부 스텟]</div>${conditionalStatRows}` : ''}
         ${skillsList ? `<div style="margin-top:8px;color:#aaccff;">ㅣ[스킬]</div>${skillsList}` : ''}
         <div style="text-align:center;font-size:12px;color:rgba(120,160,255,0.6);letter-spacing:4px;margin-top:12px;">${'ㅡ'.repeat(14)}</div>
       </div>
@@ -549,6 +562,12 @@ window.Pages.characters = {
         text += `ㄴ${cs.name}:${cs.value}${cs.desc ? ` (${cs.desc})` : ''}\n`;
       });
     }
+    if ((char.conditionalStats || []).length > 0) {
+      text += `ㅣ[조건부 스텟]\n`;
+      char.conditionalStats.forEach(cs => {
+        text += `ㄴ${cs.condition?cs.condition+' → ':''}${cs.stat} ${Number(cs.value)>0?'+':''}${cs.value}\n`;
+      });
+    }
     text += `ㅣ[스킬]\n`;
     (char.skills || []).forEach(sk => { text += `ㄴ${sk.name || sk}${sk.grade ? `(${sk.grade})` : ''}\n`; });
     text += 'ㅡ'.repeat(16);
@@ -579,9 +598,15 @@ window.Pages.characters = {
     const isEdit = !!char;
     const stats = char?.stats || {};
 
-    // Load constellations for linking
-    const allConsts = await DB.getAll('constellations', wid);
-    const sortedConsts = allConsts.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+    // Load constellations and stat definitions for linking
+    const [allConsts, statNames] = await Promise.all([
+      DB.getAll('constellations', wid),
+      window.StatDefs ? window.StatDefs.loadNames(wid) : Promise.resolve([]),
+    ]);
+    const charStatDatalist = statNames.length
+      ? `<datalist id="charStatDatalist">${statNames.map(n=>`<option value="${Utils.escHtml(n)}">`).join('')}</datalist>`
+      : '';
+    const sortedConsts = allConsts.sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
     let contractorConstIds = new Set(
       allConsts.filter(c => (c.contractors||[]).includes(char?.id||'')).map(c => c.id)
     );
@@ -692,13 +717,32 @@ window.Pages.characters = {
             <span style="font-size:10px;color:var(--color-text-dim);">수치</span>
             <span></span>
           </div>
+          ${charStatDatalist}
           <div id="customStatRows">
             ${(char?.customStats || []).map((cs, i) => `
               <div class="cs-row" style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:4px;margin-bottom:6px;align-items:center;">
-                <input class="input-field cs-name" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+                <input class="input-field cs-name" list="charStatDatalist" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
                 <input class="input-field cs-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
                 <input class="input-field cs-desc" value="${Utils.escHtml(cs.desc||'')}" placeholder="보조 설명(선택)" style="font-size:12px;padding:5px 8px;" />
                 <button type="button" class="btn-del-cs" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
+              </div>`).join('')}
+          </div>
+        </div>
+
+        <!-- 조건부 스텟 -->
+        <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+            <label class="form-label" style="margin:0;">조건부 스텟</label>
+            <button type="button" id="btnAddCondStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+          </div>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">예: 하늘을 날 때 이속 +50 / 전투 중 힘 +30</div>
+          <div id="condStatRows">
+            ${(char?.conditionalStats || []).map(cs => `
+              <div class="cond-stat-char-row" style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:4px;margin-bottom:6px;align-items:center;">
+                <input class="input-field csc-cond" value="${Utils.escHtml(cs.condition||'')}" placeholder="조건 (예: 전투 중)" style="font-size:12px;padding:5px 8px;" />
+                <input class="input-field csc-name" list="charStatDatalist" value="${Utils.escHtml(cs.stat||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+                <input type="number" class="input-field csc-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
+                <button type="button" class="btn-del-csc" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
               </div>`).join('')}
           </div>
         </div>
@@ -774,6 +818,15 @@ window.Pages.characters = {
         if (name2) customStats.push({ name: name2, value: value || '', desc });
       });
 
+      // Collect conditional stats
+      const conditionalStats = [];
+      document.querySelectorAll('#globalModalBody .cond-stat-char-row').forEach(row => {
+        const cond  = row.querySelector('.csc-cond')?.value.trim();
+        const stat  = row.querySelector('.csc-name')?.value.trim();
+        const value = row.querySelector('.csc-value')?.value.trim();
+        if (stat) conditionalStats.push({ condition: cond||'', stat, value: value||'0' });
+      });
+
       const item = {
         ...(char || {}),
         worldId: wid,
@@ -790,6 +843,7 @@ window.Pages.characters = {
         cycle: cycleVal !== '' && cycleVal !== null && cycleVal !== undefined ? Number(cycleVal) : null,
         stats: newStats,
         customStats,
+        conditionalStats,
         authorNotes: document.getElementById('fCharAuthorNotes')?.value.trim() || '',
         image: newImage,
         skills: char?.skills || [],
@@ -852,7 +906,7 @@ window.Pages.characters = {
         div.className = 'cs-row';
         div.style.cssText = 'display:grid;grid-template-columns:1fr 80px 1fr auto;gap:4px;margin-bottom:6px;align-items:center;';
         div.innerHTML = `
-          <input class="input-field cs-name" value="${Utils.escHtml(name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+          <input class="input-field cs-name" list="charStatDatalist" value="${Utils.escHtml(name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
           <input class="input-field cs-value" value="${Utils.escHtml(String(value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
           <input class="input-field cs-desc" value="${Utils.escHtml(desc||'')}" placeholder="보조 설명(선택)" style="font-size:12px;padding:5px 8px;" />
           <button type="button" class="btn-del-cs" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>`;
@@ -865,6 +919,24 @@ window.Pages.characters = {
         if (e.target.closest('.btn-del-cs')) {
           e.target.closest('.cs-row')?.remove();
         }
+      });
+
+      const addCondStatRow = () => {
+        const rows = document.getElementById('condStatRows');
+        if (!rows) return;
+        const div = document.createElement('div');
+        div.className = 'cond-stat-char-row';
+        div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 80px auto;gap:4px;margin-bottom:6px;align-items:center;';
+        div.innerHTML = `
+          <input class="input-field csc-cond" placeholder="조건 (예: 전투 중)" style="font-size:12px;padding:5px 8px;" />
+          <input class="input-field csc-name" list="charStatDatalist" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+          <input type="number" class="input-field csc-value" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
+          <button type="button" class="btn-del-csc" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>`;
+        rows.appendChild(div);
+      };
+      document.getElementById('btnAddCondStat')?.addEventListener('click', addCondStatRow);
+      document.getElementById('condStatRows')?.addEventListener('click', e => {
+        if (e.target.closest('.btn-del-csc')) e.target.closest('.cond-stat-char-row')?.remove();
       });
 
       // ── Constellation linking chip UI ──────────────────────────

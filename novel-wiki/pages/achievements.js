@@ -166,6 +166,7 @@ window.Pages.achievements = {
 
     const baseStatEntries = Object.entries(a.rewardStats||{}).filter(([,v])=>v!==0);
     const customStatEntries = a.rewardCustomStats||[];
+    const condStatEntries = a.rewardConditionalStats||[];
 
     container.innerHTML = `
     <div class="page active" style="overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;">
@@ -191,12 +192,13 @@ window.Pages.achievements = {
         </div>
         <div style="padding-left:8px;color:#e2e8f0;font-weight:700;margin-bottom:4px;">ㄴ${Utils.escHtml(a.name||'')}</div>
         ${a.condition ? `<div style="margin-top:10px;"><div style="font-size:11px;color:rgba(148,163,184,0.8);margin-bottom:2px;">획득 조건</div><div style="white-space:pre-wrap;font-size:12px;color:#c8d8ff;">${Utils.nl2br(Utils.escHtml(a.condition))}</div></div>` : ''}
-        ${(a.reward||baseStatEntries.length||customStatEntries.length||validItems.length||validSkills.length) ? `
+        ${(a.reward||baseStatEntries.length||customStatEntries.length||condStatEntries.length||validItems.length||validSkills.length) ? `
           <div style="margin-top:10px;">
             <div style="font-size:11px;color:rgba(148,163,184,0.8);margin-bottom:4px;">보상</div>
-            ${a.reward ? `<div style="font-size:12px;color:var(--color-accent);font-weight:600;margin-bottom:4px;">${Utils.escHtml(a.reward)}</div>` : ''}
+            ${a.reward ? `<div style="white-space:pre-wrap;font-size:12px;color:var(--color-accent);font-weight:600;margin-bottom:4px;">${Utils.nl2br(Utils.escHtml(a.reward))}</div>` : ''}
             ${baseStatEntries.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${baseStatEntries.map(([k,v])=>`<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(100,150,255,0.15);color:#c4b5fd;border:1px solid rgba(100,150,255,0.2);">${k} ${v>0?'+':''}${v}</span>`).join('')}</div>` : ''}
             ${customStatEntries.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${customStatEntries.map(cs=>`<span style="font-size:11px;padding:1px 6px;border-radius:4px;background:rgba(100,200,150,0.15);color:#86efac;border:1px solid rgba(100,200,150,0.2);">${Utils.escHtml(cs.name)} ${Number(cs.value)>0?'+':''}${Utils.escHtml(String(cs.value))}</span>`).join('')}</div>` : ''}
+            ${condStatEntries.length ? `<div style="display:flex;flex-direction:column;gap:3px;margin-bottom:4px;">${condStatEntries.map(cs=>`<span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(251,146,60,0.12);color:#fb923c;border:1px solid rgba(251,146,60,0.25);">📌 ${cs.condition?Utils.escHtml(cs.condition)+' → ':''}${Utils.escHtml(cs.stat||'')} ${Number(cs.value)>0?'+':''}${Utils.escHtml(String(cs.value||''))}</span>`).join('')}</div>` : ''}
             ${validItems.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;margin-bottom:4px;">${validItems.map(it=>`<button class="btn btn-ghost btn-sm btn-link-item" data-iid="${Utils.escHtml(it.id)}" style="font-size:12px;">🗡 ${Utils.escHtml(it.name)}${it.type==='소비'&&it.qty>1?' ×'+it.qty:''}</button>`).join('')}</div>` : ''}
             ${validSkills.length ? `<div style="display:flex;flex-wrap:wrap;gap:4px;">${validSkills.map(sk=>`<button class="btn btn-ghost btn-sm btn-link-skill" data-sid="${Utils.escHtml(sk.id)}" style="font-size:12px;">⚡ ${Utils.escHtml(sk.name)} (${sk.grade||'F'})</button>`).join('')}</div>` : ''}
           </div>` : ''}
@@ -249,10 +251,14 @@ window.Pages.achievements = {
     const isEdit = !!achieve;
     const self = this;
 
-    const [allItems, allSkills] = await Promise.all([
+    const [allItems, allSkills, statNames] = await Promise.all([
       DB.getAll('items', wid),
       DB.getAll('skills', wid),
+      window.StatDefs ? window.StatDefs.loadNames(wid) : Promise.resolve([]),
     ]);
+    const datalistHtml = statNames.length
+      ? `<datalist id="acStatDatalist">${statNames.map(n=>`<option value="${Utils.escHtml(n)}">`).join('')}</datalist>`
+      : '';
     const sortedItems  = allItems.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
     const sortedSkills = allSkills.slice().sort((a,b)=>(a.name||'').localeCompare(b.name||'','ko'));
 
@@ -280,12 +286,12 @@ window.Pages.achievements = {
         </select>
       </div>
       <div class="form-group">
-        <label class="form-label">획득 조건 <span style="color:var(--color-warning);font-size:11px;">(비어있으면 ⚠️ 표시)</span></label>
+        <label class="form-label">획득 조건 (필수)</label>
         <textarea class="textarea-field" id="fAcCondition" rows="3" placeholder="이 칭호를 얻기 위한 조건이나 업적을 입력하세요..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(achieve?.condition||'')}</textarea>
       </div>
       <div class="form-group">
         <label class="form-label">보상 설명 (텍스트로 자유 입력)</label>
-        <input class="input-field" id="fAcReward" value="${Utils.escHtml(achieve?.reward||'')}" placeholder="예: 특수 능력 해금, 칭호 효과 설명..." style="width:100%;box-sizing:border-box;"/>
+        <textarea class="textarea-field" id="fAcReward" rows="2" placeholder="예: 특수 능력 해금, 칭호 효과 설명..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(achieve?.reward||'')}</textarea>
       </div>
 
       <!-- 기본 스텟 보상 -->
@@ -306,12 +312,31 @@ window.Pages.achievements = {
           <button type="button" id="btnAddCustomStatReward" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
         </div>
         <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">기본 스텟 외에 추가할 스텟을 자유롭게 입력하세요</div>
+        ${datalistHtml}
         <div id="customStatRewardRows">
           ${(achieve?.rewardCustomStats||[]).map(cs=>`
             <div class="cs-reward-row" style="display:grid;grid-template-columns:1fr 80px auto;gap:6px;margin-bottom:6px;align-items:center;">
-              <input class="input-field csr-name" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명 (예: 마나, 재능...)" style="font-size:12px;padding:5px 8px;"/>
+              <input class="input-field csr-name" list="acStatDatalist" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명 (예: 마나, 재능...)" style="font-size:12px;padding:5px 8px;"/>
               <input type="number" class="input-field csr-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;"/>
               <button type="button" class="btn-del-csr" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
+            </div>`).join('')}
+        </div>
+      </div>
+
+      <!-- 조건부 스텟 보상 -->
+      <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+          <label class="form-label" style="margin:0;">조건부 스텟 보상</label>
+          <button type="button" id="btnAddCondStatReward" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+        </div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">예: 하늘을 날 때 이속 +50 / 전투 중 힘 +30</div>
+        <div id="condStatRewardRows">
+          ${(achieve?.rewardConditionalStats||[]).map(cs=>`
+            <div class="cond-stat-row" style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:6px;margin-bottom:6px;align-items:center;">
+              <input class="input-field cond-stat-cond" value="${Utils.escHtml(cs.condition||'')}" placeholder="조건 (예: 전투 중)" style="font-size:12px;padding:5px 8px;"/>
+              <input class="input-field cond-stat-name" list="acStatDatalist" value="${Utils.escHtml(cs.stat||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;"/>
+              <input type="number" class="input-field cond-stat-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;"/>
+              <button type="button" class="btn-del-condstat" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
             </div>`).join('')}
         </div>
       </div>
@@ -361,13 +386,22 @@ window.Pages.achievements = {
         if (nm) newCustomStats.push({ name: nm, value: vl||'0' });
       });
 
+      const newCondStats = [];
+      document.querySelectorAll('#globalModalBody .cond-stat-row').forEach(row => {
+        const cond = row.querySelector('.cond-stat-cond')?.value.trim();
+        const stat = row.querySelector('.cond-stat-name')?.value.trim();
+        const val  = row.querySelector('.cond-stat-value')?.value.trim();
+        if (stat) newCondStats.push({ condition: cond||'', stat, value: val||'0' });
+      });
+
       const item = {
         ...(achieve||{}), worldId: wid, name,
         grade:       document.getElementById('fAcGrade')?.value     ||'F',
         condition:   document.getElementById('fAcCondition')?.value.trim()||'',
         reward:      document.getElementById('fAcReward')?.value.trim()   ||'',
-        rewardStats:       newBaseStats,
-        rewardCustomStats: newCustomStats,
+        rewardStats:            newBaseStats,
+        rewardCustomStats:      newCustomStats,
+        rewardConditionalStats: newCondStats,
         rewardItems:  itemLinks,
         rewardSkillIds: skillIds,
         description: document.getElementById('fAcDesc')?.value.trim()  ||'',
@@ -394,7 +428,7 @@ window.Pages.achievements = {
         div.className = 'cs-reward-row';
         div.style.cssText = 'display:grid;grid-template-columns:1fr 80px auto;gap:6px;margin-bottom:6px;align-items:center;';
         div.innerHTML = `
-          <input class="input-field csr-name" placeholder="스텟명 (예: 마나, 재능...)" style="font-size:12px;padding:5px 8px;"/>
+          <input class="input-field csr-name" list="acStatDatalist" placeholder="스텟명 (예: 마나, 재능...)" style="font-size:12px;padding:5px 8px;"/>
           <input type="number" class="input-field csr-value" placeholder="수치" style="font-size:12px;padding:5px 8px;"/>
           <button type="button" class="btn-del-csr" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>`;
         rows.appendChild(div);
@@ -402,6 +436,23 @@ window.Pages.achievements = {
       document.getElementById('btnAddCustomStatReward')?.addEventListener('click', addCsrRow);
       document.getElementById('customStatRewardRows')?.addEventListener('click', e => {
         if (e.target.closest('.btn-del-csr')) e.target.closest('.cs-reward-row')?.remove();
+      });
+
+      const addCondStatRow = () => {
+        const rows = document.getElementById('condStatRewardRows'); if (!rows) return;
+        const div = document.createElement('div');
+        div.className = 'cond-stat-row';
+        div.style.cssText = 'display:grid;grid-template-columns:1fr 1fr 80px auto;gap:6px;margin-bottom:6px;align-items:center;';
+        div.innerHTML = `
+          <input class="input-field cond-stat-cond" placeholder="조건 (예: 전투 중)" style="font-size:12px;padding:5px 8px;"/>
+          <input class="input-field cond-stat-name" list="acStatDatalist" placeholder="스텟명" style="font-size:12px;padding:5px 8px;"/>
+          <input type="number" class="input-field cond-stat-value" placeholder="수치" style="font-size:12px;padding:5px 8px;"/>
+          <button type="button" class="btn-del-condstat" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>`;
+        rows.appendChild(div);
+      };
+      document.getElementById('btnAddCondStatReward')?.addEventListener('click', addCondStatRow);
+      document.getElementById('condStatRewardRows')?.addEventListener('click', e => {
+        if (e.target.closest('.btn-del-condstat')) e.target.closest('.cond-stat-row')?.remove();
       });
 
       // ── 아이템 칩 UI ──────────────────────────────────────────
