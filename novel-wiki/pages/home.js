@@ -105,6 +105,7 @@ window.Pages.home = {
     })).filter(x => x.def);
 
     const msRemaining = Math.max(0, missionState.resetAt - Date.now());
+    const missionResetCost = AppStore.getMissionResetCost(missionState);
 
     // Streak reminder message pool
     const streakCount = streak.count || 0;
@@ -235,7 +236,7 @@ window.Pages.home = {
         `).join('')}
 
         <!-- Point shop -->
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:8px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:10px;padding-top:8px;border-top:1px solid var(--color-border);">
           <div>
             <div style="font-size:11px;color:var(--color-text-muted);">🛡️ 방패 — 연속기록 1일 보호</div>
             <div style="font-size:10px;color:var(--color-text-dim);margin-top:1px;">보유: ${streak.shields || 0}개 · 비용: ${AppStore.SHIELD_COST}⭐</div>
@@ -243,6 +244,21 @@ window.Pages.home = {
           <button class="btn btn-ghost btn-sm" id="btnBuyShield"
             style="font-size:11px;${(streak.points || 0) >= AppStore.SHIELD_COST ? '' : 'opacity:0.4;pointer-events:none;'}">
             구매 (${streak.points || 0}⭐)
+          </button>
+        </div>
+
+        <!-- Mission reset -->
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-top:8px;padding-top:8px;border-top:1px solid var(--color-border);">
+          <div>
+            <div style="font-size:11px;color:var(--color-text-muted);">🔄 미션 초기화 (타이머 유지)</div>
+            <div style="font-size:10px;color:var(--color-text-dim);margin-top:1px;">
+              비용: <strong>${missionResetCost}⭐</strong>
+              · 미완료 1개당 +15⭐
+            </div>
+          </div>
+          <button class="btn btn-ghost btn-sm" id="btnResetMissions"
+            style="font-size:11px;${(streak.points || 0) >= missionResetCost ? '' : 'opacity:0.4;pointer-events:none;'}">
+            초기화 (${missionResetCost}⭐)
           </button>
         </div>
       </div>
@@ -307,6 +323,17 @@ window.Pages.home = {
       const ok = await AppStore.buyShield();
       if (ok) { Utils.toast('방패를 구매했습니다! 🛡️', 'success'); this.init(container); }
       else Utils.toast('포인트가 부족합니다', 'error');
+    });
+
+    // Mission reset
+    document.getElementById('btnResetMissions')?.addEventListener('click', async () => {
+      const result = await AppStore.resetMissions();
+      if (result.success) {
+        Utils.toast(`미션 초기화! (-${result.cost}⭐)`, 'success');
+        this.init(container);
+      } else {
+        Utils.toast(`포인트 부족 (필요: ${result.cost}⭐, 보유: ${result.points}⭐)`, 'error');
+      }
     });
 
     this._loadRecent(chars, skills, items, events);

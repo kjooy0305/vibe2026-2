@@ -52,6 +52,7 @@ window.Pages.world = {
                 <div style="font-size:12px;color:var(--color-text-muted);">
                   ${Utils.escHtml(w.type || '커스텀')}
                   ${isActive ? ` · <strong style="color:${col};">현재 세계</strong>` : ''}
+                  ${(w.regionHierarchy || []).length > 0 ? ` · <span style="opacity:0.7;">${w.regionHierarchy.join(' › ')}</span>` : ''}
                 </div>
                 ${w.description ? `<div style="font-size:12px;color:var(--color-text-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(w.description)}</div>` : ''}
                 <!-- Color preview bar -->
@@ -72,6 +73,8 @@ window.Pages.world = {
     </div>`;
   },
 
+  DEFAULT_REGION_HIERARCHY: ['국가', '도시'],
+
   _openForm: async function(world, onSave) {
     const customTypes = await DB.getSetting('worldTypes', null) || this.DEFAULT_TYPES;
     const iconPool = (await DB.getSetting('iconList_world', null)) || this.DEFAULT_ICONS;
@@ -79,6 +82,7 @@ window.Pages.world = {
     let selectedIcon = world?.icon || '🌍';
     let currentColor = world?.color || '#3b82f6';
     const self = this;
+    let regionHierarchy = [...(world?.regionHierarchy || this.DEFAULT_REGION_HIERARCHY)];
 
     const typeOptions = customTypes.map(t =>
       `<option ${(world?.type || '커스텀') === t ? 'selected' : ''}>${Utils.escHtml(t)}</option>`).join('');
@@ -142,6 +146,16 @@ window.Pages.world = {
           </div>
         </div>
         <div class="form-group">
+          <label class="form-label">지역 단위 계층</label>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">위에 있을수록 큰 단위 (기본: 국가 → 도시). 첫 번째가 국가 페이지의 기본 단위입니다.</div>
+          <div id="regionHierarchyList" style="border:1px solid var(--color-border);border-radius:8px;padding:8px;min-height:40px;margin-bottom:6px;"></div>
+          <div style="display:flex;gap:6px;">
+            <input class="input-field" id="fNewRegionLevel" placeholder="새 지역 단위 추가 (예: 지역, 마을)..."
+              style="flex:1;font-size:12px;padding:5px 8px;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddRegionLevel" style="white-space:nowrap;">+ 추가</button>
+          </div>
+        </div>
+        <div class="form-group">
           <label class="form-label">설명</label>
           <textarea class="textarea-field" id="fWorldDesc" rows="3"
             placeholder="세계 배경 설명..."
@@ -161,6 +175,7 @@ window.Pages.world = {
         icon: selectedIcon,
         color: /^#[0-9a-fA-F]{6}$/.test(finalColor) ? finalColor : (currentColor || '#3b82f6'),
         description: document.getElementById('fWorldDesc')?.value.trim(),
+        regionHierarchy: regionHierarchy.length > 0 ? regionHierarchy : self.DEFAULT_REGION_HIERARCHY,
         updatedAt: Date.now(),
         createdAt: world?.createdAt || Date.now(),
       };
@@ -179,6 +194,64 @@ window.Pages.world = {
           btn.style.borderColor = 'var(--color-primary)';
           if (worldPreview) worldPreview.textContent = selectedIcon;
         });
+      });
+
+      // ── Region hierarchy management ─────────────────────────
+      const renderRegionList = (arr) => {
+        const list = document.getElementById('regionHierarchyList');
+        if (!list) return;
+        if (arr.length === 0) {
+          list.innerHTML = `<div style="font-size:12px;color:var(--color-text-muted);padding:4px;">단위 없음 — 추가하세요</div>`;
+          return;
+        }
+        list.innerHTML = arr.map((lv, i) => `
+          <div style="display:flex;align-items:center;gap:6px;padding:5px 0;border-bottom:1px solid var(--color-border)33;">
+            <span style="font-size:11px;color:var(--color-text-muted);width:16px;text-align:center;flex-shrink:0;">${i + 1}</span>
+            <span style="flex:1;font-size:13px;font-weight:600;">${Utils.escHtml(lv)}</span>
+            <div style="display:flex;gap:2px;flex-shrink:0;">
+              <button type="button" class="rh-up btn btn-ghost btn-sm" data-idx="${i}" style="font-size:10px;padding:2px 5px;" ${i === 0 ? 'disabled style="opacity:0.3;"' : ''}>▲</button>
+              <button type="button" class="rh-dn btn btn-ghost btn-sm" data-idx="${i}" style="font-size:10px;padding:2px 5px;" ${i === arr.length - 1 ? 'disabled style="opacity:0.3;"' : ''}>▼</button>
+              <button type="button" class="rh-del btn btn-ghost btn-sm" data-idx="${i}" style="font-size:10px;padding:2px 5px;color:var(--color-danger);" ${arr.length <= 1 ? 'disabled style="opacity:0.3;"' : ''}>✕</button>
+            </div>
+          </div>`).join('');
+        list.querySelectorAll('.rh-up').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.idx);
+            if (i <= 0) return;
+            [regionHierarchy[i - 1], regionHierarchy[i]] = [regionHierarchy[i], regionHierarchy[i - 1]];
+            renderRegionList(regionHierarchy);
+          });
+        });
+        list.querySelectorAll('.rh-dn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.idx);
+            if (i >= regionHierarchy.length - 1) return;
+            [regionHierarchy[i], regionHierarchy[i + 1]] = [regionHierarchy[i + 1], regionHierarchy[i]];
+            renderRegionList(regionHierarchy);
+          });
+        });
+        list.querySelectorAll('.rh-del').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.idx);
+            if (regionHierarchy.length <= 1) return;
+            regionHierarchy.splice(i, 1);
+            renderRegionList(regionHierarchy);
+          });
+        });
+      };
+      renderRegionList(regionHierarchy);
+
+      document.getElementById('btnAddRegionLevel')?.addEventListener('click', () => {
+        const val = document.getElementById('fNewRegionLevel')?.value.trim();
+        if (!val) return;
+        if (regionHierarchy.includes(val)) { Utils.toast('이미 있는 단위입니다', 'error'); return; }
+        regionHierarchy.push(val);
+        renderRegionList(regionHierarchy);
+        const inp = document.getElementById('fNewRegionLevel');
+        if (inp) inp.value = '';
+      });
+      document.getElementById('fNewRegionLevel')?.addEventListener('keydown', e => {
+        if (e.key === 'Enter') { e.preventDefault(); document.getElementById('btnAddRegionLevel')?.click(); }
       });
 
       // ── Inline type management ──────────────────────────────

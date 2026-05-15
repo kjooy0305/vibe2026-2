@@ -445,12 +445,15 @@ const AppStore = (function() {
     sd.totalCleared = (sd.totalCleared || 0) + 1;
     sd.points = (sd.points || 0) + 50;
 
-    // Streak advances here — quest cleared = counts as a writing day
-    sd.count = (sd.count || 0) + 1;
-    sd.longestStreak = Math.max(sd.longestStreak || 0, sd.count);
-
     const hist = sd.history || [];
     const existing = hist.find(h => h.d === todayIso);
+
+    // Only advance count if not already incremented today (e.g., by mission completion)
+    if (!existing || existing.c !== 1) {
+      sd.count = (sd.count || 0) + 1;
+      sd.longestStreak = Math.max(sd.longestStreak || 0, sd.count);
+    }
+
     if (existing) {
       existing.c = 1;
     } else {
@@ -464,12 +467,36 @@ const AppStore = (function() {
     emit('quest-complete', sd);
   }
 
+  // Advance streak when any mission completes for the first time today
+  async function _onMissionDone(todayIso) {
+    let sd = await DB.get('streak', 'main') || { id: 'main', count: 0, lastDate: null, history: [], totalCleared: 0, longestStreak: 0, shields: 0, points: 0 };
+    const hist = sd.history || [];
+    const existing = hist.find(h => h.d === todayIso);
+    if (existing && existing.c === 1) return; // already advanced today
+
+    sd.count = (sd.count || 0) + 1;
+    sd.longestStreak = Math.max(sd.longestStreak || 0, sd.count);
+
+    if (existing) {
+      existing.c = 1;
+    } else {
+      hist.push({ d: todayIso, c: 1 });
+      if (hist.length > 366) hist.shift();
+    }
+    sd.history = hist;
+
+    await DB.put('streak', sd);
+    setState({ streak: sd });
+    emit('mission-streak', sd);
+  }
+
   async function _updateMissions(storeName, isNew, questDone) {
     let ms = await DB.getSetting('missionState', null);
     if (!ms) return;
 
     let anyProgress = false;
     let earnedPoints = 0;
+    let missionJustCompleted = false;
 
     ms.missions.forEach(m => {
       if (m.done) return;
@@ -490,6 +517,7 @@ const AppStore = (function() {
         if (m.progress >= def.target) {
           m.done = true;
           earnedPoints += def.reward;
+          missionJustCompleted = true;
         }
       }
     });
@@ -501,6 +529,19 @@ const AppStore = (function() {
         sd.points = (sd.points || 0) + earnedPoints;
         await DB.put('streak', sd);
         setState({ streak: sd });
+      }
+    }
+
+    // Advance streak when a mission completes for the first time today (quest not done yet)
+    if (missionJustCompleted && !questDone) {
+      const todayIso = new Date().toISOString().slice(0, 10);
+      const today = new Date().toDateString();
+      let ta = await DB.getSetting('todayActivity', null);
+      if (!ta || ta.date !== today) ta = { date: today, stores: {}, questDone: false };
+      if (!ta.missionAdvancedStreak) {
+        ta.missionAdvancedStreak = true;
+        await DB.setSetting('todayActivity', ta);
+        await _onMissionDone(todayIso);
       }
     }
   }
@@ -522,11 +563,38 @@ const AppStore = (function() {
     return true;
   }
 
+  function getMissionResetCost(ms) {
+    const incomplete = (ms.missions || []).filter(m => !m.done).length;
+    return 30 + incomplete * 15;
+  }
+
+  async function resetMissions() {
+    const ms = await getMissionState();
+    const cost = getMissionResetCost(ms);
+    let sd = await DB.get('streak', 'main') || { id: 'main', points: 0 };
+    if ((sd.points || 0) < cost) return { success: false, cost, points: sd.points || 0 };
+    sd.points -= cost;
+    await DB.put('streak', sd);
+    setState({ streak: sd });
+
+    const now = Date.now();
+    const RESET_MS = 8 * 60 * 60 * 1000;
+    const seed = (Math.floor(now / 1000) * 1234567 + 99991) % 999983;
+    const indices = _pickMissions(seed);
+    const newMs = {
+      missions: indices.map(i => ({ id: MISSION_POOL[i].id, progress: 0, done: false })),
+      resetAt: ms.resetAt, // keep original auto-reset time
+    };
+    await DB.setSetting('missionState', newMs);
+    return { success: true, cost, newMs };
+  }
+
   return {
     init, on, emit, getState, setState,
     setCurrentWorld, refreshWorlds, getCurrentWorldId,
     updateStreak, recordActivity, getMissionState, buyShield,
     getTodayQuest, getTodayActivity, getTodayTextIdx,
+    resetMissions, getMissionResetCost,
     QUEST_POOL, MISSION_POOL, SHIELD_COST,
   };
 })();

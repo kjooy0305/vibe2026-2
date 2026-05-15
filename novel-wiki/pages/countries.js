@@ -37,24 +37,29 @@ window.Pages.countries = {
     const self = this;
     all = [...all].sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
     const world = AppStore.getState().currentWorld;
+    const hierarchy = (world?.regionHierarchy && world.regionHierarchy.length >= 1)
+      ? world.regionHierarchy : ['국가', '도시'];
+    const topLabel = hierarchy[0] || '국가';
+    const cityLabel = hierarchy[1] || '도시';
 
     container.innerHTML = `
     <div class="page active">
       <div class="page-header">
         <div style="display:flex;align-items:center;justify-content:space-between;">
-          <h2 class="page-title">국가</h2>
-          <button class="btn btn-primary btn-sm" id="btnAddCountry">+ 국가 추가</button>
+          <h2 class="page-title">${Utils.escHtml(topLabel)}</h2>
+          <button class="btn btn-primary btn-sm" id="btnAddCountry">+ ${Utils.escHtml(topLabel)} 추가</button>
         </div>
         <p class="page-desc" style="margin-top:4px;font-size:12px;color:var(--color-text-muted);">
-          ${Utils.escHtml(world?.name || '현재 세계')} · ${all.length}개 국가
+          ${Utils.escHtml(world?.name || '현재 세계')} · ${all.length}개
+          ${hierarchy.length > 1 ? `<span style="opacity:0.6;"> (${hierarchy.join(' › ')})</span>` : ''}
         </p>
-        <input class="input-field" id="countryFilter" placeholder="국가명 검색..." style="margin-top:8px;width:100%;box-sizing:border-box;" />
+        <input class="input-field" id="countryFilter" placeholder="${Utils.escHtml(topLabel)}명 검색..." style="margin-top:8px;width:100%;box-sizing:border-box;" />
       </div>
       ${all.length === 0
         ? `<div class="empty-state" style="padding:48px;text-align:center;">
              <div style="font-size:48px;margin-bottom:12px;">🏛️</div>
-             <div style="font-weight:700;font-size:16px;margin-bottom:4px;">등록된 국가가 없습니다</div>
-             <div style="font-size:13px;color:var(--color-text-muted);">+ 버튼으로 첫 번째 국가를 추가하세요</div>
+             <div style="font-weight:700;font-size:16px;margin-bottom:4px;">등록된 ${Utils.escHtml(topLabel)}이(가) 없습니다</div>
+             <div style="font-size:13px;color:var(--color-text-muted);">+ 버튼으로 첫 번째 ${Utils.escHtml(topLabel)}을(를) 추가하세요</div>
            </div>`
         : `<div style="display:flex;flex-direction:column;gap:8px;" id="countryList">
              ${all.map(c => `
@@ -67,7 +72,7 @@ window.Pages.countries = {
                    <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">
                      ${[c.govType, c.econType, c.militaryLevel ? '군사력: ' + c.militaryLevel : ''].filter(Boolean).join(' · ')}
                    </div>
-                   ${(c.cities || []).length > 0 ? `<div style="font-size:11px;color:var(--color-text-dim);margin-top:2px;">🏙️ 도시 ${c.cities.length}개</div>` : ''}
+                   ${(c.cities || []).length > 0 ? `<div style="font-size:11px;color:var(--color-text-dim);margin-top:2px;">🏙️ ${Utils.escHtml(cityLabel)} ${c.cities.length}개</div>` : ''}
                  </div>
                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:16px;height:16px;color:var(--color-text-muted);flex-shrink:0;">
                    <path d="M9 18l6-6-6-6"/>
@@ -106,6 +111,10 @@ window.Pages.countries = {
       DB.getAll('companies', wid),
       AppConstants.load(),
     ]);
+    const world = AppStore.getState().currentWorld;
+    const hierarchy = (world?.regionHierarchy && world.regionHierarchy.length >= 2)
+      ? world.regionHierarchy : ['국가', '도시'];
+    const cityLabel = hierarchy[1] || '도시';
 
     const makeSectionHtml = (key, icon, title, content) => {
       if (!content) return '';
@@ -127,7 +136,7 @@ window.Pages.countries = {
     const cities = item.cities || [];
     const citySectionCollapsed = self._collapsedSections['cities'];
     const cityListHtml = cities.length === 0
-      ? `<div style="font-size:13px;color:var(--color-text-muted);padding:8px 0;">등록된 도시가 없습니다.</div>`
+      ? `<div style="font-size:13px;color:var(--color-text-muted);padding:8px 0;">등록된 ${cityLabel}이(가) 없습니다.</div>`
       : cities.map(city => {
           const chars = (city.charIds || []).map(id => allChars.find(c => c.id === id)).filter(Boolean);
           const comps = (city.companyIds || []).map(id => allCompanies.find(c => c.id === id)).filter(Boolean);
@@ -200,15 +209,15 @@ window.Pages.countries = {
       <!-- 국가 관계 -->
       ${makeSectionHtml('relations', '🤝', '국가 관계', item.relations)}
 
-      <!-- 도시 관리 -->
+      <!-- 도시/하위 단위 관리 -->
       <div class="country-section" data-section="cities" style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:${citySectionCollapsed ? '0' : '10px'};">
           <button class="section-toggle" data-section="cities"
             style="display:flex;align-items:center;gap:6px;background:none;border:none;cursor:pointer;padding:0;color:var(--color-text);">
-            <span style="font-weight:700;font-size:13px;color:var(--color-secondary);">🏙️ 도시 관리 (${cities.length})</span>
+            <span style="font-weight:700;font-size:13px;color:var(--color-secondary);">🏙️ ${Utils.escHtml(cityLabel)} 관리 (${cities.length})</span>
             <span class="section-chevron" style="font-size:12px;color:var(--color-text-muted);">${citySectionCollapsed ? '▶' : '▼'}</span>
           </button>
-          <button class="btn btn-primary btn-sm" id="btnAddCity" style="font-size:11px;">+ 도시 추가</button>
+          <button class="btn btn-primary btn-sm" id="btnAddCity" style="font-size:11px;">+ ${Utils.escHtml(cityLabel)} 추가</button>
         </div>
         <div class="section-body" style="display:${citySectionCollapsed ? 'none' : 'block'};">
           ${cityListHtml}
@@ -294,20 +303,20 @@ window.Pages.countries = {
 
     // ── City add/edit/delete ──────────────────────────────────────────────
     container.querySelector('#btnAddCity')?.addEventListener('click', () => {
-      self._openCityForm(container, item, null, wid, allChars, allCompanies);
+      self._openCityForm(container, item, null, wid, allChars, allCompanies, cityLabel);
     });
     container.querySelectorAll('.btn-edit-city').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const city = cities.find(c => c.id === btn.dataset.city);
-        if (city) self._openCityForm(container, item, city, wid, allChars, allCompanies);
+        if (city) self._openCityForm(container, item, city, wid, allChars, allCompanies, cityLabel);
       });
     });
     container.querySelectorAll('.btn-del-city').forEach(btn => {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const city = cities.find(c => c.id === btn.dataset.city);
-        Utils.confirm('도시 삭제', `"${city?.name || '도시'}"를 삭제합니다.`, async () => {
+        Utils.confirm(`${cityLabel} 삭제`, `"${city?.name || cityLabel}"를 삭제합니다.`, async () => {
           const updated = { ...item, cities: (item.cities || []).filter(c => c.id !== btn.dataset.city) };
           await DB.put('countries', updated);
           const all2 = await DB.getAll('countries', wid);
@@ -328,7 +337,8 @@ window.Pages.countries = {
   },
 
   // ── CITY FORM ─────────────────────────────────────────────────────────────
-  _openCityForm: function(container, country, city, wid, allChars, allCompanies) {
+  _openCityForm: function(container, country, city, wid, allChars, allCompanies, cityLabel) {
+    cityLabel = cityLabel || '도시';
     const isEdit = !!city;
     const c = city || {};
     const self = this;
@@ -339,8 +349,8 @@ window.Pages.countries = {
     const body = `
       <div style="display:flex;flex-direction:column;gap:12px;max-height:75vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
-          <label class="form-label">도시 이름 (필수)</label>
-          <input class="input-field" id="fCityName" value="${Utils.escHtml(c.name || '')}" placeholder="도시 이름" style="width:100%;box-sizing:border-box;" />
+          <label class="form-label">${Utils.escHtml(cityLabel)} 이름 (필수)</label>
+          <input class="input-field" id="fCityName" value="${Utils.escHtml(c.name || '')}" placeholder="${Utils.escHtml(cityLabel)} 이름" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
           <label class="form-label">💰 재정 상태</label>
@@ -372,9 +382,9 @@ window.Pages.countries = {
         </div>
       </div>`;
 
-    Utils.openModal(isEdit ? '도시 편집' : '도시 추가', body, async () => {
+    Utils.openModal(isEdit ? `${cityLabel} 편집` : `${cityLabel} 추가`, body, async () => {
       const name = document.getElementById('fCityName')?.value.trim();
-      if (!name) { Utils.toast('도시 이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.toast(`${cityLabel} 이름을 입력하세요`, 'error'); return false; }
       const cityRecord = {
         ...(c || {}),
         id: c.id || DB.genId(),
