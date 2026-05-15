@@ -702,7 +702,7 @@ window.Pages.eventGraph = {
 
     Utils.openModal(isEdit?'사건 편집':'새 사건', body, async()=>{
       const name=document.getElementById('fEvName')?.value.trim();
-      if(!name){ Utils.toast('이름 필요','error'); return false; }
+      if(!name){ Utils.fieldError('fEvName'); return false; }
 
       const item={
         ...(ev||{}), worldId:wid, name,

@@ -81,7 +81,7 @@ const Utils = (function() {
       const newConfirm = confirmBtn.cloneNode(true);
       confirmBtn.replaceWith(newConfirm);
       newConfirm.textContent = confirmLabel;
-      newConfirm.onclick = () => { if (onConfirm()) close(); };
+      newConfirm.onclick = async () => { const r = await onConfirm(); if (r !== false) close(); };
 
       const newCancel = cancelBtn.cloneNode(true);
       cancelBtn.replaceWith(newCancel);
@@ -220,7 +220,36 @@ const Utils = (function() {
     });
   }
 
-  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery, autoResizeTextareas };
+  // Highlight one or more required fields in red; scroll to first empty one.
+  // Pass element IDs. Returns true if ALL are filled, false if any empty.
+  function fieldError(...ids) {
+    let firstEmpty = null;
+    ids.forEach(id => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const empty = !(el.value || '').trim();
+      if (empty) {
+        el.style.setProperty('border-color', 'var(--color-danger)', 'important');
+        el.style.setProperty('box-shadow', '0 0 0 3px rgba(239,68,68,0.25)', 'important');
+        if (!firstEmpty) firstEmpty = el;
+        const clear = () => {
+          el.style.removeProperty('border-color');
+          el.style.removeProperty('box-shadow');
+          el.removeEventListener('input', clear);
+          el.removeEventListener('change', clear);
+        };
+        el.addEventListener('input', clear);
+        el.addEventListener('change', clear);
+      }
+    });
+    if (firstEmpty) {
+      firstEmpty.scrollIntoView({ behavior: 'smooth', block: 'center' });
+      firstEmpty.focus();
+    }
+    return !firstEmpty;
+  }
+
+  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery, autoResizeTextareas, fieldError };
 })();
 window.Utils = Utils;
 

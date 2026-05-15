@@ -373,7 +373,7 @@ window.Pages.achievements = {
 
     Utils.openModal(isEdit?'칭호 편집':'새 칭호', body, async () => {
       const name = document.getElementById('fAcName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fAcName'); return false; }
 
       const newBaseStats = {};
       document.querySelectorAll('#globalModalBody .ac-base-stat').forEach(inp => {

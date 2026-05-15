@@ -583,7 +583,7 @@ window.Pages.templates = {
     Utils.openModal(isEdit ? '필드 편집' : '필드 추가', body, async () => {
       const key   = document.getElementById('fFKey')?.value.trim();
       const label = document.getElementById('fFLabel')?.value.trim();
-      if (!key || !label) { Utils.toast('키와 레이블을 입력하세요', 'error'); return false; }
+      if (!key || !label) { Utils.fieldError('fFKey', 'fFLabel'); return false; }
       if (!isEdit && fields.some(f => f.key === key)) { Utils.toast('이미 존재하는 키입니다', 'error'); return false; }
 
       const optStr  = document.getElementById('fFOptions')?.value.trim();

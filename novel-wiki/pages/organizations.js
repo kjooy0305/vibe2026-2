@@ -490,7 +490,7 @@ window.Pages.organizations = {
 
     Utils.openModal(isEdit ? '조직 편집' : '새 조직', body, async () => {
       const name = document.getElementById('fOrgName')?.value.trim();
-      if (!name) { Utils.toast('조직명을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fOrgName'); return false; }
 
       let type = document.getElementById('fOrgType')?.value || '기타';
       if (type === '__custom__') {

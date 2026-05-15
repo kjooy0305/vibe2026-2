@@ -512,7 +512,7 @@ window.Pages.monsters = {
 
     Utils.openModal(isEdit ? '몬스터 편집' : '새 몬스터', body, async () => {
       const name = document.getElementById('fMName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fMName'); return false; }
 
       const imgFile = document.getElementById('monsterImageFile')?.files?.[0];
       if (imgFile) newImage = await Utils.imageToBase64(imgFile);

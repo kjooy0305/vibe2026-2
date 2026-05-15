@@ -742,12 +742,12 @@ window.Pages.reminders = {
 
     Utils.openModal(r ? '알림 편집' : '알림 추가', body, async () => {
       const message = document.getElementById('fMessage')?.value.trim();
-      if (!message) { Utils.toast('알림 메시지를 입력하세요.'); return false; }
+      if (!message) { Utils.fieldError('fMessage'); return false; }
       const startTime = document.getElementById('fStart')?.value || '10:00';
       const endTime = document.getElementById('fEnd')?.value || '15:00';
       const interval = parseInt(document.getElementById('fInterval')?.value) || 20;
-      if (startTime >= endTime) { Utils.toast('종료 시각이 시작 시각보다 커야 합니다.'); return false; }
-      if (interval < 1) { Utils.toast('간격은 1분 이상이어야 합니다.'); return false; }
+      if (startTime >= endTime) { Utils.fieldError('fStart', 'fEnd'); return false; }
+      if (interval < 1) { Utils.fieldError('fInterval'); return false; }
       const days = Array.from(document.querySelectorAll('.day-opt.btn-primary')).map(b => b.dataset.day);
       const payload = {
         id: r?.id || ('rem_' + Date.now()),

@@ -646,7 +646,7 @@ window.Pages.settings = {
             </div>`;
           Utils.openModal('질문 편집', body, async () => {
             const val = document.getElementById('fEditQ')?.value.trim();
-            if (!val) { Utils.toast('내용을 입력하세요', 'error'); return false; }
+            if (!val) { Utils.fieldError('fEditQ'); return false; }
             const updated = [...questions];
             updated[idx] = val;
             await saveAndRefreshQuestions(updated);
@@ -679,7 +679,7 @@ window.Pages.settings = {
         </div>`;
       Utils.openModal('질문 추가', body, async () => {
         const val = document.getElementById('fNewQ')?.value.trim();
-        if (!val) { Utils.toast('내용을 입력하세요', 'error'); return false; }
+        if (!val) { Utils.fieldError('fEditQ'); return false; }
         await saveAndRefreshQuestions([...questions, val]);
         Utils.toast('추가됨', 'success');
         return true;

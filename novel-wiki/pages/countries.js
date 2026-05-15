@@ -384,7 +384,7 @@ window.Pages.countries = {
 
     Utils.openModal(isEdit ? `${cityLabel} 편집` : `${cityLabel} 추가`, body, async () => {
       const name = document.getElementById('fCityName')?.value.trim();
-      if (!name) { Utils.toast(`${cityLabel} 이름을 입력하세요`, 'error'); return false; }
+      if (!name) { Utils.fieldError('fCityName'); return false; }
       const cityRecord = {
         ...(c || {}),
         id: c.id || DB.genId(),
@@ -568,7 +568,7 @@ window.Pages.countries = {
 
     Utils.openModal(isEdit ? '국가 편집' : '국가 추가', body, async () => {
       const name = document.getElementById('fName')?.value.trim();
-      if (!name) { Utils.toast('국가명을 입력하세요.', 'error'); return false; }
+      if (!name) { Utils.fieldError('fName'); return false; }
 
       const icon = document.querySelector('#iconDisplay')?.dataset.icon || item?.icon || '🌍';
       const payload = {

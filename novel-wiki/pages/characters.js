@@ -968,7 +968,7 @@ window.Pages.characters = {
 
     Utils.openModal(isEdit ? '캐릭터 편집' : '새 캐릭터', body, async () => {
       const name = document.getElementById('fCharName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fCharName'); return false; }
 
       const selectedCharType = document.querySelector('[name="charTypeSel"]:checked')?.value || 'normal';
       const isTpl = selectedCharType === 'template';

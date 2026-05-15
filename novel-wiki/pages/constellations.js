@@ -632,7 +632,7 @@ window.Pages.constellations = {
 
     Utils.openModal(isEdit ? '성좌 편집' : '새 성좌', body, async () => {
       const name = document.getElementById('fCsName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fCsName'); return false; }
 
       let series = document.getElementById('fCsSeries')?.value || '';
       if (series === '__custom__') {

@@ -560,7 +560,7 @@ window.Pages.items = {
 
     Utils.openModal(isEdit ? '아이템 편집' : '새 아이템', body, async () => {
       const name = document.getElementById('fItName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fItName'); return false; }
 
       let image = it.image || null;
       const fileEl = document.getElementById('fItImage');

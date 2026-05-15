@@ -445,7 +445,7 @@ window.Pages.places = {
 
     Utils.openModal(isEdit ? '장소 편집' : '새 장소 추가', body, async () => {
       const name = document.getElementById('fPlName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fPlName'); return false; }
 
       // Read current textarea values for postChanges
       document.querySelectorAll('#globalModalBody .post-change-ta').forEach(ta => {

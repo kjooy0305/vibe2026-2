@@ -166,7 +166,7 @@ window.Pages.world = {
 
     Utils.openModal(isEdit ? '세계 편집' : '새 세계 추가', body, async () => {
       const name = document.getElementById('fWorldName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fWorldName'); return false; }
       const finalColor = document.getElementById('fWorldColorHex')?.value.trim() || currentColor;
       const item = {
         ...(world || {}),

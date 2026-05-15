@@ -503,7 +503,7 @@ window.Pages.gates = {
 
     Utils.openModal(isEdit ? '던전 편집' : '새 던전 추가', body, async () => {
       const name = document.getElementById('fGateName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fGateName'); return false; }
 
       // Resolve type
       let type = document.getElementById('fGateType')?.value || '';

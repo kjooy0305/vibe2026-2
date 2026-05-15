@@ -268,7 +268,7 @@ window.Pages.companies = {
 
     Utils.openModal(isEdit ? '기업 편집' : '기업 추가', body, async () => {
       const name = document.getElementById('fName')?.value.trim();
-      if (!name) { Utils.toast('기업명을 입력하세요.'); return false; }
+      if (!name) { Utils.fieldError('fName'); return false; }
 
       const icon = document.querySelector('#iconDisplay')?.dataset.icon || item?.icon || '🏢';
       const payload = {

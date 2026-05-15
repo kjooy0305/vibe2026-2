@@ -511,7 +511,7 @@ window.Pages.skills = {
 
     Utils.openModal(isEdit?'스킬 편집':'새 스킬', body, async () => {
       const name = document.getElementById('fSkName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fSkName'); return false; }
       const grade   = document.getElementById('fSkGrade')?.value || 'F';
       const type    = document.getElementById('fSkType')?.value  || '패시브';
       const exVal   = document.getElementById('fSkExLevel')?.value.trim();

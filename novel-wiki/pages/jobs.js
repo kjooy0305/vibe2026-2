@@ -422,7 +422,7 @@ window.Pages.jobs = {
 
     Utils.openModal(isEdit ? '직업 편집' : '새 직업', body, async () => {
       const name = document.getElementById('fJobName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fJobName'); return false; }
 
       const newStatEffects = {};
       document.querySelectorAll('#globalModalBody .job-base-stat').forEach(inp => {

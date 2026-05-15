@@ -375,7 +375,7 @@ window.Pages.gods = {
 
     Utils.openModal(isEdit ? '판테온 편집' : '새 판테온', body, async () => {
       const name = document.getElementById('fGOName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fGOName'); return false; }
 
       syncRanksFromDOM();
       const savedRanks = formRanks.filter(r => r.name.trim());
@@ -528,7 +528,7 @@ window.Pages.gods = {
 
     Utils.openModal(isEdit ? '신 편집' : '신 추가', body, async () => {
       const name = document.getElementById('fGodName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fGodName'); return false; }
 
       syncAbilitiesFromDOM();
       const savedAbilities = formAbilities.filter(a => a.name.trim()).map(a => ({

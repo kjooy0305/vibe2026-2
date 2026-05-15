@@ -341,7 +341,7 @@ window.Pages.traps = {
 
     Utils.openModal(isEdit ? '함정 편집' : '새 함정 추가', body, async () => {
       const name = document.getElementById('fTrName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fTrName'); return false; }
 
       const origins = Array.from(
         document.querySelectorAll('#globalModalBody .origin-check:checked')

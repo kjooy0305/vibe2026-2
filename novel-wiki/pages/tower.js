@@ -173,7 +173,7 @@ window.Pages.tower = {
 
     Utils.openModal(isEdit ? '탑 편집' : '새 탑 추가', body, async () => {
       const name = document.getElementById('fTowerName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fTowerName'); return false; }
       const preFloors = !isEdit ? (Number(document.getElementById('fTowerPreFloors')?.value) || 0) : 0;
       const preFloorArr = preFloors > 0
         ? Array.from({ length: preFloors }, (_, i) => ({
@@ -1173,10 +1173,10 @@ window.Pages.tower = {
     Utils.openModal(isEdit ? `${f.floorNum}층 편집` : '새 층 추가', body, async () => {
       const numVal = document.getElementById('fFloorNum')?.value;
       if (numVal === '' || numVal === null || numVal === undefined) {
-        Utils.toast('층 번호를 입력하세요', 'error'); return false;
+        Utils.fieldError('fFloorNum'); return false;
       }
       const floorNum = parseInt(numVal, 10);
-      if (isNaN(floorNum)) { Utils.toast('올바른 층 번호를 입력하세요', 'error'); return false; }
+      if (isNaN(floorNum)) { Utils.fieldError('fFloorNum'); return false; }
       if (!isEdit) {
         const exists = (tower.floors || []).some(ff => ff.floorNum === floorNum);
         if (exists) { Utils.toast(`${floorNum}층이 이미 존재합니다`, 'error'); return false; }

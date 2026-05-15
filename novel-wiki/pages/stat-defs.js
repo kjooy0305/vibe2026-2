@@ -155,7 +155,7 @@ window.Pages.statDefs = {
 
     Utils.openModal(isEdit ? '스텟 편집' : '스텟 추가', body, async () => {
       const name = document.getElementById('fSdName')?.value.trim();
-      if (!name) { Utils.toast('스텟 이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fSdName'); return false; }
       const record = {
         ...(d || {}),
         worldId: wid,

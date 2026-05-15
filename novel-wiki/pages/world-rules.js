@@ -108,7 +108,7 @@ window.Pages.worldRules = {
 
       Utils.openModal(isEdit ? '규칙 편집' : '새 규칙', body, async () => {
         const content = document.getElementById('fRuleContent')?.value.trim();
-        if (!content) { Utils.toast('내용을 입력하세요', 'error'); return false; }
+        if (!content) { Utils.fieldError('fRuleContent'); return false; }
         const subRules = [...document.querySelectorAll('#globalModalBody .sub-rule-input')]
           .map(i => i.value.trim()).filter(Boolean);
         const item = {

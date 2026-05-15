@@ -257,7 +257,7 @@ window.Pages.keywords = {
 
     Utils.openModal(isEdit ? '폴더 편집' : '새 폴더', body, async () => {
       const name = document.getElementById('fFolderName')?.value.trim();
-      if (!name) { Utils.toast('폴더 이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fFolderName'); return false; }
       const color = document.querySelector('input[name="fFolderColor"]:checked')?.value || '';
       const folderWorldId = isEdit
         ? f.worldId
@@ -503,7 +503,7 @@ window.Pages.keywords = {
 
     Utils.openModal(isEdit ? '키워드 편집' : '새 키워드', body, async () => {
       const name = document.getElementById('fKwName')?.value.trim();
-      if (!name) { Utils.toast('키워드 이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fKwName'); return false; }
       const tagsRaw = document.getElementById('fKwTags')?.value || '';
       const tags = tagsRaw.split(',').map(t => t.trim()).filter(Boolean);
       const record = {

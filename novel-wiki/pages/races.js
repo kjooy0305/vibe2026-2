@@ -417,7 +417,7 @@ window.Pages.races = {
 
     Utils.openModal(isEdit ? '종족 편집' : '새 종족', body, async () => {
       const name = document.getElementById('fRaceName')?.value.trim();
-      if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
+      if (!name) { Utils.fieldError('fRaceName'); return false; }
       syncFromDOM();
 
       const record = {
