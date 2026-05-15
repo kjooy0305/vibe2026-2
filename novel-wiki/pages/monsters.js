@@ -77,7 +77,9 @@ window.Pages.monsters = {
           <button class="monster-grade-chip" data-grade="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-primary);color:#000;font-size:11px;cursor:pointer;">전체</button>
           ${this._C.grades.map(g => {
             const col = Utils.gradeColor(g);
-            return `<button class="monster-grade-chip" data-grade="${g}" style="padding:3px 8px;border-radius:4px;border:1px solid ${col}66;background:transparent;color:${col};font-size:11px;cursor:pointer;">${g}</button>`;
+            const isGrad = col.startsWith('linear');
+            const textCol = isGrad ? '#fbbf24' : col;
+            return `<button class="monster-grade-chip" data-grade="${g}" style="padding:3px 8px;border-radius:4px;border:1px solid ${isGrad ? '#fbbf2466' : col + '66'};background:transparent;color:${textCol};font-size:11px;cursor:pointer;">${g}</button>`;
           }).join('')}
         </div>
       </div>
@@ -97,10 +99,13 @@ window.Pages.monsters = {
       btn.addEventListener('click', () => {
         container.querySelectorAll('.monster-grade-chip').forEach(b => {
           const col = b.dataset.grade ? Utils.gradeColor(b.dataset.grade) : 'var(--color-text-muted)';
-          b.style.background = 'transparent'; b.style.color = col;
+          const isGr = typeof col === 'string' && col.startsWith('linear');
+          b.style.background = 'transparent';
+          b.style.color = isGr ? '#fbbf24' : col;
         });
-        btn.style.background = btn.dataset.grade ? Utils.gradeColor(btn.dataset.grade) : 'var(--color-primary)';
-        btn.style.color = '#000';
+        const activCol = btn.dataset.grade ? Utils.gradeColor(btn.dataset.grade) : 'var(--color-primary)';
+        btn.style.background = activCol;
+        btn.style.color = activCol.startsWith('linear') ? '#fff' : '#000';
         activeGrade = btn.dataset.grade;
         self._applyFilter(container, document.getElementById('monsterFilter')?.value || '', activeGrade);
       });
