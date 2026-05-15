@@ -504,7 +504,7 @@ window.Pages.countries = {
         <div>
           <label class="form-label">아이콘</label>
           <div id="iconDisplay" style="font-size:36px;text-align:center;margin-bottom:8px;">${currentIcon}</div>
-          <div id="iconGrid" style="display:flex;flex-wrap:wrap;gap:6px;max-height:120px;overflow-y:auto;">
+          <div id="iconGrid" style="display:flex;flex-wrap:wrap;gap:6px;">
             ${icons.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:22px;padding:5px;border-radius:8px;border:2px solid ${ic===currentIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>

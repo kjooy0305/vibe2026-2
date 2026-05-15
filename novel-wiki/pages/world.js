@@ -115,7 +115,7 @@ window.Pages.world = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:32px;text-align:center;margin-bottom:6px;" id="worldIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;max-height:160px;overflow-y:auto;" id="iconPicker">
+          <div style="display:flex;flex-wrap:wrap;gap:6px;" id="iconPicker">
             ${iconPool.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:22px;padding:5px;border-radius:8px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>

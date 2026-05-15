@@ -344,7 +344,7 @@ window.Pages.gods = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:28px;text-align:center;margin-bottom:6px;" id="godOrgIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:5px;max-height:100px;overflow-y:auto;" id="godOrgIconPicker">
+          <div style="display:flex;flex-wrap:wrap;gap:5px;" id="godOrgIconPicker">
             ${self.ICON_POOL.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:20px;padding:5px;border-radius:7px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>
@@ -502,7 +502,7 @@ window.Pages.gods = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:26px;text-align:center;margin-bottom:5px;" id="godIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:80px;overflow-y:auto;" id="godIconPicker">
+          <div style="display:flex;flex-wrap:wrap;gap:4px;" id="godIconPicker">
             ${self.ICON_POOL.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:18px;padding:4px;border-radius:6px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>

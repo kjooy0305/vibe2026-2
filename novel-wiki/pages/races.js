@@ -336,7 +336,7 @@ window.Pages.races = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:28px;text-align:center;margin-bottom:6px;" id="raceIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:4px;max-height:80px;overflow-y:auto;" id="raceIconPicker">
+          <div style="display:flex;flex-wrap:wrap;gap:4px;" id="raceIconPicker">
             ${self.ICON_POOL.map(ic => `<button type="button" class="race-icon-btn" data-icon="${ic}" style="font-size:20px;padding:4px;border-radius:6px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>

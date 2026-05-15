@@ -544,7 +544,7 @@ window.Pages.constellations = {
         <div class="form-group">
           <label class="form-label">아이콘</label>
           <div style="font-size:30px;text-align:center;margin-bottom:6px;" id="constIconPreview">${Utils.escHtml(selectedIcon)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:5px;max-height:160px;overflow-y:auto;" id="constIconPicker">
+          <div style="display:flex;flex-wrap:wrap;gap:5px;" id="constIconPicker">
             ${iconPool.map(ic => `<button type="button" class="icon-pick-btn" data-icon="${ic}" style="font-size:20px;padding:5px;border-radius:7px;border:2px solid ${ic===selectedIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
         </div>
