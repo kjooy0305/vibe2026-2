@@ -118,6 +118,7 @@
         ['traps', window.Pages?.traps],
         ['places', window.Pages?.places],
         ['gods', window.Pages?.gods],
+        ['races', window.Pages?.races],
       ];
 
       pageModules.forEach(([id, mod]) => {

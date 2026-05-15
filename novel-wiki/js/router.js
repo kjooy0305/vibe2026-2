@@ -20,6 +20,7 @@ const AppRouter = (function() {
     traps: '함정 종류',
     places: '장소',
     gods: '신',
+    races: '종족',
   };
 
   function register(pageId, module) {

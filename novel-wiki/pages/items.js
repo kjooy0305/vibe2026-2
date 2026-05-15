@@ -319,6 +319,23 @@ window.Pages.items = {
             </button>
           </div>` : ''}
 
+        ${it.siegeData && (it.type === '공성병기' || it.type === '수성병기') ? `
+          <div style="background:rgba(239,68,68,0.06);border:1px solid rgba(239,68,68,0.25);border-radius:8px;padding:12px 14px;margin-bottom:12px;">
+            <div style="font-size:12px;color:#f87171;font-weight:700;margin-bottom:10px;">⚔️ 병기 상세 정보</div>
+            ${it.siegeData.shape ? `<div style="margin-bottom:6px;"><span style="font-size:11px;color:var(--color-text-muted);">형태</span><div style="font-size:13px;margin-top:2px;">${Utils.escHtml(it.siegeData.shape)}</div></div>` : ''}
+            ${it.siegeData.purpose ? `<div style="margin-bottom:6px;"><span style="font-size:11px;color:var(--color-text-muted);">사용 의도</span><div style="white-space:pre-wrap;font-size:13px;line-height:1.7;margin-top:2px;">${Utils.nl2br(Utils.escHtml(it.siegeData.purpose))}</div></div>` : ''}
+            ${it.siegeData.mechanism ? `<div style="margin-bottom:6px;"><span style="font-size:11px;color:var(--color-text-muted);">작동 방법</span><div style="white-space:pre-wrap;font-size:13px;line-height:1.7;margin-top:2px;">${Utils.nl2br(Utils.escHtml(it.siegeData.mechanism))}</div></div>` : ''}
+            ${it.siegeData.weakness ? `<div style="margin-bottom:6px;"><span style="font-size:11px;color:var(--color-text-muted);">약점</span><div style="white-space:pre-wrap;font-size:13px;line-height:1.7;margin-top:2px;">${Utils.nl2br(Utils.escHtml(it.siegeData.weakness))}</div></div>` : ''}
+            ${it.siegeData.linkedSkills?.length ? `
+              <div><span style="font-size:11px;color:var(--color-text-muted);">연계 스킬</span>
+                <div style="display:flex;flex-wrap:wrap;gap:4px;margin-top:4px;">
+                  ${it.siegeData.linkedSkills.map(sk => `
+                    <button class="btn btn-ghost btn-sm" onclick="AppRouter.navigate('skills',{highlightId:'${Utils.escHtml(sk.id)}'})" style="font-size:12px;background:rgba(239,68,68,0.1);border-color:rgba(239,68,68,0.3);">
+                      ⚔️ ${Utils.escHtml(sk.name||'')}${sk.grade?` (${Utils.escHtml(sk.grade)})`:''}</button>`).join('')}
+                </div>
+              </div>` : ''}
+          </div>` : ''}
+
         ${it.authorNotes ? `
           <div style="background:rgba(245,158,11,0.08);border-left:3px solid var(--color-warning);border-radius:6px;padding:12px 14px;margin-bottom:12px;">
             <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:4px;">작가 전용 메모 (소설에 미표시)</div>
@@ -429,9 +446,18 @@ window.Pages.items = {
       DB.getAll('towers', wid),
       DB.getAll('gates', wid),
     ]);
+    const allSkillsSorted = allSkills.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
     const relSkillOpts = ['<option value="">없음</option>',
       ...allSkills.map(sk => `<option value="${Utils.escHtml(sk.id)}" ${it.relatedSkill?.id === sk.id ? 'selected' : ''}>${Utils.escHtml(sk.name)} (${sk.grade || 'F'})</option>`)
     ].join('');
+
+    const isSiegeType = t => t === '공성병기' || t === '수성병기';
+    let siegeLinkedSkills = [...(it.siegeData?.linkedSkills || [])];
+    const renderSiegeChips = () => siegeLinkedSkills.map(sk => `
+      <span class="siege-skill-chip" data-skid="${Utils.escHtml(sk.id)}"
+        style="display:inline-flex;align-items:center;gap:4px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.35);border-radius:6px;padding:3px 8px;font-size:12px;">
+        ⚔️ ${Utils.escHtml(sk.name||'')}${sk.grade?` (${Utils.escHtml(sk.grade)})`:''}<button class="siege-skill-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;">✕</button>
+      </span>`).join('');
 
     const currentOrigins = this._getItemOrigins(it);
 
@@ -454,6 +480,33 @@ window.Pages.items = {
               <option value="">선택 안 함</option>
               ${this._C.itemTypes.map(t => `<option value="${t}" ${(it.type || '') === t ? 'selected' : ''}>${t}</option>`).join('')}
             </select>
+          </div>
+        </div>
+        <div id="siegeSection" style="${isSiegeType(it.type||'') ? '' : 'display:none;'}border:1px solid rgba(239,68,68,0.3);border-radius:8px;padding:12px;background:rgba(239,68,68,0.04);">
+          <div style="font-size:12px;color:#f87171;font-weight:700;margin-bottom:8px;">⚔️ 병기 상세 정보</div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">형태</label>
+            <input class="input-field" id="fSiegeShape" value="${Utils.escHtml(it.siegeData?.shape||'')}" placeholder="예: 투석기, 성벽 방어포, 대형 쇠뇌..." style="width:100%;box-sizing:border-box;font-size:13px;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">사용 의도</label>
+            <textarea class="textarea-field" id="fSiegePurpose" rows="2" placeholder="어떤 목적으로 사용하는가..." style="width:100%;box-sizing:border-box;font-size:13px;">${Utils.escHtml(it.siegeData?.purpose||'')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">작동 방법</label>
+            <textarea class="textarea-field" id="fSiegeMechanism" rows="2" placeholder="어떻게 작동하는가..." style="width:100%;box-sizing:border-box;font-size:13px;">${Utils.escHtml(it.siegeData?.mechanism||'')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">약점</label>
+            <textarea class="textarea-field" id="fSiegeWeakness" rows="2" placeholder="어떤 약점이 있는가..." style="width:100%;box-sizing:border-box;font-size:13px;">${Utils.escHtml(it.siegeData?.weakness||'')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">연계 스킬</label>
+            <div id="siegeSkillChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">${renderSiegeChips()}</div>
+            <div style="position:relative;">
+              <input class="input-field" id="siegeSkillSearch" placeholder="스킬 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="siegeSkillResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:130px;overflow-y:auto;top:100%;left:0;"></div>
+            </div>
           </div>
         </div>
         ${(allTowers.length > 0 || allGates.length > 0) ? `
@@ -526,12 +579,24 @@ window.Pages.items = {
         document.querySelectorAll('#globalModalBody .origin-check:checked')
       ).map(cb => ({ type: cb.dataset.type, id: cb.dataset.id }));
 
+      const itemType = document.getElementById('fItType')?.value || '';
+      let siegeData = null;
+      if (isSiegeType(itemType)) {
+        siegeData = {
+          shape: document.getElementById('fSiegeShape')?.value.trim() || '',
+          purpose: document.getElementById('fSiegePurpose')?.value.trim() || '',
+          mechanism: document.getElementById('fSiegeMechanism')?.value.trim() || '',
+          weakness: document.getElementById('fSiegeWeakness')?.value.trim() || '',
+          linkedSkills: siegeLinkedSkills,
+        };
+      }
+
       const record = {
         ...(it || {}),
         worldId: wid,
         name,
         grade: document.getElementById('fItGrade')?.value || 'F',
-        type: document.getElementById('fItType')?.value || '',
+        type: itemType,
         origins,
         towerId: null,
         effects: document.getElementById('fItEffects')?.value.trim() || '',
@@ -539,6 +604,7 @@ window.Pages.items = {
         authorNotes: document.getElementById('fItAuthor')?.value.trim() || '',
         source: document.getElementById('fItSource')?.value.trim() || '',
         relatedSkill,
+        siegeData,
         image,
         id: it.id || DB.genId(),
         createdAt: it.createdAt || Date.now(),
@@ -555,7 +621,7 @@ window.Pages.items = {
       return true;
     }, isEdit ? '저장' : '추가');
 
-    // Image preview wiring
+    // Image preview wiring + siege/defense weapon UI
     setTimeout(() => {
       document.getElementById('fItImage')?.addEventListener('change', async e => {
         const file = e.target.files?.[0];
@@ -564,6 +630,54 @@ window.Pages.items = {
         const prev = document.getElementById('fItImgPreview');
         if (prev) prev.innerHTML = `<img src="${b64}" style="max-width:100px;border-radius:8px;" />`;
       });
+
+      document.getElementById('fItType')?.addEventListener('change', e => {
+        const sec = document.getElementById('siegeSection');
+        if (sec) sec.style.display = isSiegeType(e.target.value) ? '' : 'none';
+      });
+
+      const rebindSiegeChips = () => {
+        document.querySelectorAll('#siegeSkillChips .siege-skill-del').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const chip = btn.closest('.siege-skill-chip');
+            const skid = chip?.dataset.skid;
+            siegeLinkedSkills = siegeLinkedSkills.filter(s => s.id !== skid);
+            chip?.remove();
+          });
+        });
+      };
+      rebindSiegeChips();
+
+      const siegeInput = document.getElementById('siegeSkillSearch');
+      const siegeResults = document.getElementById('siegeSkillResults');
+      if (siegeInput && siegeResults) {
+        siegeInput.addEventListener('input', () => {
+          const q = siegeInput.value.trim().toLowerCase();
+          if (!q) { siegeResults.style.display = 'none'; return; }
+          const alreadyIds = new Set(siegeLinkedSkills.map(s => s.id));
+          const matches = allSkillsSorted.filter(s => !alreadyIds.has(s.id) && (s.name||'').toLowerCase().includes(q)).slice(0, 10);
+          if (!matches.length) { siegeResults.style.display = 'none'; return; }
+          siegeResults.style.display = 'block';
+          siegeResults.innerHTML = matches.map(s => `
+            <div class="siege-sk-row" data-skid="${Utils.escHtml(s.id)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">
+              ${Utils.escHtml(s.name||'')}${s.grade?`<span style="font-size:11px;color:var(--color-text-dim);margin-left:6px;">${Utils.escHtml(s.grade)}</span>`:''}
+            </div>`).join('');
+          siegeResults.querySelectorAll('.siege-sk-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              const sk = allSkillsSorted.find(s => s.id === row.dataset.skid);
+              if (!sk) return;
+              siegeLinkedSkills.push({ id: sk.id, name: sk.name, grade: sk.grade || '' });
+              siegeInput.value = '';
+              siegeResults.style.display = 'none';
+              document.getElementById('siegeSkillChips').innerHTML = renderSiegeChips();
+              rebindSiegeChips();
+            });
+          });
+        });
+        siegeInput.addEventListener('blur', () => setTimeout(() => { siegeResults.style.display = 'none'; }, 150));
+      }
     }, 50);
   },
 

@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v38';
+const CACHE_VERSION = 'novel-wiki-v40';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
@@ -49,7 +49,8 @@ const PRECACHE_ASSETS = [
   './pages/stat-defs.js',
   './pages/traps.js',
   './pages/places.js',
-  './pages/gods.js'
+  './pages/gods.js',
+  './pages/races.js'
 ];
 
 // ─── Install ──────────────────────────────────────────────────────────────────

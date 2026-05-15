@@ -245,19 +245,21 @@ window.Pages.characters = {
 
   _charCard: function(c) {
     const searchText = [c.name || '', c.race || '', c.country || '', c.region || '', c.guild || '', c.title || ''].join(' ').toLowerCase();
-    const starColor = c.importance === 'main' ? '#fbbf24' : c.importance === 'sub' ? '#94a3b8' : 'transparent';
+    const isTemplate = c.charType === 'template';
+    const countBadge = isTemplate && c.templateData?.count ? ` ×${c.templateData.count}` : '';
     return `
     <div class="list-item list-item--full char-card"
       data-id="${Utils.escHtml(c.id)}"
       data-search-text="${Utils.escHtml(searchText)}"
-      style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--color-surface2);border-radius:12px;border:1px solid var(--color-border);${c.importance === 'main' ? 'border-left:3px solid #fbbf24;' : ''}margin-bottom:8px;cursor:pointer;">
+      style="display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--color-surface2);border-radius:12px;border:1px solid var(--color-border);${c.importance === 'main' ? 'border-left:3px solid #fbbf24;' : isTemplate ? 'border-left:3px solid #a78bfa;' : ''}margin-bottom:8px;cursor:pointer;">
       ${c.image
         ? `<img src="${c.image}" style="width:48px;height:48px;border-radius:10px;object-fit:cover;flex-shrink:0;" />`
-        : `<div style="width:48px;height:48px;border-radius:10px;background:var(--color-surface3,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">👤</div>`}
+        : `<div style="width:48px;height:48px;border-radius:10px;background:var(--color-surface3,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;">${isTemplate ? '👥' : '👤'}</div>`}
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;">
           ${c.importance === 'main' ? `<span style="color:#fbbf24;font-size:14px;">★</span>` : c.importance === 'sub' ? `<span style="color:#94a3b8;font-size:12px;">☆</span>` : ''}
-          <span class="char-name" style="font-weight:700;font-size:15px;">${Utils.escHtml(c.name || '이름 없음')}</span>
+          ${isTemplate ? `<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(167,139,250,0.2);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);">약식</span>` : ''}
+          <span class="char-name" style="font-weight:700;font-size:15px;">${Utils.escHtml(c.name || '이름 없음')}${Utils.escHtml(countBadge)}</span>
           ${c.level ? `<span class="badge" style="font-size:11px;padding:2px 6px;background:var(--color-primary);color:#fff;border-radius:4px;">Lv.${c.level}</span>` : ''}
           ${c.title ? `<span style="font-size:11px;color:var(--color-text-muted);">[${Utils.escHtml(c.title)}]</span>` : ''}
         </div>
@@ -274,6 +276,12 @@ window.Pages.characters = {
   },
 
   _renderDetail: async function(container, char, wid) {
+    // ── 약식 캐릭터 전용 상세 화면 ──────────────────────────────
+    if (char.charType === 'template') {
+      this._renderTemplateDetail(container, char, wid);
+      return;
+    }
+
     const allStats = {};
     if (char.stats) Object.assign(allStats, char.stats);
 
@@ -533,6 +541,80 @@ window.Pages.characters = {
     });
   },
 
+  // ── 약식 캐릭터 상세 ─────────────────────────────────────────────────────────
+  _renderTemplateDetail: function(container, char, wid) {
+    const self = this;
+    const td = char.templateData || {};
+    const statRanges = td.statRanges || [];
+    const fixedSkills = td.fixedSkills || [];
+    const variableSkills = td.variableSkills || [];
+
+    const statRangeRows = statRanges.map(s =>
+      `<div style="display:flex;justify-content:space-between;padding:2px 0;">
+        <span style="color:rgba(200,210,255,0.7);">ㄴ${Utils.escHtml(s.name||'')}</span>
+        <span style="font-weight:600;">${Utils.escHtml(String(s.min||0))} ~ ${Utils.escHtml(String(s.max||0))}</span>
+      </div>`
+    ).join('');
+
+    const fixedSkillRows = fixedSkills.map(sk =>
+      `<div style="padding:2px 0;font-size:13px;">ㄴ⚡ ${Utils.escHtml(sk.name||'')}${sk.grade ? ` (${Utils.escHtml(sk.grade)})` : ''}</div>`
+    ).join('');
+
+    const varSkillRows = variableSkills.map(sk =>
+      `<div style="padding:2px 0;font-size:13px;">ㄴ🔀 ${Utils.escHtml(sk.name||'')}${sk.grade ? ` (${Utils.escHtml(sk.grade)})` : ''}</div>`
+    ).join('');
+
+    container.innerHTML = `
+    <div class="page active" style="overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain;">
+      <div class="page-header">
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="btnBackChars">← 목록</button>
+          <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(167,139,250,0.2);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);">약식</span>
+          <h2 class="page-title" style="font-size:18px;">${Utils.escHtml(char.name||'캐릭터')}</h2>
+          ${td.count ? `<span class="badge" style="font-size:12px;padding:3px 8px;background:#a78bfa;color:#fff;border-radius:6px;">×${td.count}</span>` : ''}
+        </div>
+        <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm" id="btnEditChar">편집</button>
+        </div>
+      </div>
+
+      ${char.image ? `<div style="text-align:center;margin-bottom:16px;"><img src="${char.image}" style="max-width:180px;max-height:200px;border-radius:12px;object-fit:cover;" /></div>` : ''}
+
+      <div class="status-window" style="background:rgba(40,30,70,0.85);border:1px solid rgba(167,139,250,0.4);border-radius:8px;padding:16px;font-family:monospace;font-size:13px;line-height:1.8;color:#e0d4ff;margin-bottom:16px;">
+        <div style="text-align:center;color:rgba(167,139,250,0.7);font-size:11px;margin-bottom:8px;">${'ㅡ'.repeat(16)}</div>
+        ${char.title ? `<div>ㅣ칭호: ${Utils.escHtml(char.title)}</div>` : ''}
+        <div>ㅣ이름: <strong>${Utils.escHtml(char.name||'')}</strong>${td.count ? ` (${td.count}명)` : ''}</div>
+        ${char.country ? `<div>ㅣ국가: ${Utils.escHtml(char.country)}</div>` : ''}
+        ${char.guild ? `<div>ㅣ길드: ${Utils.escHtml(char.guild)}</div>` : ''}
+        <div>ㅣ종족: ${Utils.escHtml(char.race||'인간')}</div>
+        ${char.gender && char.gender !== '미지정' ? `<div>ㅣ성별: ${Utils.escHtml(char.gender)}</div>` : ''}
+        <div style="color:rgba(167,139,250,0.5);margin:6px 0;">────────────</div>
+        <div style="color:rgba(200,210,255,0.9);">ㅣ[스탯 범위]</div>
+        ${statRangeRows || '<div style="color:rgba(150,170,200,0.6);">ㄴ(없음)</div>'}
+        <div style="color:rgba(167,139,250,0.5);margin:6px 0;">────────────</div>
+        <div style="color:rgba(200,210,255,0.9);">ㅣ[고정 스킬 (필수)]</div>
+        ${fixedSkillRows || '<div style="color:rgba(150,170,200,0.6);">ㄴ(없음)</div>'}
+        <div style="color:rgba(167,139,250,0.5);margin:6px 0;">────────────</div>
+        <div style="color:rgba(200,210,255,0.9);">ㅣ[가변 스킬 (개성)]</div>
+        ${varSkillRows || '<div style="color:rgba(150,170,200,0.6);">ㄴ(없음)</div>'}
+        <div style="text-align:center;color:rgba(167,139,250,0.7);font-size:11px;margin-top:8px;">${'ㅡ'.repeat(16)}</div>
+      </div>
+
+      ${char.authorNotes ? `<div style="background:rgba(245,158,11,0.08);border-left:3px solid var(--color-warning);border-radius:6px;padding:12px 14px;margin-bottom:16px;">
+        <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:4px;">작가 전용 메모</div>
+        <div style="white-space:pre-wrap;font-size:13px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(char.authorNotes))}</div>
+      </div>` : ''}
+    </div>`;
+
+    document.getElementById('btnBackChars')?.addEventListener('click', async () => {
+      const scrollY = self._listScrollY || 0;
+      self._currentId = null;
+      await self.init(container);
+      requestAnimationFrame(() => { container.scrollTop = scrollY; if (scrollY > 0) window.scrollTo(0, scrollY); });
+    });
+    document.getElementById('btnEditChar')?.addEventListener('click', () => self._openForm(char, wid, container));
+  },
+
   _statusWindowText: function(char) {
     const stats = char.stats || {};
     let text = 'ㅡ'.repeat(16) + '\n';
@@ -597,12 +679,87 @@ window.Pages.characters = {
   _openForm: async function(char, wid, container) {
     const isEdit = !!char;
     const stats = char?.stats || {};
+    const isTemplate = char?.charType === 'template';
 
-    // Load constellations and stat definitions for linking
-    const [allConsts, statNames] = await Promise.all([
+    // Load constellations, stat definitions, and skills
+    const [allConsts, statNames, allSkillsRaw] = await Promise.all([
       DB.getAll('constellations', wid),
       window.StatDefs ? window.StatDefs.loadNames(wid) : Promise.resolve([]),
+      DB.getAll('skills', wid),
     ]);
+    const allSkillsSorted = allSkillsRaw.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+
+    // ── 약식 캐릭터 전용 state ──
+    const td = char?.templateData || {};
+    let tplStatRanges = (td.statRanges || []).map(s => ({ ...s }));
+    let tplFixedSkills = [...(td.fixedSkills || [])];
+    let tplVarSkills = [...(td.variableSkills || [])];
+
+    const syncTplStatsFromDOM = () => {
+      document.querySelectorAll('#tplStatRows .tstat-row').forEach(el => {
+        const i = parseInt(el.dataset.idx, 10);
+        if (tplStatRanges[i]) {
+          tplStatRanges[i].name = el.querySelector('.tstat-name')?.value || '';
+          tplStatRanges[i].min = Number(el.querySelector('.tstat-min')?.value || 0);
+          tplStatRanges[i].max = Number(el.querySelector('.tstat-max')?.value || 0);
+        }
+      });
+    };
+    const renderTplStatRows = () => tplStatRanges.map((s, i) => `
+      <div class="tstat-row" data-idx="${i}" style="display:grid;grid-template-columns:1fr 70px 70px auto;gap:4px;align-items:center;margin-bottom:4px;">
+        <input class="input-field tstat-name" value="${Utils.escHtml(s.name||'')}" placeholder="스탯명" style="box-sizing:border-box;font-size:13px;" />
+        <input type="number" class="input-field tstat-min" value="${s.min||0}" placeholder="최소" style="box-sizing:border-box;font-size:12px;" />
+        <input type="number" class="input-field tstat-max" value="${s.max||0}" placeholder="최대" style="box-sizing:border-box;font-size:12px;" />
+        <button type="button" class="tstat-del btn btn-ghost btn-sm" data-idx="${i}" style="color:var(--color-danger);font-size:11px;">✕</button>
+      </div>`).join('') || '<div style="font-size:12px;color:var(--color-text-dim);text-align:center;padding:4px;">스탯 없음</div>';
+
+    const skillChipHtml = (sk, listId) => `
+      <span class="tskill-chip" data-skid="${Utils.escHtml(sk.id)}" data-list="${listId}"
+        style="display:inline-flex;align-items:center;gap:4px;background:${listId==='fixed'?'rgba(99,102,241,0.15)':'rgba(251,146,60,0.15)'};border:1px solid ${listId==='fixed'?'rgba(99,102,241,0.35)':'rgba(251,146,60,0.35)'};border-radius:6px;padding:3px 8px;font-size:12px;">
+        ${listId==='fixed'?'⚡':'🔀'} ${Utils.escHtml(sk.name||'')}${sk.grade?` (${Utils.escHtml(sk.grade)})`:''}<button class="tskill-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;">✕</button>
+      </span>`;
+
+    const renderSkillChips = (listId) => (listId === 'fixed' ? tplFixedSkills : tplVarSkills).map(sk => skillChipHtml(sk, listId)).join('');
+
+    const templateSection = `
+      <div id="tplSection" style="${isTemplate?'':'display:none;'}">
+        <div style="font-size:12px;color:#a78bfa;font-weight:700;padding:6px 10px;background:rgba(167,139,250,0.1);border-radius:6px;margin-bottom:8px;">약식 캐릭터 설정</div>
+        <div class="form-group">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">수량</label>
+          <input type="number" class="input-field" id="fTplCount" value="${td.count || ''}" placeholder="몇 명인지 (예: 10)" style="width:140px;box-sizing:border-box;" />
+        </div>
+        <div class="form-group" style="border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:10px 12px;">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+            <label class="form-label" style="margin:0;font-size:13px;font-weight:600;">스탯 범위</label>
+            <button type="button" id="btnAddTplStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+          </div>
+          <div style="display:grid;grid-template-columns:1fr 70px 70px auto;gap:4px;margin-bottom:4px;">
+            <span style="font-size:10px;color:var(--color-text-dim);">스탯명</span>
+            <span style="font-size:10px;color:var(--color-text-dim);">최소</span>
+            <span style="font-size:10px;color:var(--color-text-dim);">최대</span>
+            <span></span>
+          </div>
+          <div id="tplStatRows">${renderTplStatRows()}</div>
+        </div>
+        <div class="form-group" style="border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">⚡ 고정 스킬 <span style="font-weight:400;font-size:11px;color:var(--color-text-muted);">(필수 보유)</span></label>
+          <div id="tplFixedChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">${renderSkillChips('fixed')}</div>
+          <div style="position:relative;">
+            <input class="input-field" id="tplFixedSearch" placeholder="스킬 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="tplFixedResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
+        </div>
+        <div class="form-group" style="border:1px solid rgba(251,146,60,0.3);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="display:block;margin-bottom:6px;font-size:13px;font-weight:600;">🔀 가변 스킬 <span style="font-weight:400;font-size:11px;color:var(--color-text-muted);">(개성/선택)</span></label>
+          <div id="tplVarChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">${renderSkillChips('var')}</div>
+          <div style="position:relative;">
+            <input class="input-field" id="tplVarSearch" placeholder="스킬 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="tplVarResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
+        </div>
+      </div>`;
+
+    // Load constellations and stat definitions for linking
     const charStatDatalist = statNames.length
       ? `<datalist id="charStatDatalist">${statNames.map(n=>`<option value="${Utils.escHtml(n)}">`).join('')}</datalist>`
       : '';
@@ -632,7 +789,21 @@ window.Pages.characters = {
     let newImage = char?.image || null;
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;">
+      <div style="display:flex;flex-direction:column;gap:12px;max-height:80vh;overflow-y:auto;padding-right:4px;">
+        <!-- 캐릭터 유형 선택 -->
+        <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">캐릭터 유형</label>
+          <div style="display:flex;gap:12px;">
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;">
+              <input type="radio" name="charTypeSel" value="normal" ${!isTemplate?'checked':''} /> 일반 캐릭터
+            </label>
+            <label style="display:flex;align-items:center;gap:6px;cursor:pointer;font-size:13px;color:#a78bfa;">
+              <input type="radio" name="charTypeSel" value="template" ${isTemplate?'checked':''} /> 약식 캐릭터
+            </label>
+          </div>
+          <div style="font-size:11px;color:var(--color-text-dim);margin-top:6px;">약식: 스탯을 범위로 입력하고 고정/가변 스킬을 지정합니다.</div>
+        </div>
+        ${templateSection}
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">이미지</label>
           <div id="charImgPreview" style="margin-bottom:6px;">
@@ -799,6 +970,22 @@ window.Pages.characters = {
       const name = document.getElementById('fCharName')?.value.trim();
       if (!name) { Utils.toast('이름을 입력하세요', 'error'); return false; }
 
+      const selectedCharType = document.querySelector('[name="charTypeSel"]:checked')?.value || 'normal';
+      const isTpl = selectedCharType === 'template';
+
+      // 약식 캐릭터 data 수집
+      let templateData = null;
+      if (isTpl) {
+        syncTplStatsFromDOM();
+        const countVal = document.getElementById('fTplCount')?.value;
+        templateData = {
+          count: countVal ? Number(countVal) : null,
+          statRanges: tplStatRanges.filter(s => s.name.trim()),
+          fixedSkills: tplFixedSkills,
+          variableSkills: tplVarSkills,
+        };
+      }
+
       const newStats = {};
       document.querySelectorAll('.stat-input').forEach(inp => {
         if (inp.value !== '' && inp.value !== null) {
@@ -831,6 +1018,8 @@ window.Pages.characters = {
         ...(char || {}),
         worldId: wid,
         name,
+        charType: isTpl ? 'template' : '',
+        templateData: isTpl ? templateData : null,
         level: Number(document.getElementById('fCharLevel')?.value || 0),
         title: document.getElementById('fCharTitle')?.value.trim() || '',
         country: document.getElementById('fCharCountry')?.value.trim() || '',
@@ -997,6 +1186,79 @@ window.Pages.characters = {
         provisionalConstIds,
         { bg: 'rgba(80,160,200,0.2)', border: 'rgba(80,160,200,0.5)' }
       );
+
+      // ── Template character UI ──────────────────────────────────
+      document.querySelectorAll('[name="charTypeSel"]').forEach(r => {
+        r.addEventListener('change', () => {
+          const tpl = document.getElementById('tplSection');
+          if (tpl) tpl.style.display = r.value === 'template' ? 'block' : 'none';
+        });
+      });
+
+      const rebindTplAll = () => {
+        document.querySelectorAll('#tplStatRows .tstat-del').forEach(btn => {
+          btn.addEventListener('click', () => {
+            syncTplStatsFromDOM();
+            tplStatRanges.splice(parseInt(btn.dataset.idx, 10), 1);
+            document.getElementById('tplStatRows').innerHTML = renderTplStatRows();
+            rebindTplAll();
+          });
+        });
+        document.querySelectorAll('#tplFixedChips .tskill-del, #tplVarChips .tskill-del').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const chip = btn.closest('.tskill-chip');
+            const skid = chip?.dataset.skid;
+            const list = chip?.dataset.list;
+            if (list === 'fixed') tplFixedSkills = tplFixedSkills.filter(s => s.id !== skid);
+            else tplVarSkills = tplVarSkills.filter(s => s.id !== skid);
+            chip?.remove();
+          });
+        });
+      };
+
+      document.getElementById('btnAddTplStat')?.addEventListener('click', () => {
+        syncTplStatsFromDOM();
+        tplStatRanges.push({ name: '', min: 0, max: 0 });
+        document.getElementById('tplStatRows').innerHTML = renderTplStatRows();
+        rebindTplAll();
+      });
+
+      const wireTplSkillSearch = (inputId, resultsId, targetList, chipsId) => {
+        const input = document.getElementById(inputId);
+        const results = document.getElementById(resultsId);
+        if (!input || !results) return;
+        input.addEventListener('input', () => {
+          const q = input.value.trim().toLowerCase();
+          if (!q) { results.style.display = 'none'; return; }
+          const alreadyIds = new Set(targetList.map(s => s.id));
+          const matches = allSkillsSorted.filter(s => !alreadyIds.has(s.id) && (s.name||'').toLowerCase().includes(q)).slice(0, 10);
+          if (!matches.length) { results.style.display = 'none'; return; }
+          results.style.display = 'block';
+          results.innerHTML = matches.map(s => `
+            <div class="tskill-result-row" data-skid="${Utils.escHtml(s.id)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">
+              ${Utils.escHtml(s.name||'')}${s.grade?`<span style="font-size:11px;color:var(--color-text-dim);margin-left:6px;">${Utils.escHtml(s.grade)}</span>`:''}
+            </div>`).join('');
+          results.querySelectorAll('.tskill-result-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              const sk = allSkillsSorted.find(s => s.id === row.dataset.skid);
+              if (!sk) return;
+              targetList.push({ id: sk.id, name: sk.name, grade: sk.grade || '' });
+              input.value = '';
+              results.style.display = 'none';
+              const listId = targetList === tplFixedSkills ? 'fixed' : 'var';
+              document.getElementById(chipsId).innerHTML = renderSkillChips(listId);
+              rebindTplAll();
+            });
+          });
+        });
+        input.addEventListener('blur', () => setTimeout(() => { results.style.display = 'none'; }, 150));
+      };
+
+      wireTplSkillSearch('tplFixedSearch', 'tplFixedResults', tplFixedSkills, 'tplFixedChips');
+      wireTplSkillSearch('tplVarSearch', 'tplVarResults', tplVarSkills, 'tplVarChips');
+      rebindTplAll();
     }, 50);
   },
 
