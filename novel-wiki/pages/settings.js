@@ -117,6 +117,9 @@ window.Pages.settings = {
       AppFlags.set(f.key, val);
     }));
 
+    const storedQs = await DB.getSetting('novelQuestions', null);
+    let questions = (storedQs && storedQs.length > 0) ? storedQs : [...this.THEMATIC_QUESTIONS];
+
     // Load full icon list per category
     const catIcons = {};
     await Promise.all(this.ICON_CATS.map(async cat => {
@@ -275,12 +278,32 @@ window.Pages.settings = {
         </button>
       </div>
 
-      <!-- ⑥ 소설 주제 질문들 -->
+      <!-- ⑥ 소설 주제 질문들 (편집 가능) -->
       <div style="${secStyle}border-left:3px solid var(--color-primary);">
-        <div style="font-weight:700;font-size:13px;color:var(--color-primary);margin-bottom:12px;">소설 주제 질문들</div>
-        <ol style="margin:0;padding-left:20px;display:flex;flex-direction:column;gap:9px;">
-          ${this.THEMATIC_QUESTIONS.map(q => `<li style="font-size:12px;line-height:1.65;color:var(--color-text-muted);">${Utils.escHtml(q)}</li>`).join('')}
-        </ol>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px;">
+          <div style="font-weight:700;font-size:13px;color:var(--color-primary);">소설 주제 질문들</div>
+          <div style="display:flex;gap:5px;flex-wrap:wrap;">
+            <button class="btn btn-ghost btn-sm" id="btnQAdd" style="font-size:11px;">+ 추가</button>
+            <button class="btn btn-ghost btn-sm" id="btnQBulkEdit" style="font-size:11px;">전체편집</button>
+            <button class="btn btn-ghost btn-sm" id="btnQReset" style="font-size:11px;color:var(--color-text-muted);">초기화</button>
+          </div>
+        </div>
+        <div id="questionsList" style="display:flex;flex-direction:column;gap:6px;">
+          ${questions.length === 0
+            ? '<div style="font-size:12px;color:var(--color-text-dim);padding:8px 0;">질문이 없습니다. + 추가 버튼으로 추가하세요.</div>'
+            : questions.map((q, i) => `
+              <div class="q-row" data-idx="${i}" style="display:flex;align-items:flex-start;gap:6px;padding:7px 0;border-bottom:1px solid var(--color-border);">
+                <span style="font-size:11px;color:var(--color-text-dim);min-width:18px;padding-top:1px;">${i + 1}.</span>
+                <span style="flex:1;font-size:12px;line-height:1.65;color:var(--color-text-muted);word-break:keep-all;">${Utils.escHtml(q)}</span>
+                <div style="display:flex;gap:3px;flex-shrink:0;">
+                  <button class="btn-q-edit btn btn-ghost btn-sm" data-idx="${i}"
+                    style="font-size:10px;padding:2px 6px;">편집</button>
+                  <button class="btn-q-del btn btn-ghost btn-sm" data-idx="${i}"
+                    style="font-size:10px;padding:2px 6px;color:var(--color-danger);">✕</button>
+                </div>
+              </div>`).join('')}
+        </div>
+        <div style="font-size:10px;color:var(--color-text-dim);margin-top:10px;">소설 쓰기 페이지의 참고 질문 패널에 표시됩니다.</div>
       </div>
 
       <!-- ⑦ 앱 소개 -->
@@ -473,6 +496,101 @@ window.Pages.settings = {
             Utils.toast('가져오기 오류: ' + err.message, 'error');
           }
         }, '가져오기');
+    });
+
+    // ── Questions CRUD ────────────────────────────────────────────────────
+    const saveAndRefreshQuestions = async (newQs) => {
+      questions = newQs;
+      await DB.setSetting('novelQuestions', questions);
+      const listEl = container.querySelector('#questionsList');
+      if (!listEl) return;
+      listEl.innerHTML = questions.length === 0
+        ? '<div style="font-size:12px;color:var(--color-text-dim);padding:8px 0;">질문이 없습니다. + 추가 버튼으로 추가하세요.</div>'
+        : questions.map((q, i) => `
+          <div class="q-row" data-idx="${i}" style="display:flex;align-items:flex-start;gap:6px;padding:7px 0;border-bottom:1px solid var(--color-border);">
+            <span style="font-size:11px;color:var(--color-text-dim);min-width:18px;padding-top:1px;">${i + 1}.</span>
+            <span style="flex:1;font-size:12px;line-height:1.65;color:var(--color-text-muted);word-break:keep-all;">${Utils.escHtml(q)}</span>
+            <div style="display:flex;gap:3px;flex-shrink:0;">
+              <button class="btn-q-edit btn btn-ghost btn-sm" data-idx="${i}" style="font-size:10px;padding:2px 6px;">편집</button>
+              <button class="btn-q-del btn btn-ghost btn-sm" data-idx="${i}" style="font-size:10px;padding:2px 6px;color:var(--color-danger);">✕</button>
+            </div>
+          </div>`).join('');
+      bindQuestionButtons();
+    };
+
+    const bindQuestionButtons = () => {
+      container.querySelectorAll('.btn-q-edit').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          const body = `
+            <div>
+              <label class="form-label" style="display:block;margin-bottom:6px;">질문 내용</label>
+              <textarea class="textarea-field" id="fEditQ" rows="5"
+                style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.65;">${Utils.escHtml(questions[idx] || '')}</textarea>
+            </div>`;
+          Utils.openModal('질문 편집', body, async () => {
+            const val = document.getElementById('fEditQ')?.value.trim();
+            if (!val) { Utils.toast('내용을 입력하세요', 'error'); return false; }
+            const updated = [...questions];
+            updated[idx] = val;
+            await saveAndRefreshQuestions(updated);
+            Utils.toast('저장됨', 'success');
+            return true;
+          }, '저장');
+        });
+      });
+
+      container.querySelectorAll('.btn-q-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          Utils.confirm('질문 삭제', '이 질문을 삭제하시겠습니까?', async () => {
+            const updated = questions.filter((_, i) => i !== idx);
+            await saveAndRefreshQuestions(updated);
+            Utils.toast('삭제됨', 'info');
+          }, '삭제');
+        });
+      });
+    };
+    bindQuestionButtons();
+
+    container.querySelector('#btnQAdd')?.addEventListener('click', () => {
+      const body = `
+        <div>
+          <label class="form-label" style="display:block;margin-bottom:6px;">새 질문</label>
+          <textarea class="textarea-field" id="fNewQ" rows="4"
+            style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.65;"
+            placeholder="새로운 주제 질문을 입력하세요"></textarea>
+        </div>`;
+      Utils.openModal('질문 추가', body, async () => {
+        const val = document.getElementById('fNewQ')?.value.trim();
+        if (!val) { Utils.toast('내용을 입력하세요', 'error'); return false; }
+        await saveAndRefreshQuestions([...questions, val]);
+        Utils.toast('추가됨', 'success');
+        return true;
+      }, '추가');
+    });
+
+    container.querySelector('#btnQBulkEdit')?.addEventListener('click', () => {
+      const body = `
+        <div>
+          <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;">각 줄에 하나씩 입력하세요</div>
+          <textarea class="textarea-field" id="fBulkQs" rows="14"
+            style="width:100%;box-sizing:border-box;font-size:12px;line-height:1.65;">${questions.join('\n')}</textarea>
+        </div>`;
+      Utils.openModal('질문 전체편집', body, async () => {
+        const lines = document.getElementById('fBulkQs')?.value.split('\n').map(l => l.trim()).filter(Boolean) || [];
+        if (!lines.length) { Utils.toast('최소 1개의 질문이 필요합니다', 'error'); return false; }
+        await saveAndRefreshQuestions(lines);
+        Utils.toast('저장됨', 'success');
+        return true;
+      }, '저장');
+    });
+
+    container.querySelector('#btnQReset')?.addEventListener('click', () => {
+      Utils.confirm('질문 초기화', '질문 목록을 기본값으로 초기화합니다. 직접 추가/수정한 내용이 모두 사라집니다.', async () => {
+        await saveAndRefreshQuestions([...self.THEMATIC_QUESTIONS]);
+        Utils.toast('초기화됨', 'info');
+      }, '초기화');
     });
 
     // ── Reset all ─────────────────────────────────────────────────────────

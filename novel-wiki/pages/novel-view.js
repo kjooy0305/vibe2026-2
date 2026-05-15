@@ -7,6 +7,9 @@ window.Pages.novelView = {
   _wid: null,
   _questionsExpanded: false,
   _fontSize: 13,
+  _undoStack: [],
+  _undoPos: -1,
+  _undoPushTimer: null,
 
   THEMATIC_QUESTIONS: [
     '회귀자의 먼치킨 능력이 어떤 고통을 가지고 행동한것인지 모르는 사람이 많음. 그래서 그 과정을 써보고 싶음.',
@@ -21,6 +24,36 @@ window.Pages.novelView = {
     '잘못된 희생은 피해를 야기한다.',
   ],
 
+  // ── Undo stack helpers ────────────────────────────────────────────────────
+  _pushUndo: function(text) {
+    if (this._undoPos < this._undoStack.length - 1) {
+      this._undoStack = this._undoStack.slice(0, this._undoPos + 1);
+    }
+    const last = this._undoStack[this._undoStack.length - 1];
+    if (last === text) return;
+    this._undoStack.push(text);
+    if (this._undoStack.length > 40) this._undoStack.shift();
+    this._undoPos = this._undoStack.length - 1;
+    this._refreshUndoButtons();
+  },
+
+  _refreshUndoButtons: function() {
+    const btnUndo = document.getElementById('btnUndo');
+    const btnRedo = document.getElementById('btnRedo');
+    if (btnUndo) {
+      const canUndo = this._undoPos > 0;
+      btnUndo.disabled = !canUndo;
+      btnUndo.style.opacity = canUndo ? '1' : '0.35';
+      btnUndo.title = canUndo ? `되돌리기 (${this._undoPos}단계 가능)` : '되돌릴 내용 없음';
+    }
+    if (btnRedo) {
+      const canRedo = this._undoPos < this._undoStack.length - 1;
+      btnRedo.disabled = !canRedo;
+      btnRedo.style.opacity = canRedo ? '1' : '0.35';
+    }
+  },
+
+  // ── Init ──────────────────────────────────────────────────────────────────
   init: async function(container, options) {
     options = options || {};
     this._container = container;
@@ -38,7 +71,7 @@ window.Pages.novelView = {
     }
 
     this._wid = wid;
-    const [draft, chars, skills, towers, gates, savedFontSize, customQuestions] = await Promise.all([
+    const [draft, chars, skills, towers, gates, savedFontSize, customQuestions, tempSave] = await Promise.all([
       DB.getSetting('novelDraft_' + wid, ''),
       DB.getAll('characters', wid),
       DB.getAll('skills', wid),
@@ -46,30 +79,40 @@ window.Pages.novelView = {
       DB.getAll('gates', wid),
       DB.getSetting('novelFontSize', 13),
       DB.getSetting('novelQuestions', null),
+      DB.getSetting('novelTempSave_' + wid, null),
     ]);
     this._fontSize = savedFontSize || 13;
     const questions = (customQuestions && customQuestions.length > 0) ? customQuestions : this.THEMATIC_QUESTIONS;
 
-    this._renderPage(container, draft, chars, skills, towers, gates, wid, questions);
+    // Initialize undo stack with current draft
+    this._undoStack = [];
+    this._undoPos = -1;
+    this._pushUndo(draft || '');
+
+    this._renderPage(container, draft, chars, skills, towers, gates, wid, questions, tempSave);
   },
 
-  _renderPage: function(container, draft, chars, skills, towers, gates, wid, questions) {
+  // ── Render page ──────────────────────────────────────────────────────────
+  _renderPage: function(container, draft, chars, skills, towers, gates, wid, questions, tempSave) {
     const self = this;
     const charCount = this._countChars(draft);
     const lineCount = draft ? draft.split('\n').length : 0;
     const expanded = this._questionsExpanded;
     const fs = this._fontSize;
+    const tempLabel = tempSave
+      ? `임시저장: ${new Date(tempSave.savedAt).toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' })}`
+      : null;
 
     container.innerHTML = `
     <div class="page active">
       <!-- Header -->
       <div class="page-header" style="flex-shrink:0;">
         <div style="display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:8px;">
-          <h2 class="page-title">소설 작성</h2>
+          <h2 class="page-title">소설 쓰기</h2>
           <div style="display:flex;gap:5px;flex-wrap:wrap;">
             <button class="btn btn-ghost btn-sm" id="btnInsert" style="font-size:11px;">삽입 ▼</button>
             <button class="btn btn-ghost btn-sm" id="btnCopyDraft" style="font-size:11px;">전체복사</button>
-            <button class="btn btn-ghost btn-sm" id="btnExportNovel" style="font-size:11px;">TXT</button>
+            <button class="btn btn-ghost btn-sm" id="btnExportNovel" style="font-size:11px;">TXT ↓</button>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:10px;margin-top:6px;font-size:12px;flex-wrap:wrap;">
@@ -80,10 +123,18 @@ window.Pages.novelView = {
         </div>
       </div>
 
-      <!-- Toolbar -->
-      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 8px;flex-shrink:0;align-items:center;">
+      <!-- Toolbar row 1: save / undo / font -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 6px;flex-shrink:0;align-items:center;">
         <button class="btn btn-primary btn-sm" id="btnSaveNow">저장</button>
         <button class="btn btn-ghost btn-sm" id="btnClearDraft" style="color:var(--color-danger);">비우기</button>
+        <button id="btnUndo" title="되돌리기" disabled style="
+          padding:0 8px;height:30px;border-radius:7px;border:1px solid var(--color-border);
+          background:var(--color-surface2);color:var(--color-text);cursor:pointer;font-size:14px;
+          display:flex;align-items:center;justify-content:center;opacity:0.35;">↩</button>
+        <button id="btnRedo" title="다시실행" disabled style="
+          padding:0 8px;height:30px;border-radius:7px;border:1px solid var(--color-border);
+          background:var(--color-surface2);color:var(--color-text);cursor:pointer;font-size:14px;
+          display:flex;align-items:center;justify-content:center;opacity:0.35;">↪</button>
         <div style="display:flex;align-items:center;gap:6px;margin-left:auto;background:var(--color-surface2);border-radius:10px;padding:5px 12px;border:1px solid var(--color-border);">
           <span style="font-size:10px;color:var(--color-text-dim);user-select:none;">글씨</span>
           <button id="btnFontSmaller"
@@ -95,6 +146,13 @@ window.Pages.novelView = {
         </div>
       </div>
 
+      <!-- Toolbar row 2: temp save -->
+      <div style="display:flex;gap:6px;flex-wrap:wrap;padding:0 16px 8px;flex-shrink:0;align-items:center;">
+        <button class="btn btn-ghost btn-sm" id="btnTempSave" style="font-size:11px;">💾 임시저장</button>
+        <button class="btn btn-ghost btn-sm" id="btnTempLoad" style="font-size:11px;${tempLabel ? '' : 'opacity:0.4;'}">📂 임시 불러오기</button>
+        ${tempLabel ? `<span style="font-size:10px;color:var(--color-text-muted);">${Utils.escHtml(tempLabel)}</span>` : ''}
+      </div>
+
       <!-- Writing area -->
       <div style="padding:0 16px 12px;">
         <textarea id="novelTextarea"
@@ -103,7 +161,7 @@ window.Pages.novelView = {
         >${Utils.escHtml(draft)}</textarea>
       </div>
 
-      <!-- Thematic questions panel -->
+      <!-- Thematic questions panel (read-only, edit in settings) -->
       <div style="padding:0 16px 16px;">
         <div style="background:var(--color-surface2);border-radius:12px;border:1px solid var(--color-border);overflow:hidden;">
           <div style="display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-bottom:1px solid ${expanded ? 'var(--color-border)' : 'transparent'};">
@@ -112,16 +170,15 @@ window.Pages.novelView = {
               <span>주제 질문들 (창작 참고)</span>
               <span id="questionsChevron" style="font-size:11px;">${expanded ? '▲' : '▼'}</span>
             </button>
-            <div style="display:flex;gap:4px;flex-shrink:0;">
-              <button class="btn btn-ghost btn-sm" id="btnAddQuestion"
-                style="font-size:10px;padding:2px 8px;color:var(--color-primary);">+ 추가</button>
-              <button class="btn btn-ghost btn-sm" id="btnEditQuestions"
-                style="font-size:10px;padding:2px 8px;">전체편집</button>
-            </div>
+            <button class="btn btn-ghost btn-sm" id="btnGoToQSettings"
+              style="font-size:10px;padding:2px 8px;flex-shrink:0;">⚙️ 설정에서 편집</button>
           </div>
           <div id="questionsPanel" style="display:${expanded ? 'block' : 'none'};padding:10px 14px 14px;">
             <ol style="margin:0;padding-left:16px;display:flex;flex-direction:column;gap:8px;">
-              ${questions.map((q, i) => self._questionItem(q, i)).join('')}
+              ${questions.map((q, i) => `
+                <li style="font-size:12px;line-height:1.7;color:var(--color-text-muted);">
+                  <span style="word-break:keep-all;">${Utils.escHtml(q)}</span>
+                </li>`).join('')}
             </ol>
           </div>
         </div>
@@ -133,12 +190,22 @@ window.Pages.novelView = {
     const saveStatusEl = document.getElementById('saveStatusDisplay');
     const fontSizeDisplay = document.getElementById('fontSizeDisplay');
 
-    // Save helper to run before page re-renders (preserves unsaved edits)
+    // Initial undo button state
+    this._refreshUndoButtons();
+
+    // ── Save helper ────────────────────────────────────────────
     const saveBeforeReload = async () => {
       if (textarea && self._wid) {
         clearTimeout(self._saveTimer);
         await DB.setSetting('novelDraft_' + self._wid, textarea.value);
       }
+    };
+
+    const markDirty = () => {
+      if (saveStatusEl) { saveStatusEl.textContent = '편집 중...'; saveStatusEl.style.color = 'var(--color-warning)'; }
+    };
+    const markSaved = (msg) => {
+      if (saveStatusEl) { saveStatusEl.textContent = msg || '저장됨'; saveStatusEl.style.color = 'var(--color-text-dim)'; }
     };
 
     // ── Font size ──────────────────────────────────────────────
@@ -148,30 +215,21 @@ window.Pages.novelView = {
       if (fontSizeDisplay) fontSizeDisplay.textContent = size + 'px';
       DB.setSetting('novelFontSize', size);
     };
-    // Apply immediately on load
     if (textarea) textarea.style.setProperty('font-size', self._fontSize + 'px', 'important');
 
-    document.getElementById('btnFontLarger')?.addEventListener('click', () => {
-      applyFontSize(Math.min(32, self._fontSize + 2));
-    });
-    document.getElementById('btnFontSmaller')?.addEventListener('click', () => {
-      applyFontSize(Math.max(10, self._fontSize - 2));
-    });
+    document.getElementById('btnFontLarger')?.addEventListener('click', () => applyFontSize(Math.min(32, self._fontSize + 2)));
+    document.getElementById('btnFontSmaller')?.addEventListener('click', () => applyFontSize(Math.max(10, self._fontSize - 2)));
 
-    // ── Char count & autosave ──────────────────────────────────
-    const markDirty = () => {
-      if (saveStatusEl) { saveStatusEl.textContent = '편집 중...'; saveStatusEl.style.color = 'var(--color-warning)'; }
-    };
-    const markSaved = (msg) => {
-      if (saveStatusEl) { saveStatusEl.textContent = msg || '저장됨'; saveStatusEl.style.color = 'var(--color-text-dim)'; }
-    };
-
+    // ── Autosave (also pushes undo snapshot) ───────────────────
     self._autoSaveTimer = setInterval(async () => {
       if (!textarea) return;
-      await DB.setSetting('novelDraft_' + wid, textarea.value);
+      const val = textarea.value;
+      await DB.setSetting('novelDraft_' + wid, val);
+      self._pushUndo(val);
       markSaved('자동저장됨 (' + new Date().toLocaleTimeString('ko-KR', { hour: '2-digit', minute: '2-digit' }) + ')');
     }, 30000);
 
+    // ── Textarea input ─────────────────────────────────────────
     textarea?.addEventListener('input', () => {
       if (charCountEl) charCountEl.textContent = self._countChars(textarea.value).toLocaleString() + '자';
       markDirty();
@@ -181,54 +239,152 @@ window.Pages.novelView = {
         await AppStore.updateStreak();
         markSaved('저장됨');
       }, 1500);
+      // Debounced undo push while typing (every 3s of inactivity)
+      clearTimeout(self._undoPushTimer);
+      self._undoPushTimer = setTimeout(() => { self._pushUndo(textarea.value); }, 3000);
     });
 
+    // ── Save now ──────────────────────────────────────────────
     document.getElementById('btnSaveNow')?.addEventListener('click', async () => {
       clearTimeout(self._saveTimer);
-      await DB.setSetting('novelDraft_' + wid, textarea?.value || '');
+      const val = textarea?.value || '';
+      await DB.setSetting('novelDraft_' + wid, val);
       await AppStore.updateStreak();
+      self._pushUndo(val);
       markSaved('저장됨');
       Utils.toast('저장됨', 'success');
     });
 
+    // ── Clear ─────────────────────────────────────────────────
     document.getElementById('btnClearDraft')?.addEventListener('click', () => {
       Utils.confirm('내용 비우기', '작성 중인 내용을 모두 지우시겠습니까?', async () => {
+        self._pushUndo(textarea?.value || '');
         clearTimeout(self._saveTimer);
         await DB.setSetting('novelDraft_' + wid, '');
         if (textarea) { textarea.value = ''; textarea.dispatchEvent(new Event('input')); }
+        self._pushUndo('');
         Utils.toast('비워짐', 'info');
       }, '비우기');
     });
 
+    // ── Undo ─────────────────────────────────────────────────
+    document.getElementById('btnUndo')?.addEventListener('click', () => {
+      if (self._undoPos <= 0) return;
+      self._undoPos--;
+      textarea.value = self._undoStack[self._undoPos];
+      textarea.dispatchEvent(new Event('input'));
+      self._refreshUndoButtons();
+      Utils.toast(`되돌림 (${self._undoPos + 1}/${self._undoStack.length})`, 'info', 1200);
+    });
+
+    // ── Redo ─────────────────────────────────────────────────
+    document.getElementById('btnRedo')?.addEventListener('click', () => {
+      if (self._undoPos >= self._undoStack.length - 1) return;
+      self._undoPos++;
+      textarea.value = self._undoStack[self._undoPos];
+      textarea.dispatchEvent(new Event('input'));
+      self._refreshUndoButtons();
+      Utils.toast(`다시실행 (${self._undoPos + 1}/${self._undoStack.length})`, 'info', 1200);
+    });
+
+    // ── Copy all ─────────────────────────────────────────────
     document.getElementById('btnCopyDraft')?.addEventListener('click', () => {
       const text = textarea?.value || '';
       if (!text.trim()) { Utils.toast('내용이 없습니다', 'error'); return; }
       Utils.copyText(text);
+      Utils.toast('복사됨', 'success');
     });
 
-    // ── Export TXT ─────────────────────────────────────────────
+    // ── Export TXT (with filename modal) ──────────────────────
     document.getElementById('btnExportNovel')?.addEventListener('click', () => {
       const text = textarea?.value || '';
       if (!text.trim()) { Utils.toast('내용이 없습니다', 'error'); return; }
       const world = AppStore.getState().currentWorld;
       const d = new Date();
       const dateStr = `${d.getFullYear()}${String(d.getMonth()+1).padStart(2,'0')}${String(d.getDate()).padStart(2,'0')}`;
-      const filename = `novel_${(world?.name || 'draft').replace(/[^\w가-힣]/g, '_')}_${dateStr}.txt`;
-      const blob = new Blob(['﻿' + text], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url; a.download = filename;
-      document.body.appendChild(a); a.click();
-      document.body.removeChild(a); URL.revokeObjectURL(url);
-      Utils.toast('TXT 내보내기 완료', 'success');
+      const defaultName = `novel_${(world?.name || 'draft').replace(/[^\w가-힣]/g, '_')}_${dateStr}`;
+      const chars = self._countChars(text);
+      const lines = text.split('\n').length;
+      const body = `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div class="form-group">
+            <label class="form-label">파일 이름</label>
+            <div style="display:flex;align-items:center;gap:6px;">
+              <input class="input-field" id="fExportFilename" value="${Utils.escHtml(defaultName)}"
+                style="flex:1;box-sizing:border-box;" />
+              <span style="font-size:13px;color:var(--color-text-muted);white-space:nowrap;">.txt</span>
+            </div>
+          </div>
+          <div style="font-size:12px;color:var(--color-text-muted);background:var(--color-surface2);border-radius:8px;padding:10px 12px;">
+            ${chars.toLocaleString()}자 · ${lines.toLocaleString()}줄
+          </div>
+        </div>`;
+      Utils.openModal('TXT 내보내기', body, () => {
+        const fname = (document.getElementById('fExportFilename')?.value.trim() || defaultName).replace(/[\\/:*?"<>|]/g, '_') + '.txt';
+        const blob = new Blob(['﻿' + text], { type: 'text/plain;charset=utf-8' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url; a.download = fname;
+        document.body.appendChild(a); a.click();
+        document.body.removeChild(a); URL.revokeObjectURL(url);
+        Utils.toast('TXT 내보내기 완료', 'success');
+        return true;
+      }, '내보내기');
     });
 
-    // ── Insert modal (상태창 / 스킬 / 탑) ──────────────────────
+    // ── Temp save ────────────────────────────────────────────
+    document.getElementById('btnTempSave')?.addEventListener('click', async () => {
+      const text = textarea?.value || '';
+      await DB.setSetting('novelTempSave_' + wid, { text, savedAt: Date.now() });
+      Utils.toast('임시저장 완료', 'success');
+      // Update toolbar label without re-rendering
+      const timeStr = new Date().toLocaleString('ko-KR', { month:'numeric', day:'numeric', hour:'2-digit', minute:'2-digit' });
+      const existingLabel = container.querySelector('#btnTempLoad')?.nextElementSibling;
+      const newLabel = `임시저장: ${timeStr}`;
+      const loadBtn = document.getElementById('btnTempLoad');
+      if (loadBtn) loadBtn.style.opacity = '1';
+      if (existingLabel && existingLabel.tagName === 'SPAN') {
+        existingLabel.textContent = newLabel;
+      } else if (loadBtn) {
+        const sp = document.createElement('span');
+        sp.style.cssText = 'font-size:10px;color:var(--color-text-muted);';
+        sp.textContent = newLabel;
+        loadBtn.insertAdjacentElement('afterend', sp);
+      }
+    });
+
+    // ── Temp load (with confirmation) ────────────────────────
+    document.getElementById('btnTempLoad')?.addEventListener('click', async () => {
+      const td = await DB.getSetting('novelTempSave_' + wid, null);
+      if (!td) { Utils.toast('임시 저장된 내용이 없습니다', 'error'); return; }
+      const savedTime = new Date(td.savedAt).toLocaleString('ko-KR');
+      const previewLen = td.text ? td.text.substring(0, 80).replace(/\n/g, ' ') : '';
+      Utils.openModal('임시 저장 불러오기', `
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="background:rgba(245,158,11,0.08);border:1px solid rgba(245,158,11,0.25);border-radius:8px;padding:12px 14px;">
+            <div style="font-size:11px;color:var(--color-warning);font-weight:700;margin-bottom:4px;">⚠️ 주의</div>
+            <div style="font-size:12px;color:var(--color-text-muted);line-height:1.6;">현재 작성 중인 내용이 임시 저장된 내용으로 교체됩니다.<br>현재 내용은 되돌리기(↩)로 복구할 수 있습니다.</div>
+          </div>
+          <div style="background:var(--color-surface2);border-radius:8px;padding:12px 14px;">
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">저장 시각: ${Utils.escHtml(savedTime)}</div>
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">${self._countChars(td.text).toLocaleString()}자</div>
+            ${previewLen ? `<div style="font-size:12px;color:var(--color-text-dim);font-style:italic;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(previewLen)}${td.text.length > 80 ? '...' : ''}</div>` : ''}
+          </div>
+        </div>`, async () => {
+          self._pushUndo(textarea.value);
+          textarea.value = td.text || '';
+          textarea.dispatchEvent(new Event('input'));
+          Utils.toast('불러와짐', 'success');
+          return true;
+        }, '불러오기');
+    });
+
+    // ── Insert modal ─────────────────────────────────────────
     document.getElementById('btnInsert')?.addEventListener('click', () => {
       self._openInsertModal(chars, skills, towers, gates, textarea);
     });
 
-    // ── Questions panel toggle ─────────────────────────────────
+    // ── Questions panel toggle ────────────────────────────────
     document.getElementById('btnToggleQuestions')?.addEventListener('click', () => {
       self._questionsExpanded = !self._questionsExpanded;
       const panel = document.getElementById('questionsPanel');
@@ -237,88 +393,13 @@ window.Pages.novelView = {
       if (chevron) chevron.textContent = self._questionsExpanded ? '▲' : '▼';
     });
 
-    // ── Questions: per-item edit ───────────────────────────────
-    container.querySelectorAll('.btn-q-edit').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const idx = parseInt(btn.dataset.idx, 10);
-        const qs = (await DB.getSetting('novelQuestions', null)) || [...self.THEMATIC_QUESTIONS];
-        const body = `
-          <div>
-            <label class="form-label" style="display:block;margin-bottom:6px;">질문 내용 수정</label>
-            <textarea class="textarea-field" id="fEditQuestion" rows="5"
-              style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.65;">${Utils.escHtml(qs[idx] || '')}</textarea>
-          </div>`;
-        Utils.openModal('질문 편집', body, async () => {
-          const newQ = document.getElementById('fEditQuestion')?.value.trim();
-          if (!newQ) { Utils.toast('내용을 입력하세요', 'error'); return false; }
-          qs[idx] = newQ;
-          await DB.setSetting('novelQuestions', qs);
-          Utils.toast('저장됨', 'success');
-          await saveBeforeReload();
-          self.init(self._container);
-          return true;
-        }, '저장');
-      });
+    // ── Go to settings for questions ──────────────────────────
+    document.getElementById('btnGoToQSettings')?.addEventListener('click', async () => {
+      await saveBeforeReload();
+      AppRouter.navigate('settings');
     });
 
-    // ── Questions: per-item delete ─────────────────────────────
-    container.querySelectorAll('.btn-q-del').forEach(btn => {
-      btn.addEventListener('click', async () => {
-        const idx = parseInt(btn.dataset.idx, 10);
-        const qs = (await DB.getSetting('novelQuestions', null)) || [...self.THEMATIC_QUESTIONS];
-        Utils.confirm('질문 삭제', '이 질문을 삭제하시겠습니까?', async () => {
-          qs.splice(idx, 1);
-          await DB.setSetting('novelQuestions', qs);
-          Utils.toast('삭제됨', 'info');
-          await saveBeforeReload();
-          self.init(self._container);
-        }, '삭제');
-      });
-    });
-
-    // ── Questions: add single ──────────────────────────────────
-    document.getElementById('btnAddQuestion')?.addEventListener('click', async () => {
-      const body = `
-        <div>
-          <label class="form-label" style="display:block;margin-bottom:6px;">새 질문 내용</label>
-          <textarea class="textarea-field" id="fNewQuestion" rows="4"
-            style="width:100%;box-sizing:border-box;font-size:13px;line-height:1.65;"
-            placeholder="새로운 주제 질문을 입력하세요"></textarea>
-        </div>`;
-      Utils.openModal('질문 추가', body, async () => {
-        const newQ = document.getElementById('fNewQuestion')?.value.trim();
-        if (!newQ) { Utils.toast('내용을 입력하세요', 'error'); return false; }
-        const qs = (await DB.getSetting('novelQuestions', null)) || [...self.THEMATIC_QUESTIONS];
-        qs.push(newQ);
-        await DB.setSetting('novelQuestions', qs);
-        Utils.toast('추가됨', 'success');
-        await saveBeforeReload();
-        self.init(self._container);
-        return true;
-      }, '추가');
-    });
-
-    // ── Questions: bulk edit ───────────────────────────────────
-    document.getElementById('btnEditQuestions')?.addEventListener('click', async () => {
-      const qs = (await DB.getSetting('novelQuestions', null)) || this.THEMATIC_QUESTIONS;
-      const body = `
-        <div>
-          <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:8px;">각 줄에 하나씩 입력하세요</div>
-          <textarea class="textarea-field" id="fQuestionsList" rows="14"
-            style="width:100%;box-sizing:border-box;font-size:12px;line-height:1.65;">${qs.join('\n')}</textarea>
-        </div>`;
-      Utils.openModal('주제 질문 전체편집', body, async () => {
-        const lines = document.getElementById('fQuestionsList')?.value.split('\n').map(l => l.trim()).filter(Boolean) || [];
-        if (!lines.length) { Utils.toast('질문이 없습니다', 'error'); return false; }
-        await DB.setSetting('novelQuestions', lines);
-        Utils.toast('저장됨', 'success');
-        await saveBeforeReload();
-        self.init(self._container);
-        return true;
-      }, '저장');
-    });
-
-    // ── Visual viewport (mobile keyboard) ─────────────────────
+    // ── Visual viewport (mobile keyboard) ────────────────────
     if ('visualViewport' in window) {
       const vvHandler = () => {
         const vv = window.visualViewport;
@@ -333,20 +414,6 @@ window.Pages.novelView = {
       window.visualViewport.addEventListener('scroll', vvHandler);
       self._vvHandler = vvHandler;
     }
-  },
-
-  // ── Question list item HTML ────────────────────────────────────
-  _questionItem: function(q, i) {
-    return `
-      <li style="font-size:12px;line-height:1.7;color:var(--color-text-muted);display:flex;align-items:flex-start;gap:6px;">
-        <span style="flex:1;word-break:keep-all;">${Utils.escHtml(q)}</span>
-        <div style="display:flex;gap:2px;flex-shrink:0;margin-top:2px;">
-          <button class="btn-q-edit" data-idx="${i}"
-            style="background:none;border:1px solid var(--color-border);cursor:pointer;color:var(--color-text-muted);font-size:11px;padding:2px 5px;border-radius:4px;line-height:1;" title="편집">편집</button>
-          <button class="btn-q-del" data-idx="${i}"
-            style="background:none;border:1px solid rgba(239,68,68,0.3);cursor:pointer;color:var(--color-danger);font-size:11px;padding:2px 5px;border-radius:4px;line-height:1;" title="삭제">✕</button>
-        </div>
-      </li>`;
   },
 
   // ── Insert modal (탭: 상태창 / 스킬 / 탑 / 게이트) ────────────
@@ -378,7 +445,6 @@ window.Pages.novelView = {
 
     const body = `
       <div>
-        <!-- Tab bar -->
         <div style="display:flex;gap:2px;margin-bottom:14px;background:var(--color-surface2);border-radius:8px;padding:3px;">
           ${tabBtn('tabBtnstatus', '상태창', true)}
           ${tabBtn('tabBtnskill', '스킬 설명', false)}
@@ -386,7 +452,6 @@ window.Pages.novelView = {
           ${tabBtn('tabBtngate', '게이트', false)}
         </div>
 
-        <!-- Tab: 상태창 -->
         <div id="tabPanestatus" style="display:block;">
           ${chars.length === 0
             ? '<div style="text-align:center;padding:24px;color:var(--color-text-muted);">캐릭터가 없습니다</div>'
@@ -405,7 +470,6 @@ window.Pages.novelView = {
               </div>`}
         </div>
 
-        <!-- Tab: 스킬 -->
         <div id="tabPaneskill" style="display:none;">
           ${skills.length === 0
             ? '<div style="text-align:center;padding:24px;color:var(--color-text-muted);">등록된 스킬이 없습니다</div>'
@@ -422,7 +486,6 @@ window.Pages.novelView = {
               </div>`}
         </div>
 
-        <!-- Tab: 탑 -->
         <div id="tabPanetower" style="display:none;">
           ${towers.length === 0
             ? '<div style="text-align:center;padding:24px;color:var(--color-text-muted);">등록된 탑이 없습니다</div>'
@@ -438,7 +501,6 @@ window.Pages.novelView = {
               </div>`}
         </div>
 
-        <!-- Tab: 게이트 -->
         <div id="tabPanegate" style="display:none;">
           ${gates.length === 0
             ? '<div style="text-align:center;padding:24px;color:var(--color-text-muted);">등록된 게이트가 없습니다</div>'
@@ -451,8 +513,7 @@ window.Pages.novelView = {
                 </div>
                 <div class="form-group">
                   <label class="form-label" style="font-size:12px;margin-bottom:4px;display:block;">복사할 항목 선택</label>
-                  <div id="gateFieldChecks" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;">
-                  </div>
+                  <div id="gateFieldChecks" style="display:flex;flex-direction:column;gap:4px;max-height:180px;overflow-y:auto;"></div>
                 </div>
               </div>`}
         </div>
@@ -467,12 +528,10 @@ window.Pages.novelView = {
         const char = chars.find(c => c.id === charId);
         if (!char) { Utils.toast('캐릭터를 선택하세요', 'error'); return false; }
         text = self._buildStatusText(char, viewMode === 'novel');
-
       } else if (insertState.tab === 'skill') {
         const skill = skills.find(s => s.id === insertState.selectedSkillId);
         if (!skill) { Utils.toast('스킬을 선택하세요', 'error'); return false; }
         text = self._buildSkillText(skill);
-
       } else if (insertState.tab === 'tower') {
         const towerId = document.getElementById('towerPickSelect')?.value;
         const tower = towers.find(t => t.id === towerId);
@@ -480,7 +539,6 @@ window.Pages.novelView = {
         const floor = tower?.floors?.find(f => String(f.floorNum) === floorNumVal);
         if (!floor) { Utils.toast('층을 선택하세요', 'error'); return false; }
         text = self._buildFloorText(tower, floor);
-
       } else if (insertState.tab === 'gate') {
         const gateId = document.getElementById('gatePickSelect')?.value;
         const gate = gates.find(gg => gg.id === gateId);
@@ -492,6 +550,9 @@ window.Pages.novelView = {
 
       if (!text) return false;
 
+      // Push undo snapshot BEFORE modifying textarea
+      self._pushUndo(textarea.value);
+
       const cursorPos = textarea.selectionStart;
       const before = textarea.value.substring(0, cursorPos);
       const after = textarea.value.substring(cursorPos);
@@ -500,7 +561,7 @@ window.Pages.novelView = {
       textarea.selectionStart = textarea.selectionEnd = cursorPos + insert.length;
       textarea.dispatchEvent(new Event('input'));
       textarea.focus();
-      Utils.toast('삽입됨', 'success');
+      Utils.toast('삽입됨 (되돌리기 ↩ 로 취소 가능)', 'success', 2500);
       return true;
     }, '삽입');
 
@@ -523,7 +584,6 @@ window.Pages.novelView = {
       });
     });
 
-    // Skill search
     document.getElementById('skillSearchInput')?.addEventListener('input', function() {
       const q = this.value.toLowerCase();
       document.querySelectorAll('.skill-pick-item').forEach(item => {
@@ -531,7 +591,6 @@ window.Pages.novelView = {
       });
     });
 
-    // Skill item selection
     document.querySelectorAll('.skill-pick-item').forEach(item => {
       item.addEventListener('click', () => {
         document.querySelectorAll('.skill-pick-item').forEach(i => {
@@ -547,7 +606,6 @@ window.Pages.novelView = {
       });
     });
 
-    // Tower floor list update
     const updateFloors = () => {
       const towerId = document.getElementById('towerPickSelect')?.value;
       const tower = towers.find(t => t.id === towerId);
@@ -563,7 +621,6 @@ window.Pages.novelView = {
     document.getElementById('towerPickSelect')?.addEventListener('change', updateFloors);
     if (towers.length > 0) updateFloors();
 
-    // Gate field checkboxes
     const GATE_FIELDS = [
       { key: 'grade', label: '등급' }, { key: 'type', label: '종류' },
       { key: 'breakType', label: '브레이크 유형' }, { key: 'motif', label: '모티브' },
@@ -591,7 +648,7 @@ window.Pages.novelView = {
     if (gates.length > 0) updateGateFields();
   },
 
-  // ── Text builders ──────────────────────────────────────────────
+  // ── Text builders ──────────────────────────────────────────────────────────
   _buildStatusText: function(char, novelView) {
     const bar = 'ㅡ'.repeat(8);
     const lines = [bar];
@@ -682,7 +739,6 @@ window.Pages.novelView = {
       lines.push('ㅣ[보상]');
       floor.rewards.split('\n').map(r => r.trim()).filter(Boolean).forEach(r => lines.push(`ㄴ${r}`));
     }
-    // Sub-floors
     if (floor.subFloors && floor.subFloors.length > 0) {
       floor.subFloors.forEach(sf => {
         lines.push(`ㅣ[서브층: ${sf.name || floor.floorNum + '-서브'}]${sf.hidden ? ' [히든]' : ''}`);
@@ -728,8 +784,12 @@ window.Pages.novelView = {
   destroy: function() {
     clearTimeout(this._saveTimer);
     clearInterval(this._autoSaveTimer);
+    clearTimeout(this._undoPushTimer);
     this._saveTimer = null;
     this._autoSaveTimer = null;
+    this._undoPushTimer = null;
+    this._undoStack = [];
+    this._undoPos = -1;
     this._container = null;
     this._wid = null;
     if (this._vvHandler && 'visualViewport' in window) {
