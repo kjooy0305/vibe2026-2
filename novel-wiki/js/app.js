@@ -116,6 +116,7 @@
         ['keywords', window.Pages?.keywords],
         ['stat-defs', window.Pages?.statDefs],
         ['traps', window.Pages?.traps],
+        ['places', window.Pages?.places],
       ];
 
       pageModules.forEach(([id, mod]) => {

@@ -18,6 +18,7 @@ const AppRouter = (function() {
     keywords: '키워드 메모장',
     'stat-defs': '스텟 정의',
     traps: '함정 종류',
+    places: '장소',
   };
 
   function register(pageId, module) {
