@@ -213,7 +213,14 @@ const Utils = (function() {
     });
   }
 
-  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery };
+  function autoResizeTextareas(root) {
+    (root || document).querySelectorAll('textarea').forEach(ta => {
+      ta.style.height = 'auto';
+      ta.style.height = Math.min(ta.scrollHeight, 500) + 'px';
+    });
+  }
+
+  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery, autoResizeTextareas };
 })();
 window.Utils = Utils;
 

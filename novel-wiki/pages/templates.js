@@ -54,6 +54,12 @@ window.Pages.templates = {
       desc: '성좌 계열 분류 (멸망성좌·타락성좌 등)' },
     { key: 'constellationTiers',  label: '성좌 티어',        icon: '👑',
       desc: '성좌 위계/티어 목록' },
+    { key: 'govTypes',            label: '국가 정치체계',    icon: '🏛️',
+      desc: '국가 정치체계 목록 (민주주의·군주제 등)' },
+    { key: 'econTypes',           label: '국가 경제체계',    icon: '💰',
+      desc: '국가 경제체계 목록 (자본주의·사회주의 등)' },
+    { key: 'militaryLevels',      label: '군사력 등급',      icon: '⚔️',
+      desc: '국가 군사력 등급 목록 (최강·강·중·약 등)' },
   ],
 
   // ── Default field templates ─────────────────────────────────────────────────

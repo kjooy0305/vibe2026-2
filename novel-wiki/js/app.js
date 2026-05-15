@@ -51,7 +51,7 @@
     const items = [
       { icon: '🌍', label: '세계/차원 관리', page: 'world' },
       { icon: '⚙️', label: '설정', page: 'settings' },
-      { icon: '📋', label: '템플릿 설정', page: 'templates' },
+      { icon: '📋', label: '기본 설정 수정', page: 'templates' },
       { icon: '📖', label: '상태창 뷰어', page: 'status-viewer' },
     ];
     menu.innerHTML = `
@@ -114,6 +114,7 @@
         ['companies', window.Pages?.companies],
         ['reminders', window.Pages?.reminders],
         ['keywords', window.Pages?.keywords],
+        ['stat-defs', window.Pages?.statDefs],
       ];
 
       pageModules.forEach(([id, mod]) => {
@@ -152,6 +153,14 @@
       document.getElementById('initialLoader').innerHTML = `<div style="color:#ef4444;padding:24px;text-align:center;">앱 초기화 오류<br><small>${e.message}</small></div>`;
     }
   }
+
+  // Global auto-resize for all textareas
+  document.addEventListener('input', e => {
+    if (e.target.tagName === 'TEXTAREA') {
+      e.target.style.height = 'auto';
+      e.target.style.height = Math.min(e.target.scrollHeight, 500) + 'px';
+    }
+  }, true);
 
   if (document.readyState === 'loading') {
     document.addEventListener('DOMContentLoaded', boot);

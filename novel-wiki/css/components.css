@@ -1796,6 +1796,9 @@
   min-height: 80px;
   line-height: 1.6;
   font-family: inherit;
+  word-break: break-word;
+  overflow-wrap: break-word;
+  white-space: pre-wrap;
 }
 .textarea-field:focus { border-color: var(--color-primary); box-shadow: 0 0 0 3px var(--color-primary-glow); }
 .textarea-field::placeholder { color: var(--color-text-dim); }
