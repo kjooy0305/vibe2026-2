@@ -249,6 +249,17 @@ window.Pages.gates = {
         <div style="background:var(--color-surface2);border-radius:10px;padding:16px;margin-bottom:10px;">
           <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:12px;letter-spacing:1px;">내부 정보</div>
           ${field('적', gate.enemies, true)}
+          ${(gate.enemyRefs && gate.enemyRefs.length > 0) ? `
+            <div style="margin-bottom:10px;">
+              <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">몬스터/캐릭터 연결</div>
+              <div style="display:flex;flex-wrap:wrap;gap:4px;">
+                ${gate.enemyRefs.map(e => {
+                  const icon = e.type === 'character' ? '👤' : '👾';
+                  const gradeStr = e.grade ? ` (${Utils.escHtml(e.grade)})` : '';
+                  return `<span style="display:inline-flex;align-items:center;gap:3px;background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:2px 8px;font-size:12px;">${icon} ${Utils.escHtml(e.name)}${gradeStr} <span style="color:var(--color-text-muted);font-size:11px;">×${e.count || 1}${Utils.escHtml(e.unit || '')}</span></span>`;
+                }).join('')}
+              </div>
+            </div>` : ''}
           ${field('특징', gate.features, true)}
           ${field('내부 구성', gate.internalStructure, true)}
           ${field('공략 방법', gate.strategy, true)}
@@ -338,10 +349,18 @@ window.Pages.gates = {
 
   // ── FORM ────────────────────────────────────────────────────────────────────
 
-  _openForm: function(gate, wid, container) {
+  _openForm: async function(gate, wid, container) {
     const isEdit = !!gate;
     const g = gate || {};
     const self = this;
+
+    const [allMonsters, allChars] = await Promise.all([
+      DB.getAll('monsters', wid),
+      DB.getAll('characters', wid),
+    ]);
+
+    // State for enemyRefs
+    let gateEnemyRefs = [...(g.enemyRefs || [])];
 
     const allTypes = [...this.TYPES, ...(this._customTypes || [])];
     const allBreakTypes = [...this.BREAK_TYPES, ...(this._customBreakTypes || [])];
@@ -434,6 +453,19 @@ window.Pages.gates = {
         </div>
         ${tf('fGateScale', '규모', g.scale, '예: 중규모')}
         ${ta('fGateEnemies', '적', g.enemies, '적 설명')}
+        <div style="margin-top:4px;">
+          <div style="font-size:12px;font-weight:700;color:var(--color-primary);margin-bottom:6px;">몬스터/캐릭터 연결</div>
+          <div id="gateEnemyRefChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;margin-bottom:4px;">${gateEnemyRefs.map(e => {
+            const icon = e.type === 'character' ? '👤' : '👾';
+            const gradeStr = e.grade ? ` (${Utils.escHtml(e.grade)})` : '';
+            return `<span class="gate-eref-chip" data-eid="${Utils.escHtml(e.id)}" data-etype="${Utils.escHtml(e.type || 'monster')}" data-ename="${Utils.escHtml(e.name || '')}" data-egrade="${Utils.escHtml(e.grade || '')}" style="display:inline-flex;align-items:center;gap:3px;background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:2px 5px;margin:2px;font-size:12px;">${icon} ${Utils.escHtml(e.name)}${gradeStr}<input type="number" class="eref-count" value="${e.count || 1}" min="1" style="width:36px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;text-align:center;" /><input class="eref-unit" value="${Utils.escHtml(e.unit || (e.type === 'character' ? '명' : '마리'))}" style="width:28px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;" /><button class="gate-eref-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;">✕</button></span>`;
+          }).join('')}</div>
+          <div style="position:relative;">
+            <input class="input-field" id="gateErefSearch" placeholder="몬스터/캐릭터 검색..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="gateErefResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
+        </div>
         ${ta('fGateFeatures', '특징', g.features, '특징 설명', 4)}
         ${ta('fGateInternalStructure', '내부 구성', g.internalStructure, '내부 구성 설명', 3)}
         ${ta('fGateStrategy', '공략 방법', g.strategy, '공략 방법', 3)}
@@ -496,6 +528,16 @@ window.Pages.gates = {
         if (url) images.push({ url, caption });
       });
 
+      // Collect enemy refs from chips
+      const savedEnemyRefs = Array.from(document.querySelectorAll('#globalModalBody .gate-eref-chip')).map(chip => ({
+        id: chip.dataset.eid,
+        type: chip.dataset.etype || 'monster',
+        name: chip.dataset.ename || '',
+        grade: chip.dataset.egrade || '',
+        count: parseInt(chip.querySelector('.eref-count')?.value || '1', 10) || 1,
+        unit: chip.querySelector('.eref-unit')?.value || (chip.dataset.etype === 'character' ? '명' : '마리'),
+      }));
+
       const data = {
         id: g.id || DB.genId(),
         worldId: wid,
@@ -509,6 +551,7 @@ window.Pages.gates = {
         maxPlayers: document.getElementById('fGateMaxPlayers')?.value.trim() || '',
         scale: document.getElementById('fGateScale')?.value.trim() || '',
         enemies: document.getElementById('fGateEnemies')?.value.trim() || '',
+        enemyRefs: savedEnemyRefs,
         features: document.getElementById('fGateFeatures')?.value.trim() || '',
         internalStructure: document.getElementById('fGateInternalStructure')?.value.trim() || '',
         strategy: document.getElementById('fGateStrategy')?.value.trim() || '',
@@ -546,6 +589,60 @@ window.Pages.gates = {
       btSelect?.addEventListener('change', () => {
         btCustom.style.display = btSelect.value === '__custom__' ? 'block' : 'none';
       });
+
+      // Enemy ref chip deletes (existing chips)
+      document.getElementById('gateEnemyRefChips')?.querySelectorAll('.gate-eref-del').forEach(btn => {
+        btn.addEventListener('click', () => btn.closest('.gate-eref-chip').remove());
+      });
+
+      // Enemy ref inline search
+      const erefInp = document.getElementById('gateErefSearch');
+      const erefRes = document.getElementById('gateErefResults');
+      if (erefInp && erefRes) {
+        const allMonChars = [
+          ...allMonsters.map(m => ({ ...m, _etype: 'monster' })),
+          ...allChars.map(c => ({ ...c, _etype: 'character' })),
+        ];
+        erefInp.addEventListener('input', () => {
+          const q = erefInp.value.trim();
+          if (!q) { erefRes.style.display = 'none'; erefRes.innerHTML = ''; return; }
+          const matches = allMonChars.filter(d => Utils.matchesQuery((d.name || '') + ' ' + (d.grade || ''), q)).slice(0, 20);
+          if (!matches.length) { erefRes.style.display = 'none'; return; }
+          erefRes.innerHTML = matches.map(d => {
+            const icon = d._etype === 'character' ? '👤' : '👾';
+            const gradeStr = d.grade ? ` (${Utils.escHtml(d.grade)})` : '';
+            const typeLabel = d._etype === 'character' ? '캐릭터' : '몬스터';
+            return `<div class="eref-search-row" data-id="${Utils.escHtml(d.id)}" data-name="${Utils.escHtml(d.name || '')}" data-grade="${Utils.escHtml(d.grade || '')}" data-etype="${d._etype}" style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-surface3)'" onmouseout="this.style.background=''">${icon} ${Utils.escHtml(d.name || '')}${gradeStr} <span style="font-size:10px;color:var(--color-text-muted);">${typeLabel}</span></div>`;
+          }).join('');
+          erefRes.style.display = 'block';
+          erefRes.querySelectorAll('.eref-search-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              const chipsContainer = document.getElementById('gateEnemyRefChips');
+              if (!chipsContainer) return;
+              // Check for duplicate
+              const existingIds = Array.from(chipsContainer.querySelectorAll('.gate-eref-chip')).map(c => c.dataset.eid);
+              if (existingIds.includes(row.dataset.id)) { erefInp.value = ''; erefRes.style.display = 'none'; return; }
+              const icon = row.dataset.etype === 'character' ? '👤' : '👾';
+              const gradeStr = row.dataset.grade ? ` (${Utils.escHtml(row.dataset.grade)})` : '';
+              const defaultUnit = row.dataset.etype === 'character' ? '명' : '마리';
+              const span = document.createElement('span');
+              span.className = 'gate-eref-chip';
+              span.dataset.eid = row.dataset.id;
+              span.dataset.etype = row.dataset.etype;
+              span.dataset.ename = row.dataset.name;
+              span.dataset.egrade = row.dataset.grade;
+              span.style.cssText = 'display:inline-flex;align-items:center;gap:3px;background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:2px 5px;margin:2px;font-size:12px;';
+              span.innerHTML = `${icon} ${Utils.escHtml(row.dataset.name)}${gradeStr}<input type="number" class="eref-count" value="1" min="1" style="width:36px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;text-align:center;" /><input class="eref-unit" value="${defaultUnit}" style="width:28px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;" /><button class="gate-eref-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;">✕</button>`;
+              span.querySelector('.gate-eref-del').addEventListener('click', () => span.remove());
+              chipsContainer.appendChild(span);
+              erefInp.value = '';
+              erefRes.style.display = 'none';
+            });
+          });
+        });
+        erefInp.addEventListener('blur', () => setTimeout(() => { erefRes.style.display = 'none'; }, 200));
+      }
 
       // Delete image slot
       document.getElementById('globalModalBody')?.addEventListener('click', e => {
