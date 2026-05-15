@@ -115,6 +115,7 @@
         ['reminders', window.Pages?.reminders],
         ['keywords', window.Pages?.keywords],
         ['stat-defs', window.Pages?.statDefs],
+        ['traps', window.Pages?.traps],
       ];
 
       pageModules.forEach(([id, mod]) => {

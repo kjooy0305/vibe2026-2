@@ -17,6 +17,7 @@ const AppRouter = (function() {
     countries: '국가', companies: '기업', reminders: '리마인더',
     keywords: '키워드 메모장',
     'stat-defs': '스텟 정의',
+    traps: '함정 종류',
   };
 
   function register(pageId, module) {
