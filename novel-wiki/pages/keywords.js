@@ -235,7 +235,7 @@ window.Pages.keywords = {
         </div>`;
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">폴더 이름 (필수)</label>
           <input class="input-field" id="fFolderName" value="${Utils.escHtml(f.name || '')}" placeholder="예: 상태이상, 개념, 용어집" style="width:100%;box-sizing:border-box;" />
@@ -482,7 +482,7 @@ window.Pages.keywords = {
     const tagsVal = Array.isArray(k.tags) ? k.tags.join(', ') : '';
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">키워드 이름 (필수)</label>
           <input class="input-field" id="fKwName" value="${Utils.escHtml(k.name || '')}" placeholder="예: 마나중독, 헌터, 게이트 폭주..." style="width:100%;box-sizing:border-box;" />

@@ -335,7 +335,7 @@ window.Pages.gods = {
     };
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">이름 *</label>
           <input class="input-field" id="fGOName" value="${Utils.escHtml(o.name || '')}" placeholder="판테온 이름" style="width:100%;box-sizing:border-box;" />
@@ -491,7 +491,7 @@ window.Pages.gods = {
     const rankColor = rank?.color || '#fbbf24';
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
         ${rankName ? `<div style="font-size:12px;color:${rankColor};font-weight:700;padding:5px 10px;background:${rankColor}15;border-radius:6px;">계급: ${Utils.escHtml(rankName)}</div>` : ''}
 
         <div class="form-group">

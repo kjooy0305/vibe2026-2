@@ -371,7 +371,7 @@ window.Pages.organizations = {
               <span style="font-size:13px;">${Utils.escHtml(c.name)} <span style="color:var(--color-text-muted);">Lv.${c.level || 0} · ${Utils.escHtml(c.race || '인간')}</span></span>
             </label>`).join('');
 
-      Utils.openModal('구성원 관리', `<div style="max-height:60vh;overflow-y:auto;">${checkboxes}</div>`, async () => {
+      Utils.openModal('구성원 관리', `<div style="">${checkboxes}</div>`, async () => {
         const selected = [...document.querySelectorAll('input[data-cid]:checked')].map(cb => cb.dataset.cid);
         org.members = selected;
         org.updatedAt = Date.now();
@@ -420,7 +420,7 @@ window.Pages.organizations = {
     ].join('');
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:70vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">조직명 *</label>
           <input class="input-field" id="fOrgName" value="${Utils.escHtml(org?.name || '')}"

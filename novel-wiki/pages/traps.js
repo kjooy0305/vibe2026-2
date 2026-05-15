@@ -295,7 +295,7 @@ window.Pages.traps = {
       </div>` : '';
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">함정 이름 *</label>
           <input class="input-field" id="fTrName" value="${Utils.escHtml(tr.name || '')}"

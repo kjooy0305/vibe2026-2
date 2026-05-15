@@ -378,7 +378,7 @@ window.Pages.places = {
     const hasRefData = countries.length > 0 || allCities.length > 0 || gates.length > 0 || towers.length > 0 || companies.length > 0;
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:14px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:14px;padding-right:4px;">
 
         <!-- 이름 -->
         <div class="form-group">

@@ -525,7 +525,7 @@ window.Pages.characters = {
               <span>⚡ ${Utils.escHtml(sk.name)} ${sk.grade ? `(${sk.grade})` : ''}</span>
             </label>`).join('');
 
-      Utils.openModal('스킬 관리', `<div style="max-height:60vh;overflow-y:auto;">${skillCheckboxes}</div>`, async () => {
+      Utils.openModal('스킬 관리', `<div style="">${skillCheckboxes}</div>`, async () => {
         const selected = [...document.querySelectorAll('input[data-skid]:checked')]
           .map(cb => {
             const sk = allSkills.find(s => s.id === cb.dataset.skid);
@@ -789,7 +789,7 @@ window.Pages.characters = {
     let newImage = char?.image || null;
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:80vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <!-- 캐릭터 유형 선택 -->
         <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">캐릭터 유형</label>

@@ -572,167 +572,14 @@ window.Pages.tower = {
       ? (existingFloors.length > 0 ? Math.max(...existingFloors.map(ff => ff.floorNum || 0)) + 1 : 1)
       : undefined;
 
-    // Load all required data
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills] = await Promise.all([
-      DB.getAll('monsters', wid),
-      DB.getAll('characters', wid),
-      DB.getAll('traps', wid),
-      DB.getAll('items', wid),
-      DB.getAll('places', wid),
-      DB.getAll('skills', wid),
-    ]);
+    const allMonsters = await DB.getAll('monsters', wid);
 
-    // State
-    let formConcepts = new Set(f.concepts || []);
-    let formWaves = (f.waveConfig?.waves || []).map(w => ({
-      ...w,
-      enemies: [...(w.enemies || [])],
-      traps: [...(w.traps || [])],
-    }));
-    let bossPhases = (f.bossConfig?.phases || []).map(p => ({
-      ...p,
-      attacks: [...(p.attacks || [])],
-    }));
-    let bossEnemies = [...(f.bossConfig?.enemies || [])];
-    let decapTargets = [...(f.decapitationConfig?.targets || [])];
-    let exRef = { ...(f.explorationConfig?.target || { id: '', name: '' }) };
-
-    // Place ref helpers
-    const mkPlaceRef = (src) => ({ type: src?.type || 'text', id: src?.id || '', name: src?.name || '', desc: src?.desc || '' });
-    let waveGlobalFixedPlace = mkPlaceRef(f.waveConfig?.fixedPlace);
-    let bossPlace = mkPlaceRef(f.bossConfig?.place);
-
-    // ── HTML Builders ──
-
-    const placeRefHtml = (prefix, ref) => `
-      <div class="place-ref-wrap" id="${prefix}PlaceRefWrap" style="margin-top:6px;">
-        <div style="display:flex;gap:12px;margin-bottom:4px;">
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-            <input type="radio" name="${prefix}PlaceType" value="text" ${ref.type === 'text' ? 'checked' : ''} /> 텍스트 입력
-          </label>
-          <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-            <input type="radio" name="${prefix}PlaceType" value="ref" ${ref.type === 'ref' ? 'checked' : ''} /> 장소창에서 선택
-          </label>
-        </div>
-        <div id="${prefix}PlaceTextDiv" style="display:${ref.type !== 'ref' ? 'block' : 'none'};">
-          <input class="input-field" id="${prefix}PlaceText" value="${Utils.escHtml(ref.desc || '')}" placeholder="장소 설명 입력" style="width:100%;box-sizing:border-box;font-size:12px;" />
-        </div>
-        <div id="${prefix}PlaceRefDiv" style="display:${ref.type === 'ref' ? 'block' : 'none'};position:relative;">
-          <input class="input-field" id="${prefix}PlaceSearch" placeholder="장소 검색..." value="${Utils.escHtml(ref.name || '')}" style="width:100%;box-sizing:border-box;font-size:12px;" autocomplete="off" />
-          <div id="${prefix}PlaceResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
-          <input type="hidden" id="${prefix}PlaceId" value="${Utils.escHtml(ref.id || '')}" />
-          ${ref.name ? `<div id="${prefix}PlaceSelected" style="font-size:11px;color:var(--color-primary);margin-top:2px;">선택됨: ${Utils.escHtml(ref.name)}</div>` : `<div id="${prefix}PlaceSelected" style="font-size:11px;color:var(--color-primary);margin-top:2px;display:none;"></div>`}
-        </div>
+    const ta = (id, label, val, rows, placeholder) => `
+      <div class="form-group">
+        <label class="form-label">${label}</label>
+        <textarea class="input-field" id="${id}" rows="${rows || 3}" placeholder="${placeholder || ''}"
+          style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(val || '')}</textarea>
       </div>`;
-
-    const chipHtml = (e, type) => {
-      const icon = type === 'char' ? '👤' : type === 'trap' ? '⚠️' : type === 'item' ? '📦' : '👾';
-      const gradeStr = e.grade ? ` (${Utils.escHtml(e.grade)})` : '';
-      return `<span class="entity-chip" data-eid="${Utils.escHtml(e.id)}" data-etype="${type}" data-ename="${Utils.escHtml(e.name || '')}" data-egrade="${Utils.escHtml(e.grade || '')}" style="display:inline-flex;align-items:center;gap:3px;background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:2px 5px;margin:2px;font-size:12px;">
-        ${icon} ${Utils.escHtml(e.name)}${gradeStr}
-        <input type="number" class="chip-count" value="${e.count || 1}" min="1" style="width:36px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;text-align:center;" />
-        <input class="chip-unit" value="${Utils.escHtml(e.unit || (type === 'char' ? '명' : type === 'trap' ? '개' : '마리'))}" style="width:28px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;" />
-        <button class="chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;">✕</button>
-      </span>`;
-    };
-
-    const entitySearchHtml = (inputId, resultId, placeholder) => `
-      <div style="position:relative;margin-top:4px;">
-        <input class="input-field" id="${inputId}" placeholder="${placeholder}" autocomplete="off"
-          style="width:100%;box-sizing:border-box;font-size:12px;" />
-        <div id="${resultId}" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
-      </div>`;
-
-    const waveRowHtml = (w, idx) => {
-      const locationFixed = w.locationFixed || 'move';
-      const wavePlace = mkPlaceRef(w.place);
-      const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
-      const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
-      return `
-      <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div style="font-weight:700;font-size:13px;color:#60a5fa;">${idx + 1}웨이브</div>
-          <button class="btn btn-ghost btn-sm wave-del-btn" data-widx="${idx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
-        </div>
-        <div class="wave-location-wrap" style="margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">이동 유형</div>
-          <div style="display:flex;gap:10px;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-              <input type="radio" name="waveLoc${idx}" class="wave-loc-radio" value="fixed" ${locationFixed === 'fixed' ? 'checked' : ''} data-widx="${idx}" /> 장소고정
-            </label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-              <input type="radio" name="waveLoc${idx}" class="wave-loc-radio" value="move" ${locationFixed === 'move' ? 'checked' : ''} data-widx="${idx}" /> 이동
-            </label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-              <input type="radio" name="waveLoc${idx}" class="wave-loc-radio" value="puzzle" ${locationFixed === 'puzzle' ? 'checked' : ''} data-widx="${idx}" /> 퍼즐
-            </label>
-          </div>
-          <div class="wave-place-ref-wrap" id="wavePlaceRef${idx}" style="margin-top:4px;display:${locationFixed === 'fixed' ? 'block' : 'none'};">
-            ${placeRefHtml('waveP' + idx, wavePlace)}
-          </div>
-        </div>
-        <div style="margin-bottom:6px;">
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:4px;">
-            <input type="checkbox" class="wave-event-cb" data-widx="${idx}" ${w.hasEvent ? 'checked' : ''} /> 사건발생
-          </label>
-          <div class="wave-event-wrap" id="waveEventWrap${idx}" style="display:${w.hasEvent ? 'block' : 'none'};">
-            <textarea class="input-field wave-event-desc" data-widx="${idx}" rows="2" placeholder="사건 설명"
-              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(w.eventDesc || '')}</textarea>
-          </div>
-        </div>
-        <div style="margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">적</div>
-          <div class="wave-enemy-chips" id="waveEnemyChips${idx}" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${enemyChips}</div>
-          ${entitySearchHtml('waveEnemySearch' + idx, 'waveEnemyResults' + idx, '몬스터/캐릭터 검색...')}
-        </div>
-        <div style="margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">트랩</div>
-          <div class="wave-trap-chips" id="waveTrapChips${idx}" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${trapChips}</div>
-          ${entitySearchHtml('waveTrapSearch' + idx, 'waveTrapResults' + idx, '트랩 검색...')}
-        </div>
-        <div class="form-group" style="margin-bottom:4px;">
-          <label style="font-size:11px;color:var(--color-text-muted);font-weight:600;">클리어 조건</label>
-          <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="클리어 조건"
-            style="width:100%;box-sizing:border-box;font-size:12px;" />
-        </div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-          <input type="checkbox" class="wave-exlink-cb" data-widx="${idx}" ${w.explorationLink ? 'checked' : ''} /> 탐험컨셉연계
-        </label>
-      </div>`;
-    };
-
-    const phaseRowHtml = (p, pidx) => {
-      const attacksHtml = (p.attacks || []).map((atk, aidx) => `
-        <div class="atk-row" data-pidx="${pidx}" data-aidx="${aidx}" style="background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;padding:8px;margin-bottom:6px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-            <div style="font-size:11px;font-weight:700;color:#c084fc;">공격 ${aidx + 1}</div>
-            <button class="btn btn-ghost btn-sm atk-del-btn" data-pidx="${pidx}" data-aidx="${aidx}" style="color:var(--color-danger);font-size:10px;">삭제</button>
-          </div>
-          <input class="input-field atk-name" data-pidx="${pidx}" data-aidx="${aidx}" value="${Utils.escHtml(atk.name || '')}" placeholder="공격 이름"
-            style="width:100%;box-sizing:border-box;font-size:12px;margin-bottom:4px;" />
-          <div style="position:relative;margin-bottom:4px;">
-            <input class="input-field atk-skill-search" data-pidx="${pidx}" data-aidx="${aidx}" placeholder="스킬 검색..." value="${Utils.escHtml(atk.skillName || '')}"
-              autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
-            <div class="atk-skill-results" data-pidx="${pidx}" data-aidx="${aidx}" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
-            <input type="hidden" class="atk-skill-id" data-pidx="${pidx}" data-aidx="${aidx}" value="${Utils.escHtml(atk.skillId || '')}" />
-          </div>
-          <textarea class="input-field atk-desc" data-pidx="${pidx}" data-aidx="${aidx}" rows="2" placeholder="공격 설명"
-            style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(atk.desc || '')}</textarea>
-        </div>`).join('');
-      return `
-      <div class="phase-row" data-pidx="${pidx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-          <div style="font-weight:700;font-size:13px;color:#c084fc;">페이즈 ${pidx + 1}</div>
-          <button class="btn btn-ghost btn-sm phase-del-btn" data-pidx="${pidx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
-        </div>
-        <input class="input-field phase-cond" data-pidx="${pidx}" value="${Utils.escHtml(p.condition || '')}" placeholder="HP% 조건 (예: HP 50% 이하)"
-          style="width:100%;box-sizing:border-box;font-size:12px;margin-bottom:4px;" />
-        <textarea class="input-field phase-desc" data-pidx="${pidx}" rows="2" placeholder="페이즈 설명"
-          style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;margin-bottom:6px;">${Utils.escHtml(p.desc || '')}</textarea>
-        <div class="phase-attacks" id="phaseAttacks${pidx}">${attacksHtml}</div>
-        <button class="btn btn-ghost btn-sm atk-add-btn" data-pidx="${pidx}" style="font-size:11px;border:1px dashed var(--color-border);width:100%;">+ 공격 추가</button>
-      </div>`;
-    };
 
     const imgHtml = newImage
       ? `<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
@@ -742,39 +589,8 @@ window.Pages.tower = {
          </div>`
       : '';
 
-    const CONCEPT_DEFS = [
-      { id: 'wave', label: '웨이브(wave)', disabled: false },
-      { id: 'exploration', label: '탐험(exploration)', disabled: false },
-      { id: 'decapitation', label: '참수작전(decapitation)', disabled: false },
-      { id: 'boss', label: '보스전(boss)', disabled: false },
-      { id: 'defense', label: '방어전', disabled: true },
-      { id: 'siege', label: '공성전', disabled: true },
-      { id: 'speedrun', label: '스피드런', disabled: true },
-      { id: 'survival', label: '생존', disabled: true },
-    ];
-
-    const conceptChipsHtml = CONCEPT_DEFS.map(c => {
-      const checked = formConcepts.has(c.id) && !c.disabled;
-      if (c.disabled) {
-        return `<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface3,#1e2030);cursor:not-allowed;opacity:0.45;font-size:12px;">
-          <input type="checkbox" disabled />
-          ${c.label} <span style="font-size:10px;color:var(--color-text-dim);">(준비 중)</span>
-        </label>`;
-      }
-      return `<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface3,#1e2030);cursor:pointer;font-size:12px;" class="concept-chip-label">
-        <input type="checkbox" class="concept-cb" value="${c.id}" ${checked ? 'checked' : ''} />
-        ${c.label}
-      </label>`;
-    }).join('');
-
-    const exType = f.explorationConfig?.targetType || 'item';
-    const exItemRef = f.explorationConfig?.target?.type === 'item' || !f.explorationConfig ? (f.explorationConfig?.target || {}) : {};
-    const exPlaceRef = mkPlaceRef(f.explorationConfig?.target?.type === 'place' ? f.explorationConfig.target : null);
-
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
-
-        <!-- Basic info -->
+      <div style="display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">층 번호 *</label>
           <input class="input-field" id="fFloorNum" type="number"
@@ -788,20 +604,19 @@ window.Pages.tower = {
             placeholder="예: 슬라임 사냥터, 마의 삼림" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
-          <label class="form-label">특징</label>
-          <textarea class="input-field" id="fFloorFeatures" rows="3" placeholder="예: 마기 농도 높음&#10;중력 2배"
-            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.features || '')}</textarea>
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+            <label class="form-label" style="margin:0;">적 (줄바꿈으로 구분)</label>
+            ${allMonsters.length > 0
+              ? `<button type="button" class="btn btn-ghost btn-sm" id="btnPickMonsters" style="font-size:11px;">👾 몬스터에서 추가</button>`
+              : ''}
+          </div>
+          <textarea class="input-field" id="fFloorEnemies" rows="3"
+            placeholder="예: 슬라임(F급) - 10명&#10;오거(D급) - 3명"
+            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.enemies || '')}</textarea>
         </div>
-        <div class="form-group">
-          <label class="form-label">퀘스트</label>
-          <textarea class="input-field" id="fFloorQuests" rows="2" placeholder="퀘스트 조건"
-            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.quests || '')}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">보상</label>
-          <textarea class="input-field" id="fFloorRewards" rows="2" placeholder="보상 내용"
-            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.rewards || '')}</textarea>
-        </div>
+        ${ta('fFloorFeatures', '특징 (줄바꿈으로 각 항목)', f.features, 4, '예: 마기 농도 높음\n중력 2배')}
+        ${ta('fFloorQuests', '퀘스트', f.quests, 2, '퀘스트 조건')}
+        ${ta('fFloorRewards', '보상', f.rewards, 2, '보상 내용')}
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
             <input type="checkbox" id="fFloorHidden" ${f.hidden ? 'checked' : ''} />
@@ -813,363 +628,8 @@ window.Pages.tower = {
           <div id="floorImgPreview">${imgHtml}</div>
           <input type="file" id="floorImageFile" accept="image/*" style="font-size:13px;" />
         </div>
-
-        <!-- Concept chips -->
-        <div style="border-top:1px solid var(--color-border);padding-top:10px;">
-          <div style="font-size:12px;font-weight:700;color:var(--color-primary);margin-bottom:8px;">컨셉 선택</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;" id="conceptChipArea">
-            ${conceptChipsHtml}
-          </div>
-        </div>
-
-        <!-- Wave section -->
-        <div id="sectionWave" style="display:${formConcepts.has('wave') ? 'block' : 'none'};border-top:1px solid #60a5fa44;padding-top:10px;">
-          <div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:8px;">🌊 웨이브 설정</div>
-          <div style="display:flex;gap:16px;margin-bottom:6px;">
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
-              <input type="checkbox" id="waveGlobalLocFixed" ${f.waveConfig?.locationFixed ? 'checked' : ''} /> 전체위치고정
-            </label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
-              <input type="checkbox" id="waveGlobalEventFixed" ${f.waveConfig?.hasEventFixed ? 'checked' : ''} /> 전체사건고정
-            </label>
-          </div>
-          <div id="waveGlobalLocWrap" style="display:${f.waveConfig?.locationFixed ? 'block' : 'none'};margin-bottom:6px;padding:8px;background:var(--color-surface3,#1e2030);border-radius:6px;">
-            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">전체 위치 지정</div>
-            ${placeRefHtml('globalWave', waveGlobalFixedPlace)}
-          </div>
-          <div id="waveGlobalEventWrap" style="display:${f.waveConfig?.hasEventFixed ? 'block' : 'none'};margin-bottom:6px;">
-            <textarea class="input-field" id="waveGlobalEventDesc" rows="2" placeholder="전체 사건 설명"
-              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(f.waveConfig?.fixedEventDesc || '')}</textarea>
-          </div>
-          <div id="waveList">${formWaves.map((w, i) => waveRowHtml(w, i)).join('')}</div>
-          <button class="btn btn-ghost btn-sm" id="btnAddWave" style="width:100%;border:1px dashed #60a5fa55;font-size:12px;color:#60a5fa;margin-top:4px;">+ 웨이브 추가</button>
-        </div>
-
-        <!-- Exploration section -->
-        <div id="sectionExploration" style="display:${formConcepts.has('exploration') ? 'block' : 'none'};border-top:1px solid #34d39944;padding-top:10px;">
-          <div style="font-size:12px;font-weight:700;color:#34d399;margin-bottom:8px;">🔍 탐험 설정</div>
-          <div style="margin-bottom:6px;">
-            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">클리어 유형</div>
-            <div style="display:flex;gap:12px;">
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-                <input type="radio" name="exType" id="exTypeItem" value="item" ${exType === 'item' ? 'checked' : ''} /> 아이템찾기
-              </label>
-              <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-                <input type="radio" name="exType" id="exTypePlace" value="place" ${exType === 'place' ? 'checked' : ''} /> 장소·상황해결
-              </label>
-            </div>
-          </div>
-          <div id="exItemWrap" style="display:${exType === 'item' ? 'block' : 'none'};margin-bottom:6px;position:relative;">
-            <input class="input-field" id="exItemSearch" placeholder="아이템 검색..." value="${Utils.escHtml(exItemRef.name || '')}"
-              autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
-            <div id="exItemResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
-            <input type="hidden" id="exItemId" value="${Utils.escHtml(exItemRef.id || '')}" />
-            ${exItemRef.name ? `<div id="exItemSelected" style="font-size:11px;color:var(--color-primary);margin-top:2px;">선택됨: ${Utils.escHtml(exItemRef.name)}</div>` : '<div id="exItemSelected" style="font-size:11px;color:var(--color-primary);margin-top:2px;display:none;"></div>'}
-          </div>
-          <div id="exPlaceWrap" style="display:${exType === 'place' ? 'block' : 'none'};margin-bottom:6px;position:relative;">
-            <input class="input-field" id="exPlaceSearch" placeholder="장소 검색..." value="${Utils.escHtml(exPlaceRef.name || '')}"
-              autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
-            <div id="exPlaceResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
-            <input type="hidden" id="exPlaceId" value="${Utils.escHtml(exPlaceRef.id || '')}" />
-            ${exPlaceRef.name ? `<div id="exPlaceSelected" style="font-size:11px;color:var(--color-primary);margin-top:2px;">선택됨: ${Utils.escHtml(exPlaceRef.name)}</div>` : '<div id="exPlaceSelected" style="font-size:11px;color:var(--color-primary);margin-top:2px;display:none;"></div>'}
-          </div>
-          <textarea class="input-field" id="exClearDesc" rows="2" placeholder="클리어 설명"
-            style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(f.explorationConfig?.clearDesc || '')}</textarea>
-        </div>
-
-        <!-- Decapitation section -->
-        <div id="sectionDecapitation" style="display:${formConcepts.has('decapitation') ? 'block' : 'none'};border-top:1px solid #f8717144;padding-top:10px;">
-          <div style="font-size:12px;font-weight:700;color:#f87171;margin-bottom:8px;">⚔️ 참수작전 설정</div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">제거 대상</div>
-          <div id="decapChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${decapTargets.map(t => chipHtml(t, t.type || 'monster')).join('')}</div>
-          ${entitySearchHtml('decapSearch', 'decapResults', '몬스터/캐릭터 검색...')}
-          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:8px;">
-            <input type="checkbox" id="decapApplyInWaves" ${f.decapitationConfig?.applyInWaves ? 'checked' : ''} /> 웨이브에서적용
-          </label>
-        </div>
-
-        <!-- Boss section -->
-        <div id="sectionBoss" style="display:${formConcepts.has('boss') ? 'block' : 'none'};border-top:1px solid #c084fc44;padding-top:10px;">
-          <div style="font-size:12px;font-weight:700;color:#c084fc;margin-bottom:8px;">👑 보스전 설정</div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">보스 위치</div>
-          ${placeRefHtml('boss', bossPlace)}
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">보스 적</div>
-          <div id="bossEnemyChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${bossEnemies.map(e => chipHtml(e, e.type || 'monster')).join('')}</div>
-          ${entitySearchHtml('bossEnemySearch', 'bossEnemyResults', '몬스터/캐릭터 검색...')}
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">페이즈</div>
-          <div id="phaseList">${bossPhases.map((p, i) => phaseRowHtml(p, i)).join('')}</div>
-          <button class="btn btn-ghost btn-sm" id="btnAddPhase" style="width:100%;border:1px dashed #c084fc55;font-size:12px;color:#c084fc;margin-top:4px;">+ 페이즈 추가</button>
-        </div>
-
       </div>`;
 
-    // ── wireSearch helper (runs after modal renders) ──
-    const wireSearch = (inputId, resultId, data, renderRow, onSelect) => {
-      const inp = document.getElementById(inputId);
-      const res = document.getElementById(resultId);
-      if (!inp || !res) return;
-      inp.addEventListener('input', () => {
-        const q = inp.value.trim();
-        if (!q) { res.style.display = 'none'; res.innerHTML = ''; return; }
-        const matches = data.filter(d => Utils.matchesQuery((d.name || '') + ' ' + (d.grade || ''), q)).slice(0, 20);
-        if (!matches.length) { res.style.display = 'none'; return; }
-        res.innerHTML = matches.map(d => renderRow(d)).join('');
-        res.style.display = 'block';
-        res.querySelectorAll('.search-row').forEach(row => {
-          row.addEventListener('mousedown', e => {
-            e.preventDefault();
-            onSelect(row.dataset);
-            inp.value = '';
-            res.style.display = 'none';
-          });
-        });
-      });
-      inp.addEventListener('blur', () => setTimeout(() => { res.style.display = 'none'; }, 200));
-    };
-
-    const entityRow = (d) => `<div class="search-row" data-id="${Utils.escHtml(d.id)}" data-name="${Utils.escHtml(d.name || '')}" data-grade="${Utils.escHtml(d.grade || '')}" data-etype="${Utils.escHtml(d._etype || 'monster')}" style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-surface3)'" onmouseout="this.style.background=''">${Utils.escHtml(d.name || '')}${d.grade ? ' (' + Utils.escHtml(d.grade) + ')' : ''} <span style="font-size:10px;color:var(--color-text-muted);">${d._etype === 'char' ? '캐릭터' : '몬스터'}</span></div>`;
-    const entityRowTrap = (d) => `<div class="search-row" data-id="${Utils.escHtml(d.id)}" data-name="${Utils.escHtml(d.name || '')}" data-grade="${Utils.escHtml(d.grade || '')}" data-etype="trap" style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-surface3)'" onmouseout="this.style.background=''">${Utils.escHtml(d.name || '')}${d.grade ? ' (' + Utils.escHtml(d.grade) + ')' : ''}</div>`;
-    const itemRow = (d) => `<div class="search-row" data-id="${Utils.escHtml(d.id)}" data-name="${Utils.escHtml(d.name || '')}" style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-surface3)'" onmouseout="this.style.background=''">${Utils.escHtml(d.name || '')}</div>`;
-    const placeRow = (d) => `<div class="search-row" data-id="${Utils.escHtml(d.id)}" data-name="${Utils.escHtml(d.name || '')}" style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-surface3)'" onmouseout="this.style.background=''">${Utils.escHtml(d.name || '')}</div>`;
-    const skillRow = (d) => `<div class="search-row" data-id="${Utils.escHtml(d.id)}" data-name="${Utils.escHtml(d.name || '')}" style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);" onmouseover="this.style.background='var(--color-surface3)'" onmouseout="this.style.background=''">${Utils.escHtml(d.name || '')}</div>`;
-
-    const addChipToContainer = (containerId, ent, etype) => {
-      const c = document.getElementById(containerId);
-      if (!c) return;
-      const existing = c.querySelectorAll('.entity-chip');
-      for (const chip of existing) {
-        if (chip.dataset.eid === ent.id) return; // already added
-      }
-      const span = document.createElement('span');
-      span.innerHTML = chipHtml({ id: ent.id, name: ent.name, grade: ent.grade, count: 1, unit: etype === 'char' ? '명' : etype === 'trap' ? '개' : '마리', type: etype }, etype);
-      const chipEl = span.firstElementChild;
-      chipEl.querySelector('.chip-del').addEventListener('click', () => chipEl.remove());
-      c.appendChild(chipEl);
-    };
-
-    const readChipsFromContainer = (containerId, defaultType) => {
-      const c = document.getElementById(containerId);
-      if (!c) return [];
-      return Array.from(c.querySelectorAll('.entity-chip')).map(chip => ({
-        id: chip.dataset.eid,
-        type: chip.dataset.etype || defaultType,
-        name: chip.dataset.ename || '',
-        grade: chip.dataset.egrade || '',
-        count: parseInt(chip.querySelector('.chip-count')?.value || '1', 10) || 1,
-        unit: chip.querySelector('.chip-unit')?.value || (defaultType === 'char' ? '명' : defaultType === 'trap' ? '개' : '마리'),
-      }));
-    };
-
-    const wireChipDeletes = (containerId) => {
-      const c = document.getElementById(containerId);
-      if (!c) return;
-      c.querySelectorAll('.chip-del').forEach(btn => {
-        btn.addEventListener('click', () => btn.closest('.entity-chip').remove());
-      });
-    };
-
-    const wirePlaceRef = (prefix, refObj) => {
-      const textDiv = document.getElementById(prefix + 'PlaceTextDiv');
-      const refDiv = document.getElementById(prefix + 'PlaceRefDiv');
-      const radios = document.querySelectorAll(`[name="${prefix}PlaceType"]`);
-      radios.forEach(r => {
-        r.addEventListener('change', () => {
-          if (r.value === 'text') {
-            if (textDiv) textDiv.style.display = 'block';
-            if (refDiv) refDiv.style.display = 'none';
-          } else {
-            if (textDiv) textDiv.style.display = 'none';
-            if (refDiv) refDiv.style.display = 'block';
-          }
-        });
-      });
-      wireSearch(prefix + 'PlaceSearch', prefix + 'PlaceResults', allPlaces, placeRow, (ds) => {
-        const idEl = document.getElementById(prefix + 'PlaceId');
-        const selEl = document.getElementById(prefix + 'PlaceSelected');
-        const searchEl = document.getElementById(prefix + 'PlaceSearch');
-        if (idEl) idEl.value = ds.id;
-        if (selEl) { selEl.textContent = '선택됨: ' + ds.name; selEl.style.display = ''; }
-        if (searchEl) searchEl.value = ds.name;
-        refObj.id = ds.id; refObj.name = ds.name; refObj.type = 'ref';
-      });
-    };
-
-    const readPlaceRef = (prefix) => {
-      const radios = document.querySelectorAll(`[name="${prefix}PlaceType"]`);
-      let type = 'text';
-      radios.forEach(r => { if (r.checked) type = r.value; });
-      if (type === 'ref') {
-        return {
-          type: 'ref',
-          id: document.getElementById(prefix + 'PlaceId')?.value || '',
-          name: document.getElementById(prefix + 'PlaceSearch')?.value || '',
-          desc: '',
-        };
-      }
-      return { type: 'text', id: '', name: '', desc: document.getElementById(prefix + 'PlaceText')?.value || '' };
-    };
-
-    const syncBossPhasesFromDOM = () => {
-      document.querySelectorAll('#globalModalBody .phase-row').forEach(row => {
-        const pidx = parseInt(row.dataset.pidx, 10);
-        if (!bossPhases[pidx]) return;
-        bossPhases[pidx].condition = row.querySelector('.phase-cond')?.value || '';
-        bossPhases[pidx].desc = row.querySelector('.phase-desc')?.value || '';
-        const attackRows = row.querySelectorAll('.atk-row');
-        const attacks = [];
-        attackRows.forEach(ar => {
-          const aidx = parseInt(ar.dataset.aidx, 10);
-          attacks.push({
-            name: ar.querySelector('.atk-name')?.value || '',
-            skillId: ar.querySelector('.atk-skill-id')?.value || '',
-            skillName: ar.querySelector('.atk-skill-search')?.value || '',
-            desc: ar.querySelector('.atk-desc')?.value || '',
-          });
-        });
-        bossPhases[pidx].attacks = attacks;
-      });
-    };
-
-    const reRenderWaveList = () => {
-      const wl = document.getElementById('waveList');
-      if (wl) {
-        wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i)).join('');
-        wireWaveSection();
-      }
-    };
-
-    const reRenderPhaseList = () => {
-      const pl = document.getElementById('phaseList');
-      if (pl) {
-        pl.innerHTML = bossPhases.map((p, i) => phaseRowHtml(p, i)).join('');
-        wireBossSection();
-      }
-    };
-
-    const wireWaveSection = () => {
-      const allMonChars = [
-        ...allMonsters.map(m => ({ ...m, _etype: 'monster' })),
-        ...allChars.map(c => ({ ...c, _etype: 'char' })),
-      ];
-
-      // Wire per-wave enemy/trap search
-      formWaves.forEach((w, idx) => {
-        wireChipDeletes('waveEnemyChips' + idx);
-        wireChipDeletes('waveTrapChips' + idx);
-        wireSearch('waveEnemySearch' + idx, 'waveEnemyResults' + idx, allMonChars, entityRow, (ds) => {
-          addChipToContainer('waveEnemyChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype);
-        });
-        wireSearch('waveTrapSearch' + idx, 'waveTrapResults' + idx, allTraps, entityRowTrap, (ds) => {
-          addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap');
-        });
-        // Location radio toggle
-        const locRadios = document.querySelectorAll(`.wave-loc-radio[data-widx="${idx}"]`);
-        locRadios.forEach(r => {
-          r.addEventListener('change', () => {
-            const placeWrap = document.getElementById('wavePlaceRef' + idx);
-            if (placeWrap) placeWrap.style.display = r.value === 'fixed' ? 'block' : 'none';
-          });
-        });
-        wirePlaceRef('waveP' + idx, w.place ? mkPlaceRef(w.place) : { type: 'text', id: '', name: '', desc: '' });
-        // Event checkbox
-        const evCb = document.querySelector(`.wave-event-cb[data-widx="${idx}"]`);
-        const evWrap = document.getElementById('waveEventWrap' + idx);
-        if (evCb && evWrap) {
-          evCb.addEventListener('change', () => {
-            evWrap.style.display = evCb.checked ? 'block' : 'none';
-          });
-        }
-        // Delete wave
-        const delBtn = document.querySelector(`.wave-del-btn[data-widx="${idx}"]`);
-        if (delBtn) {
-          delBtn.addEventListener('click', () => {
-            // Save current state from DOM before removing
-            document.querySelectorAll('#globalModalBody .wave-row').forEach(row => {
-              const wi = parseInt(row.dataset.widx, 10);
-              if (!formWaves[wi]) return;
-              const locRadioEl = row.querySelector('.wave-loc-radio:checked');
-              formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
-              formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
-              formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-              formWaves[wi].clearCondition = row.querySelector('.wave-clear-cond')?.value || '';
-              formWaves[wi].explorationLink = row.querySelector('.wave-exlink-cb')?.checked || false;
-              formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
-              formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
-            });
-            formWaves.splice(idx, 1);
-            reRenderWaveList();
-          });
-        }
-      });
-    };
-
-    const wireBossSection = () => {
-      wireChipDeletes('bossEnemyChips');
-      const allMonChars = [
-        ...allMonsters.map(m => ({ ...m, _etype: 'monster' })),
-        ...allChars.map(c => ({ ...c, _etype: 'char' })),
-      ];
-      wireSearch('bossEnemySearch', 'bossEnemyResults', allMonChars, entityRow, (ds) => {
-        addChipToContainer('bossEnemyChips', { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype);
-      });
-      wirePlaceRef('boss', bossPlace);
-
-      // Phase controls
-      bossPhases.forEach((p, pidx) => {
-        const delBtn = document.querySelector(`.phase-del-btn[data-pidx="${pidx}"]`);
-        if (delBtn) {
-          delBtn.addEventListener('click', () => {
-            syncBossPhasesFromDOM();
-            bossPhases.splice(pidx, 1);
-            reRenderPhaseList();
-          });
-        }
-        const addAtkBtn = document.querySelector(`.atk-add-btn[data-pidx="${pidx}"]`);
-        if (addAtkBtn) {
-          addAtkBtn.addEventListener('click', () => {
-            syncBossPhasesFromDOM();
-            if (!bossPhases[pidx].attacks) bossPhases[pidx].attacks = [];
-            bossPhases[pidx].attacks.push({ name: '', skillId: '', skillName: '', desc: '' });
-            reRenderPhaseList();
-          });
-        }
-        // Attack deletes
-        document.querySelectorAll(`.atk-del-btn[data-pidx="${pidx}"]`).forEach(btn => {
-          btn.addEventListener('click', () => {
-            syncBossPhasesFromDOM();
-            const aidx = parseInt(btn.dataset.aidx, 10);
-            bossPhases[pidx].attacks.splice(aidx, 1);
-            reRenderPhaseList();
-          });
-        });
-        // Skill search for each attack
-        document.querySelectorAll(`.atk-skill-search[data-pidx="${pidx}"]`).forEach(inp => {
-          const aidx = parseInt(inp.dataset.aidx, 10);
-          const resEl = document.querySelector(`.atk-skill-results[data-pidx="${pidx}"][data-aidx="${aidx}"]`);
-          const idEl = document.querySelector(`.atk-skill-id[data-pidx="${pidx}"][data-aidx="${aidx}"]`);
-          if (!inp || !resEl) return;
-          inp.addEventListener('input', () => {
-            const q = inp.value.trim();
-            if (!q) { resEl.style.display = 'none'; resEl.innerHTML = ''; return; }
-            const matches = allSkills.filter(s => Utils.matchesQuery(s.name || '', q)).slice(0, 20);
-            if (!matches.length) { resEl.style.display = 'none'; return; }
-            resEl.innerHTML = matches.map(s => skillRow(s)).join('');
-            resEl.style.display = 'block';
-            resEl.querySelectorAll('.search-row').forEach(row => {
-              row.addEventListener('mousedown', e => {
-                e.preventDefault();
-                if (idEl) idEl.value = row.dataset.id;
-                inp.value = row.dataset.name;
-                resEl.style.display = 'none';
-              });
-            });
-          });
-          inp.addEventListener('blur', () => setTimeout(() => { resEl.style.display = 'none'; }, 200));
-        });
-      });
-    };
-
-    // ── Save callback ──
     Utils.openModal(isEdit ? `${f.floorNum}층 편집` : '새 층 추가', body, async () => {
       const numVal = document.getElementById('fFloorNum')?.value;
       if (numVal === '' || numVal === null || numVal === undefined) {
@@ -1185,72 +645,16 @@ window.Pages.tower = {
       const imgFile = document.getElementById('floorImageFile')?.files?.[0];
       if (imgFile) newImage = await Utils.imageToBase64(imgFile);
 
-      // Collect wave data from DOM
-      const savedWaves = formWaves.map((w, idx) => {
-        const row = document.querySelector(`.wave-row[data-widx="${idx}"]`);
-        const locRadioEl = row ? row.querySelector('.wave-loc-radio:checked') : null;
-        const locType = locRadioEl ? locRadioEl.value : (w.locationFixed || 'move');
-        return {
-          locationFixed: locType,
-          place: locType === 'fixed' ? readPlaceRef('waveP' + idx) : null,
-          hasEvent: row ? (row.querySelector('.wave-event-cb')?.checked || false) : (w.hasEvent || false),
-          eventDesc: row ? (row.querySelector('.wave-event-desc')?.value || '') : (w.eventDesc || ''),
-          enemies: readChipsFromContainer('waveEnemyChips' + idx, 'monster'),
-          traps: readChipsFromContainer('waveTrapChips' + idx, 'trap'),
-          clearCondition: row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || ''),
-          explorationLink: row ? (row.querySelector('.wave-exlink-cb')?.checked || false) : (w.explorationLink || false),
-        };
-      });
-
-      // Collect decap targets
-      const savedDecapTargets = readChipsFromContainer('decapChips', 'monster');
-
-      // Collect boss data
-      syncBossPhasesFromDOM();
-      const savedBossEnemies = readChipsFromContainer('bossEnemyChips', 'monster');
-      const savedBossPlace = readPlaceRef('boss');
-      const savedPhases = bossPhases.map(p => ({ ...p }));
-
-      // Exploration
-      const exTypeVal = document.querySelector('[name="exType"]:checked')?.value || 'item';
-      let savedExRef;
-      if (exTypeVal === 'item') {
-        savedExRef = { type: 'item', id: document.getElementById('exItemId')?.value || '', name: document.getElementById('exItemSearch')?.value || '' };
-      } else {
-        savedExRef = { type: 'place', id: document.getElementById('exPlaceId')?.value || '', name: document.getElementById('exPlaceSearch')?.value || '' };
-      }
-
       const floorData = {
         floorNum,
         theme:    document.getElementById('fFloorTheme')?.value.trim()    || '',
+        enemies:  document.getElementById('fFloorEnemies')?.value.trim()  || '',
         features: document.getElementById('fFloorFeatures')?.value.trim() || '',
         quests:   document.getElementById('fFloorQuests')?.value.trim()   || '',
         rewards:  document.getElementById('fFloorRewards')?.value.trim()  || '',
         hidden:   document.getElementById('fFloorHidden')?.checked        || false,
         image:    newImage,
         subFloors: f.subFloors || [],
-        concepts: [...formConcepts],
-        waveConfig: formConcepts.has('wave') ? {
-          locationFixed: document.getElementById('waveGlobalLocFixed')?.checked || false,
-          hasEventFixed: document.getElementById('waveGlobalEventFixed')?.checked || false,
-          fixedPlace: readPlaceRef('globalWave'),
-          fixedEventDesc: document.getElementById('waveGlobalEventDesc')?.value || '',
-          waves: savedWaves,
-        } : null,
-        explorationConfig: formConcepts.has('exploration') ? {
-          targetType: exTypeVal,
-          target: savedExRef,
-          clearDesc: document.getElementById('exClearDesc')?.value || '',
-        } : null,
-        decapitationConfig: formConcepts.has('decapitation') ? {
-          targets: savedDecapTargets,
-          applyInWaves: document.getElementById('decapApplyInWaves')?.checked || false,
-        } : null,
-        bossConfig: formConcepts.has('boss') ? {
-          place: savedBossPlace,
-          enemies: savedBossEnemies,
-          phases: savedPhases,
-        } : null,
       };
 
       const floors = (tower.floors || []).filter(ff => ff.floorNum !== floorNum);
@@ -1260,6 +664,7 @@ window.Pages.tower = {
       await DB.put('towers', tower);
       Utils.toast(isEdit ? '저장됨' : '추가됨', 'success');
 
+      // Jump to the bundle containing this floor
       this._bundleStart = floorNum === 0 ? 0 : (Math.floor((floorNum - 1) / this.BUNDLE_SIZE) * this.BUNDLE_SIZE + 1);
       this._expandedFloor = floorNum;
 
@@ -1269,9 +674,8 @@ window.Pages.tower = {
       return true;
     }, isEdit ? '저장' : '추가');
 
-    // ── Wire all interactions after modal renders ──
     setTimeout(() => {
-      // Duplicate floor number detection
+      // Real-time duplicate floor number detection
       const floorNumInput = document.getElementById('fFloorNum');
       if (floorNumInput && !isEdit) {
         floorNumInput.addEventListener('input', () => {
@@ -1302,104 +706,75 @@ window.Pages.tower = {
           if (p) p.innerHTML = '';
         });
       });
+
+      // Image delete (for existing image)
       document.getElementById('btnDeleteFloorImg')?.addEventListener('click', () => {
         newImage = null;
         const prev = document.getElementById('floorImgPreview');
         if (prev) prev.innerHTML = '';
       });
 
-      // Concept chip toggles
-      document.querySelectorAll('.concept-cb').forEach(cb => {
-        cb.addEventListener('change', () => {
-          if (cb.checked) formConcepts.add(cb.value);
-          else formConcepts.delete(cb.value);
-          const sectionId = 'section' + cb.value.charAt(0).toUpperCase() + cb.value.slice(1);
-          const sec = document.getElementById(sectionId);
-          if (sec) sec.style.display = cb.checked ? 'block' : 'none';
+      // Monster picker
+      document.getElementById('btnPickMonsters')?.addEventListener('click', () => {
+        this._openMonsterPicker(allMonsters);
+      });
+    }, 50);
+  },
+
+  // ── MONSTER PICKER ──────────────────────────────────────────
+  _openMonsterPicker: function(monsters) {
+    const body = `
+      <div style="display:flex;flex-direction:column;gap:8px;max-height:60vh;">
+        <input class="input-field" id="monsterPickSearch" placeholder="몬스터 검색..."
+          style="width:100%;box-sizing:border-box;" />
+        <div id="monsterPickList" style="overflow-y:auto;flex:1;display:flex;flex-direction:column;gap:4px;-webkit-overflow-scrolling:touch;">
+          ${monsters.map((m, i) => `
+            <div class="monster-pick-row" style="display:flex;align-items:center;gap:8px;padding:8px 10px;background:var(--color-surface2);border-radius:8px;border:1px solid var(--color-border);"
+              data-name="${Utils.escHtml(m.name || '')}" data-grade="${Utils.escHtml(m.grade || '')}">
+              <input type="checkbox" class="monster-pick-cb" id="mpc_${i}"
+                data-name="${Utils.escHtml(m.name || '')}" data-grade="${Utils.escHtml(m.grade || '')}" />
+              <label for="mpc_${i}" style="flex:1;min-width:0;cursor:pointer;">
+                <div style="font-size:13px;font-weight:600;">${Utils.escHtml(m.name || '이름 없음')}</div>
+                ${m.grade ? `<div style="font-size:11px;color:var(--color-text-muted);">등급: ${Utils.escHtml(m.grade)}</div>` : ''}
+              </label>
+              <div style="display:flex;align-items:center;gap:3px;flex-shrink:0;">
+                <input type="number" class="monster-count-input" min="1" value="1"
+                  style="width:48px;padding:3px 5px;border-radius:5px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:12px;text-align:center;" />
+                <span style="font-size:11px;color:var(--color-text-muted);">명</span>
+              </div>
+            </div>`).join('')}
+        </div>
+      </div>`;
+
+    Utils.openModal('몬스터 추가', body, () => {
+      const checked = document.querySelectorAll('#globalModalBody .monster-pick-cb:checked');
+      if (checked.length === 0) { Utils.toast('몬스터를 선택하세요', 'error'); return false; }
+      const enemyTA = document.getElementById('fFloorEnemies');
+      if (!enemyTA) return false;
+      const toAdd = Array.from(checked).map(cb => {
+        const name = cb.dataset.name;
+        const grade = cb.dataset.grade;
+        const row = cb.closest('.monster-pick-row');
+        const count = parseInt(row?.querySelector('.monster-count-input')?.value || '1', 10) || 1;
+        return grade ? `${name}(${grade}급) - ${count}명` : `${name} - ${count}명`;
+      }).join('\n');
+      const existing = enemyTA.value.trim();
+      enemyTA.value = existing ? existing + '\n' + toAdd : toAdd;
+      return true;
+    }, '추가');
+
+    setTimeout(() => {
+      document.getElementById('monsterPickSearch')?.addEventListener('input', e => {
+        const q = e.target.value;
+        document.querySelectorAll('#globalModalBody .monster-pick-row').forEach(row => {
+          const txt = [(row.dataset.name||''), (row.dataset.grade||'')].join(' ');
+          row.style.display = Utils.matchesQuery(txt, q) ? '' : 'none';
         });
       });
-
-      // Wave section global controls
-      document.getElementById('waveGlobalLocFixed')?.addEventListener('change', e => {
-        const wrap = document.getElementById('waveGlobalLocWrap');
-        if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+      // Prevent count input click from toggling checkbox via bubbling
+      document.querySelectorAll('#globalModalBody .monster-count-input').forEach(inp => {
+        inp.addEventListener('click', e => e.stopPropagation());
       });
-      document.getElementById('waveGlobalEventFixed')?.addEventListener('change', e => {
-        const wrap = document.getElementById('waveGlobalEventWrap');
-        if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
-      });
-
-      // Wire global place ref
-      wirePlaceRef('globalWave', waveGlobalFixedPlace);
-
-      // Wire wave list
-      wireWaveSection();
-
-      // Add wave button
-      document.getElementById('btnAddWave')?.addEventListener('click', () => {
-        // Save current wave DOM state
-        document.querySelectorAll('#globalModalBody .wave-row').forEach(row => {
-          const wi = parseInt(row.dataset.widx, 10);
-          if (!formWaves[wi]) return;
-          const locRadioEl = row.querySelector('.wave-loc-radio:checked');
-          formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
-          formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
-          formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-          formWaves[wi].clearCondition = row.querySelector('.wave-clear-cond')?.value || '';
-          formWaves[wi].explorationLink = row.querySelector('.wave-exlink-cb')?.checked || false;
-          formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
-          formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
-        });
-        formWaves.push({ locationFixed: 'move', hasEvent: false, eventDesc: '', enemies: [], traps: [], clearCondition: '', explorationLink: false });
-        reRenderWaveList();
-      });
-
-      // Wire exploration section
-      const exItemWrap = document.getElementById('exItemWrap');
-      const exPlaceWrap = document.getElementById('exPlaceWrap');
-      document.querySelectorAll('[name="exType"]').forEach(r => {
-        r.addEventListener('change', () => {
-          if (exItemWrap) exItemWrap.style.display = r.value === 'item' ? 'block' : 'none';
-          if (exPlaceWrap) exPlaceWrap.style.display = r.value === 'place' ? 'block' : 'none';
-        });
-      });
-      wireSearch('exItemSearch', 'exItemResults', allItems, itemRow, (ds) => {
-        const idEl = document.getElementById('exItemId');
-        const selEl = document.getElementById('exItemSelected');
-        const inp = document.getElementById('exItemSearch');
-        if (idEl) idEl.value = ds.id;
-        if (selEl) { selEl.textContent = '선택됨: ' + ds.name; selEl.style.display = ''; }
-        if (inp) inp.value = ds.name;
-        exRef.id = ds.id; exRef.name = ds.name;
-      });
-      wireSearch('exPlaceSearch', 'exPlaceResults', allPlaces, placeRow, (ds) => {
-        const idEl = document.getElementById('exPlaceId');
-        const selEl = document.getElementById('exPlaceSelected');
-        const inp = document.getElementById('exPlaceSearch');
-        if (idEl) idEl.value = ds.id;
-        if (selEl) { selEl.textContent = '선택됨: ' + ds.name; selEl.style.display = ''; }
-        if (inp) inp.value = ds.name;
-        exRef.id = ds.id; exRef.name = ds.name;
-      });
-
-      // Wire decapitation section
-      const allMonChars = [
-        ...allMonsters.map(m => ({ ...m, _etype: 'monster' })),
-        ...allChars.map(c => ({ ...c, _etype: 'char' })),
-      ];
-      wireChipDeletes('decapChips');
-      wireSearch('decapSearch', 'decapResults', allMonChars, entityRow, (ds) => {
-        addChipToContainer('decapChips', { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype);
-      });
-
-      // Wire boss section
-      wireBossSection();
-      document.getElementById('btnAddPhase')?.addEventListener('click', () => {
-        syncBossPhasesFromDOM();
-        bossPhases.push({ condition: '', desc: '', attacks: [] });
-        reRenderPhaseList();
-      });
-
     }, 50);
   },
 
@@ -1429,7 +804,7 @@ window.Pages.tower = {
       : '';
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow-y:auto;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">서브층 이름</label>
           <input class="input-field" id="fSubName" value="${Utils.escHtml(s.name || defaultName)}"

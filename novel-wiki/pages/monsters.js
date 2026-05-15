@@ -370,7 +370,7 @@ window.Pages.monsters = {
         </label>`;
     }).join('');
 
-    Utils.openModal('스킬 선택', `<div style="max-height:60vh;overflow-y:auto;">${rows}</div>`, async () => {
+    Utils.openModal('스킬 선택', `<div style="">${rows}</div>`, async () => {
       const selected = [...document.querySelectorAll('input[data-skid]:checked')]
         .map(cb => {
           const sk = allSkills.find(s => s.id === cb.dataset.skid);
@@ -441,7 +441,7 @@ window.Pages.monsters = {
     const lifespanMaxVal = m.lifespanMax !== null && m.lifespanMax !== undefined ? String(m.lifespanMax) : '';
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">이미지</label>
           <div id="monsterImgPreview" style="margin-bottom:6px;">

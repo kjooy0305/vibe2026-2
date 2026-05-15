@@ -399,7 +399,7 @@ window.Pages.gates = {
       </div>`;
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;max-height:70vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
         ${tf('fGateName', '이름 *', g.name, '던전 이름')}
         ${tf('fGateTrueName', '진명 (소설 뷰에서 숨김)', g.trueName, '진명')}
         <div class="form-group">
@@ -777,7 +777,7 @@ window.Pages.gates = {
     if (!fields.length) { Utils.toast('복사할 내용이 없습니다', 'error'); return; }
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:6px;max-height:60vh;overflow-y:auto;">
+      <div style="display:flex;flex-direction:column;gap:6px;">
         <div style="display:flex;gap:8px;margin-bottom:4px;">
           <button id="pCopyAll" class="btn btn-ghost btn-sm" style="font-size:11px;">전체 선택</button>
           <button id="pCopyNone" class="btn btn-ghost btn-sm" style="font-size:11px;">전체 해제</button>

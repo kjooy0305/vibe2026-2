@@ -347,7 +347,7 @@ window.Pages.countries = {
     let companyIds = [...(c.companyIds || [])];
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:75vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">${Utils.escHtml(cityLabel)} 이름 (필수)</label>
           <input class="input-field" id="fCityName" value="${Utils.escHtml(c.name || '')}" placeholder="${Utils.escHtml(cityLabel)} 이름" style="width:100%;box-sizing:border-box;" />
@@ -499,7 +499,7 @@ window.Pages.countries = {
       `<option value="${Utils.escHtml(v)}" ${item?.militaryLevel === v ? 'selected' : ''}>${Utils.escHtml(v)}</option>`).join('');
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:78vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <!-- 아이콘 -->
         <div>
           <label class="form-label">아이콘</label>

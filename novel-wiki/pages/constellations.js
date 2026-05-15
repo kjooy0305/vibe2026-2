@@ -533,7 +533,7 @@ window.Pages.constellations = {
     };
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <!-- 이름 -->
         <div class="form-group">
           <label class="form-label">이름 *</label>

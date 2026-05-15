@@ -462,7 +462,7 @@ window.Pages.items = {
     const currentOrigins = this._getItemOrigins(it);
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
         <div class="form-group">
           <label class="form-label">이름 *</label>
           <input class="input-field" id="fItName" value="${Utils.escHtml(it.name || '')}" placeholder="아이템 이름" style="width:100%;box-sizing:border-box;" />

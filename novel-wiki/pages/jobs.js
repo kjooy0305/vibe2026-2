@@ -334,7 +334,7 @@ window.Pages.jobs = {
     let skillIds  = (j.skills || []).map(s => s.id);
 
     const body = `
-    <div style="display:flex;flex-direction:column;gap:12px;max-height:72vh;overflow-y:auto;padding-right:4px;">
+    <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
       <div class="form-group">
         <label class="form-label">이름 *</label>
         <input class="input-field" id="fJobName" value="${Utils.escHtml(j.name || '')}" placeholder="직업 이름" style="width:100%;box-sizing:border-box;" />

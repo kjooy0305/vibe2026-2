@@ -326,7 +326,7 @@ window.Pages.races = {
       </span>`).join('');
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:12px;max-height:75vh;overflow-y:auto;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
 
         <!-- 이름 & 아이콘 -->
         <div class="form-group">
