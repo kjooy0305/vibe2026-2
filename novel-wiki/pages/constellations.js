@@ -86,8 +86,8 @@ window.Pages.constellations = {
           ${Utils.escHtml(world?.name || '현재 세계')} · ${constellations.length}개
         </p>
         <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
-          <input class="input-field" id="constFilter" placeholder="이름, 계열, 등급, 성운, 은하, 담당 영역 검색..." style="flex:1;" />
-          <button id="btnGroupView" class="btn btn-ghost btn-sm" style="font-size:11px;white-space:nowrap;">성운/은하</button>
+          <input class="input-field" id="constFilter" placeholder="이름, 계열, 등급, 성단, 은하, 담당 영역 검색..." style="flex:1;" />
+          <button id="btnGroupView" class="btn btn-ghost btn-sm" style="font-size:11px;white-space:nowrap;">성단/은하</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;" id="seriesFilters">
           <button class="const-series-chip active" data-series="" style="padding:3px 8px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-primary);color:#000;font-size:11px;cursor:pointer;">전체</button>
@@ -140,7 +140,7 @@ window.Pages.constellations = {
       if (btn) {
         btn.style.background = groupByNebulaGalaxy ? 'var(--color-primary)' : '';
         btn.style.color = groupByNebulaGalaxy ? '#000' : '';
-        btn.textContent = groupByNebulaGalaxy ? '성운/은하 ✓' : '성운/은하';
+        btn.textContent = groupByNebulaGalaxy ? '성단/은하 ✓' : '성단/은하';
       }
       refresh();
     });
@@ -158,7 +158,7 @@ window.Pages.constellations = {
     if (!listEl) return;
 
     let filtered = constellations.filter(c => {
-      const txt = [c.name, c.series, c.tier, c.domain, c.features, c.nebula, c.galaxy].filter(Boolean).join(' ');
+      const txt = [c.name, c.series, c.tier, c.domain, c.features, c.cluster, c.nebula, c.galaxy].filter(Boolean).join(' ');
       return Utils.matchesQuery(txt, query) && (!seriesFilter || c.series === seriesFilter);
     });
 
@@ -178,7 +178,7 @@ window.Pages.constellations = {
       const galaxyMap = {};
       filtered.forEach(c => {
         const gk = c.galaxy || '(은하 미지정)';
-        const nk = c.nebula || '(성운 미지정)';
+        const nk = c.cluster || c.nebula || '(성단 미지정)';
         if (!galaxyMap[gk]) galaxyMap[gk] = {};
         if (!galaxyMap[gk][nk]) galaxyMap[gk][nk] = [];
         galaxyMap[gk][nk].push(c);
@@ -187,7 +187,7 @@ window.Pages.constellations = {
         html += `<div style="font-size:12px;font-weight:800;color:#fbbf24;padding:8px 4px 4px;border-bottom:1px solid #fbbf2444;margin-bottom:10px;letter-spacing:0.5px;">🌌 ${Utils.escHtml(gk)}</div>`;
         Object.keys(galaxyMap[gk]).sort().forEach(nk => {
           html += `<div style="margin-left:10px;margin-bottom:10px;">
-            <div style="font-size:11px;font-weight:700;color:#8b5cf6;padding:4px 2px 4px;letter-spacing:0.5px;">☁️ ${Utils.escHtml(nk)}</div>
+            <div style="font-size:11px;font-weight:700;color:#8b5cf6;padding:4px 2px 4px;letter-spacing:0.5px;">🌟 ${Utils.escHtml(nk)}</div>
             ${galaxyMap[gk][nk].map(c => self._constCard(c)).join('')}
           </div>`;
         });
@@ -281,7 +281,7 @@ window.Pages.constellations = {
           ${c.tier ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${tc}22;color:${tc};border:1px solid ${tc}44;">${Utils.escHtml(c.tier)}</span>` : ''}
         </div>
         ${c.domain ? `<div style="font-size:12px;color:var(--color-text-muted);">담당: ${Utils.escHtml(c.domain)}</div>` : ''}
-        ${(c.nebula || c.galaxy) ? `<div style="font-size:11px;color:var(--color-text-dim);">${c.galaxy ? '🌌 ' + Utils.escHtml(c.galaxy) : ''}${c.galaxy && c.nebula ? ' · ' : ''}${c.nebula ? '☁️ ' + Utils.escHtml(c.nebula) : ''}</div>` : ''}
+        ${((c.cluster || c.nebula) || c.galaxy) ? `<div style="font-size:11px;color:var(--color-text-dim);">${c.galaxy ? '🌌 ' + Utils.escHtml(c.galaxy) : ''}${c.galaxy && (c.cluster || c.nebula) ? ' · ' : ''}${(c.cluster || c.nebula) ? '🌟 ' + Utils.escHtml(c.cluster || c.nebula) : ''}</div>` : ''}
         ${c.features ? `<div style="font-size:12px;color:var(--color-text-dim);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(c.features)}</div>` : ''}
       </div>
       <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;align-items:flex-end;">
@@ -354,7 +354,7 @@ window.Pages.constellations = {
           ${c.tier ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:${tc}22;color:${tc};border:1px solid ${tc}44;">등급: ${Utils.escHtml(c.tier)}</span>` : ''}
           ${c.domain ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(124,58,237,0.12);color:#c4b5fd;border:1px solid rgba(124,58,237,0.25);">담당: ${Utils.escHtml(c.domain)}</span>` : ''}
           ${c.galaxy ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">🌌 ${Utils.escHtml(c.galaxy)}</span>` : ''}
-          ${c.nebula ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(139,92,246,0.1);color:#8b5cf6;border:1px solid rgba(139,92,246,0.3);">☁️ ${Utils.escHtml(c.nebula)}</span>` : ''}
+          ${(c.cluster || c.nebula) ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(139,92,246,0.1);color:#8b5cf6;border:1px solid rgba(139,92,246,0.3);">🌟 ${Utils.escHtml(c.cluster || c.nebula)}</span>` : ''}
         </div>
         ${c.appearance ? `<div style="margin-bottom:12px;"><div style="font-size:11px;color:var(--color-text-muted);margin-bottom:3px;">외형</div><div style="white-space:pre-wrap;font-size:13px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(c.appearance))}</div></div>` : ''}
         ${c.features ? `<div><div style="font-size:11px;color:var(--color-text-muted);margin-bottom:3px;">특징</div><div style="white-space:pre-wrap;font-size:13px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(c.features))}</div></div>` : ''}
@@ -425,7 +425,7 @@ window.Pages.constellations = {
     document.getElementById('btnCopyConstText')?.addEventListener('click', () => {
       const text = Utils.toTextExport(`성좌: ${c.name}`, [
         ['계열', c.series], ['등급', c.tier], ['위계', c.hierarchy],
-        ['은하', c.galaxy], ['성운', c.nebula],
+        ['은하', c.galaxy], ['성단', c.cluster || c.nebula],
         ['담당 영역', c.domain], ['외형', c.appearance],
         ['특징', c.features], ['능력', c.abilities], ['약점', c.weaknesses],
       ]);
@@ -582,8 +582,8 @@ window.Pages.constellations = {
             <input class="input-field" id="fCsGalaxy" value="${Utils.escHtml(c.galaxy || '')}" placeholder="소속 은하명" style="width:100%;box-sizing:border-box;" />
           </div>
           <div class="form-group">
-            <label class="form-label">☁️ 성운</label>
-            <input class="input-field" id="fCsNebula" value="${Utils.escHtml(c.nebula || '')}" placeholder="소속 성운명" style="width:100%;box-sizing:border-box;" />
+            <label class="form-label">🌟 성단</label>
+            <input class="input-field" id="fCsCluster" value="${Utils.escHtml(c.cluster || c.nebula || '')}" placeholder="소속 성단명" style="width:100%;box-sizing:border-box;" />
           </div>
         </div>
 
@@ -653,7 +653,7 @@ window.Pages.constellations = {
         hierarchy: document.getElementById('fCsHierarchy')?.value.trim() || '',
         domain: document.getElementById('fCsDomain')?.value.trim() || '',
         galaxy: document.getElementById('fCsGalaxy')?.value.trim() || '',
-        nebula: document.getElementById('fCsNebula')?.value.trim() || '',
+        cluster: document.getElementById('fCsCluster')?.value.trim() || '',
         appearance: document.getElementById('fCsAppearance')?.value.trim() || '',
         features: document.getElementById('fCsFeatures')?.value.trim() || '',
         abilities: document.getElementById('fCsAbilities')?.value.trim() || '',

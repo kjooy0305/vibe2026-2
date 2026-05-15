@@ -19,6 +19,7 @@ const AppRouter = (function() {
     'stat-defs': '스텟 정의',
     traps: '함정 종류',
     places: '장소',
+    gods: '신',
   };
 
   function register(pageId, module) {

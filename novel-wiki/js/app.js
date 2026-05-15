@@ -117,6 +117,7 @@
         ['stat-defs', window.Pages?.statDefs],
         ['traps', window.Pages?.traps],
         ['places', window.Pages?.places],
+        ['gods', window.Pages?.gods],
       ];
 
       pageModules.forEach(([id, mod]) => {
