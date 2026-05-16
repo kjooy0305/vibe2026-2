@@ -1032,11 +1032,25 @@ window.Pages.tower = {
       });
     };
 
+    const applyGlobalLocFixed = (isFixed) => {
+      document.querySelectorAll('#globalModalBody .wave-loc-radio[value="fixed"]').forEach(radio => {
+        const label = radio.closest('label');
+        if (label) label.style.display = isFixed ? 'none' : '';
+        if (isFixed && radio.checked) {
+          const moveRadio = document.querySelector(`input[name="${radio.name}"][value="move"]`);
+          if (moveRadio) moveRadio.checked = true;
+          const placeRef = document.getElementById('wavePlaceRef' + radio.dataset.widx);
+          if (placeRef) placeRef.style.display = 'none';
+        }
+      });
+    };
+
     const reRenderWaveList = () => {
       const wl = document.getElementById('waveList');
       if (wl) {
         wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i)).join('');
         wireWaveSection();
+        applyGlobalLocFixed(document.getElementById('waveGlobalLocFixed')?.checked || false);
       }
     };
 
@@ -1357,6 +1371,7 @@ window.Pages.tower = {
       document.getElementById('waveGlobalLocFixed')?.addEventListener('change', e => {
         const wrap = document.getElementById('waveGlobalLocWrap');
         if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+        applyGlobalLocFixed(e.target.checked);
       });
       document.getElementById('waveGlobalEventFixed')?.addEventListener('change', e => {
         const wrap = document.getElementById('waveGlobalEventWrap');
@@ -1368,6 +1383,7 @@ window.Pages.tower = {
 
       // Wire wave list
       wireWaveSection();
+      applyGlobalLocFixed(document.getElementById('waveGlobalLocFixed')?.checked || false);
 
       // Add wave button
       document.getElementById('btnAddWave')?.addEventListener('click', () => {
