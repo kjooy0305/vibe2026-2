@@ -19,7 +19,7 @@
 
   커밋/배포 원칙:
     - 항상 master:master 로 push (git push origin master:master)
-    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v68)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v70)
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
@@ -29,7 +29,7 @@
   [ 루트 파일 ]
     index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
     manifest.json   — PWA 매니페스트
-    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v68)
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v70)
 
   [ js/ — 핵심 모듈 ]
     js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
@@ -40,8 +40,12 @@
     js/router.js    — AppRouter (해시 기반 SPA 라우터, 뒤로가기 스택)
     js/app.js       — 앱 부트스트랩, 서랍 메뉴, 헤더, 페이지 등록, 12초 로딩 타임아웃
     js/utils.js     — Utils (toast, confirm, openModal, escHtml, gradeColor 등)
+                      AppFlags: 동기 기능 플래그 캐시 (localStorage 기반)
+                        AppFlags.get(key, default) / AppFlags.set(key, value)
     js/constants.js — AppConstants (기본값, 등급 목록 등)
+                      AppConstants.load() → this._C 로 상수 비동기 로드
     js/search.js    — SearchEngine (전체 검색, 타입 필터 칩 UI: 전체/캐릭터/스킬/업적 등)
+                      search(query, worldId, scopeAll, typeFilter)
 
   [ css/ ]
     css/main.css        — 기본 변수, 레이아웃, 타이포그래피
@@ -57,6 +61,12 @@
     shortcuts.js      — 바로가기 전용 페이지 (하단탭 마지막 칸, 북마크+전체페이지 그리드)
     timeline.js       — 타임라인
     event-graph.js    — 사건 그래프
+                        · 캔버스 기반 노드-엣지 그래프 (드래그/핀치 줌 지원)
+                        · 노드색상: BASE_COLORS + 커스텀 컬러 피커 (+저장 버튼)
+                        · 연결(outcomes): 화살표 방향만, 타입 없음, label+edgeColor만 저장
+                        · 기존 데이터 호환: EDGE_COLORS 로 구버전 out.type 색상 fallback
+                        · 회귀 시스템 플래그(useRegression) on/off 시 회차 필드·필터·노드텍스트 연동
+                        · 사건 필터: 회차 칩 + 기준사건 깊이 필터
     family-tree.js    — 가족 관계도
     world-rules.js    — 세계관 규칙
 
@@ -65,6 +75,10 @@
     settings.js       — 설정 (아이콘 관리, 기능 플래그, 데이터 내보내기/가져오기,
                         수정 기록 보관 수 설정, 질문 관리, 앱 버전 표시 [SW 버전 자동 연동],
                         함정 아이콘 목록 관리 포함)
+                        기능 플래그 목록: gradeColors, showAuthorBadge, novelViewDefault,
+                          communityLockedDefault, showConstellationsInStatus,
+                          deleteConfirmInput, listScrollMemory, autoResetFilters,
+                          useRegression (회귀 시스템), searchScope
                         ※ 세계 타입 관리는 templates.js 로 이동됨
     templates.js      — 기본 설정 관리
                         · 탭1: 필드 템플릿 (스킬/아이템/직업/업적 등)
@@ -72,13 +86,20 @@
                         · 탭3: 게이트 목록 (종류/브레이크 유형 커스텀 CRUD)
                         · 탭4: 세계 타입 (세계/차원 편집 시 사용할 타입 목록 CRUD)
     status-viewer.js  — 상태창 뷰어 (소설 뷰 포함)
-    novel-view.js     — 소설 쓰기 뷰
+                        · HIDDEN_STATS 처리, 커뮤니티 패널, 성좌 계약 섹션
+    novel-view.js     — 소설 쓰기 뷰 (참고 질문 패널, 언두 지원)
 
     ── 캐릭터 & 생물 ──
     characters.js     — 캐릭터 목록/상세
+                        · 상세뷰: 상태창 스타일 출력 (status-row 클래스)
+                        · 직업 배지 표시 (메인/서브)
+                        · 회귀 회차: useRegression 플래그 off 시 숨김
                         HIDDEN_STATS: 힘특화/민첩특화/체력특화/마나계열/정신계열/기타
     characters-form.js— 캐릭터 편집 폼 (statDefs 없을 시 기본 스텟 자동 생성)
                         · 업적 연동: achievements DB 검색+칩UI, linkedAchievements [{id,name}] 저장
+                        · 직업 연동: mainJob(1개), subJobs(복수) 검색+칩UI
+                        · 회귀 회차(fCharCycle): useRegression 플래그 off 시 숨김
+                        · 템플릿 모드: normalStatsSection 숨김 (isTemplate radio 연동)
     races.js          — 종족
     gods.js           — 신
 
@@ -111,6 +132,7 @@
     ── 스킬 & 능력 ──
     skills.js         — 스킬
     skills-form.js    — 스킬 편집 폼
+                        · passiveSubtypes, activeSubtypes, skillSubtypes: AppConstants(_C)에서 로드
     achievements.js   — 업적
     stat-defs.js      — 스텟 정의 (목록 형식 UI, 기본 스텟 초기화 버튼,
                         DEFAULT_STATS: 근력/민첩/체력/지능/마나/정신력/행운/재능/감각)
@@ -127,10 +149,15 @@
     places.js         — 장소
     places-form.js
     quests.js         — 퀘스트 (난이도/클리어방법/실패패널티/게이트 연동)
+                        · 아이콘: 고정 그리드 + 직접 입력 (#qIconCustomInput)
+                        · 상세뷰: 퀘스트 내용/클리어 방법/요구 조건/보상/실패 패널티/
+                          연관 게이트/퀘스트 제약/발생 정보/메모
     items.js          — 아이템
     items-form.js
-    jobs.js           — 직업
-    jobs-form.js
+    jobs.js           — 직업 (상세뷰: 회귀 가능 직업 정보 표시)
+    jobs-form.js      — 직업 편집 폼
+                        · 회귀 가능 직업 (isRegressable): useRegression 플래그 off 시 전체 섹션 숨김
+                        · regressFromCycle (첫 획득 가능 회차), regressNote (메모) 저장
 
     ── 유틸리티 ──
     reminders.js      — 리마인더
@@ -152,12 +179,13 @@
     historyLimit            — 편집 히스토리 최대 저장 수 (기본 50)
     gateCustomTypes_{wid}   — 게이트 커스텀 종류 목록
     gateCustomBreakTypes_{wid} — 게이트 커스텀 브레이크 유형
-    flag_{key}              — 기능 플래그
+    flag_{key}              — 기능 플래그 (gradeColors, showAuthorBadge, useRegression 등)
     iconList_{cat}          — 카테고리별 아이콘 목록 (world/const/org/country/company/trap)
     novelQuestions          — 테마 질문 목록
     worldTypes              — 세계 타입 목록
     const_{key}             — 전역 상수 (grades, attributes, etc.)
     searchScope             — 검색 범위 ('world' | 'all')
+    eventColors             — 사건 그래프 커스텀 색상 목록 (JSON 문자열)
 
 ================================================================================
 4. 주요 패턴 & 규칙
@@ -184,6 +212,10 @@
               editHistory 스토어 → { id, storeName, itemId, itemName, timestamp, snapshot }
 
   세계 선택:  AppStore.getCurrentWorldId() → wid (null 이면 세계 선택 화면 표시)
+
+  기능 플래그: AppFlags.get(key, default) — 동기 접근, localStorage 캐시
+               DB.getSetting('flag_'+key) — 비동기 DB 접근 (settings.js에서 저장)
+               형태 모두 동시 지원. 폼/페이지는 AppFlags.get() 사용 권장.
 
 ================================================================================
 5. UI/UX 일관성 규칙
@@ -213,8 +245,6 @@
      (현재는 직접 이모지 입력만 가능)
   ☐ 통합 층(isComposite) — 퀘스트 연동 필드가 미추가 (compositeQuests)
   ☐ 퀘스트 ↔ 게이트 양방향 연동 — 저장 시 상대 쪽에도 자동 반영 미구현
-  ☑ 히스토리 길이 설정 UI — settings.js에 "수정 기록 보관 수" 로 표시 및 조정 UI 완료
-  ☑ 서브플로어 폼(tower-subfloor-form.js) — 서브/히든 분리, 접근방식 칩UI 완료
   ☐ 캐릭터 상세 뷰 — 업적 연동 표시 (현재 폼에서 저장은 되나 상세 뷰 표시 미검토)
   ☐ novel-view.js — THEMATIC_QUESTIONS 비어있어 참고 질문 패널 빈 상태 (의도적 리셋)
 
@@ -222,9 +252,13 @@
 7. 버전 이력 (최근)
 ================================================================================
 
+  v70 (2026-05-17): 사건그래프 연결타입 제거(화살표 방향만), 노드색상 피커 버그수정,
+                    회귀 시스템 플래그(useRegression) 추가,
+                    캐릭터/사건/직업 폼에서 회귀 회차 필드 플래그 연동
+  v69 (2026-05-17): 직업 회귀 가능 토글, 캐릭터 직업 연동(메인/서브), 스킬 서브타입 상수 연동,
+                    퀘스트 이모지 직접 입력, settings.js 세계타입 섹션 제거
   v68 (2026-05-17): 서브/히든층 폼 분리+접근방식 칩UI, 캐릭터 업적 DB 연동,
-                    검색 타입 필터 칩, 세계타입→기본설정관리 이동, 수정기록 용어 정리,
-                    novel-view 언두 버그수정, 홈 바로가기 명언 위로, 타워 컨셉 전부 활성화
+                    검색 타입 필터 칩, 세계타입→기본설정관리 이동, 수정기록 용어 정리
   v65~67 (2026-05-17): 바로가기 하단탭/전용페이지, 앱버전 SW 연동, 컨셉칩 토글버튼화,
                     통합 층, 기본 스텟 자동초기화, 스텟 정의 목록UI,
                     함정 아이콘/제작조건/접기, 게이트-퀘스트 연동, 웨이브 조건 칩UI

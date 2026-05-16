@@ -94,7 +94,7 @@ Object.assign(window.Pages.jobs, {
           : `<div style="font-size:12px;color:var(--color-text-muted);">이 세계에 스킬이 없습니다</div>`}
       </div>
 
-      <div class="form-group" style="border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:10px 12px;">
+      <div class="form-group" style="border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:10px 12px;${AppFlags.get('useRegression',true)?'':'display:none;'}">
         <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
           <input type="checkbox" id="fJobRegressable" ${j.isRegressable ? 'checked' : ''} />
           회귀 가능 직업 <span style="font-size:11px;font-weight:400;color:var(--color-text-muted);">(회귀 후에도 유지·재획득 가능)</span>

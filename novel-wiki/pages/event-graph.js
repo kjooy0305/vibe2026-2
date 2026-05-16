@@ -19,7 +19,6 @@ window.Pages.eventGraph = {
   _focusEventId: null,
   _focusDepth: 2,
 
-  EDGE_TYPES: ['야기함','필연적','선택적','동시발생','대립','연관','예방','촉발','전제','암시'],
   EDGE_COLORS: {
     '야기함':'#ef4444','필연적':'#f59e0b','선택적':'#3b82f6',
     '동시발생':'#10b981','대립':'#ec4899','연관':'#a855f7',
@@ -54,7 +53,7 @@ window.Pages.eventGraph = {
             <button class="btn btn-primary btn-sm" id="btnAddEvent">+ 추가</button>
           </div>
         </div>
-        <div id="cycleFilterWrap" style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;overflow-x:auto;padding-bottom:2px;">
+        <div id="cycleFilterWrap" style="display:${AppFlags.get('useRegression',true)?'flex':'none'};gap:6px;flex-wrap:wrap;margin-top:8px;overflow-x:auto;padding-bottom:2px;">
           <button class="filter-chip ${this._filterCycle==='all'?'active':''}" data-cycle="all">전체</button>
           ${cycles.map(c=>`<button class="filter-chip ${this._filterCycle===c?'active':''}" data-cycle="${c}">${c}회차</button>`).join('')}
         </div>
@@ -205,8 +204,10 @@ window.Pages.eventGraph = {
     ctx.fill(); ctx.stroke();
     ctx.shadowBlur = 0;
 
-    ctx.fillStyle = col; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
-    ctx.fillText(`${ev.regressionCycle??0}회차`, x-w/2+6, y-h/2+14);
+    if (AppFlags.get('useRegression', true)) {
+      ctx.fillStyle = col; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
+      ctx.fillText(`${ev.regressionCycle??0}회차`, x-w/2+6, y-h/2+14);
+    }
     ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
     const nm = ev.name||'이름 없음';
     ctx.fillText(nm.length>12?nm.slice(0,11)+'…':nm, x, y+2);
@@ -215,23 +216,22 @@ window.Pages.eventGraph = {
 
   _drawEdge: function(ctx, from, to, out) {
     const fx = from.x||100, fy = from.y||100, tx = to.x||200, ty = to.y||200;
-    const col = out.edgeColor || this.EDGE_COLORS[out.type||'야기함'] || '#6b7280';
+    const col = out.edgeColor || this.EDGE_COLORS[out.type] || '#6b7280';
     ctx.strokeStyle = col+'aa';
     ctx.lineWidth = 1.5;
-    ctx.setLineDash(out.type==='선택적'||out.type==='암시'?[6,4]:[]);
     ctx.beginPath(); ctx.moveTo(fx, fy);
     const mx = (fx+tx)/2, my = (fy+ty)/2-30;
     ctx.quadraticCurveTo(mx, my, tx, ty);
-    ctx.stroke(); ctx.setLineDash([]);
+    ctx.stroke();
     const ang = Math.atan2(ty-my, tx-mx);
     ctx.fillStyle = col+'aa'; ctx.beginPath();
     ctx.moveTo(tx, ty);
     ctx.lineTo(tx-10*Math.cos(ang-0.3), ty-10*Math.sin(ang-0.3));
     ctx.lineTo(tx-10*Math.cos(ang+0.3), ty-10*Math.sin(ang+0.3));
     ctx.closePath(); ctx.fill();
-    if (out.type||out.label) {
+    if (out.label) {
       ctx.fillStyle = col; ctx.font = '9px sans-serif'; ctx.textAlign = 'center';
-      ctx.fillText(out.label||out.type||'', mx, my-4);
+      ctx.fillText(out.label, mx, my-4);
     }
   },
 
@@ -434,7 +434,7 @@ window.Pages.eventGraph = {
         ['날짜',e.date],['회차',e.regressionCycle!==undefined?e.regressionCycle+'회차':''],
         ['설명',e.description],
         ['관련 인물',(e.involvedCharacters||[]).map(c=>c.name).join(', ')],
-        ['연결',(e.outcomes||[]).map(o=>o.label||o.type).join(', ')],
+        ['연결',(e.outcomes||[]).map(o=>o.label).filter(Boolean).join(', ')],
       ])).join('\n\n');
       Utils.copyText(text); Utils.toast('클립보드에 복사됨','success');
     });
@@ -488,10 +488,9 @@ window.Pages.eventGraph = {
             const col=o.edgeColor||this.EDGE_COLORS[o.type]||'#6b7280';
             return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border);">
               <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0;"></span>
-              <span style="color:${col};font-size:11px;min-width:52px;">${o.type||'야기함'}</span>
               <button class="btn-outcome-nav" data-target-id="${Utils.escHtml(o.targetId)}"
                 style="font-size:13px;font-weight:600;background:none;border:none;color:var(--color-primary);cursor:pointer;text-align:left;flex:1;">
-                ${tgt?Utils.escHtml(tgt.name):'(알 수 없는 사건)'}
+                → ${tgt?Utils.escHtml(tgt.name):'(알 수 없는 사건)'}
               </button>
               ${o.label?`<span style="font-size:11px;color:var(--color-text-muted);">${Utils.escHtml(o.label)}</span>`:''}
             </div>`;
@@ -506,7 +505,6 @@ window.Pages.eventGraph = {
             const col=out?.edgeColor||this.EDGE_COLORS[out?.type]||'#6b7280';
             return `<div style="display:flex;align-items:center;gap:8px;padding:6px 0;border-bottom:1px solid var(--color-border);">
               <span style="width:10px;height:10px;border-radius:50%;background:${col};flex-shrink:0;"></span>
-              <span style="color:${col};font-size:11px;min-width:52px;">${out?.type||''}</span>
               <button class="btn-outcome-nav" data-target-id="${Utils.escHtml(src.id)}"
                 style="font-size:13px;background:none;border:none;color:var(--color-secondary);cursor:pointer;text-align:left;flex:1;">
                 ← ${Utils.escHtml(src.name)}
@@ -583,7 +581,6 @@ window.Pages.eventGraph = {
     const allEvents=await DB.getAll('events', wid);
 
     const BASE_COLORS=['#3b82f6','#ef4444','#10b981','#f59e0b','#8b5cf6','#6b7280','#ec4899','#06b6d4','#f97316','#14b8a6'];
-    const allColors=[...BASE_COLORS,...self._customColors];
 
     let selectedColor=ev?.color||'#3b82f6';
     let currentOutcomes=(ev?.outcomes||[]).map(o=>({...o}));
@@ -599,13 +596,15 @@ window.Pages.eventGraph = {
     const edgeColors=this.EDGE_COLORS;
 
     // ── Color picker HTML ────────────────────────────────────────────────────
-    const renderColorPicker=()=>`
-      <div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
-        ${allColors.map(c=>`<button type="button" data-color="${c}" class="color-pick-btn"
+    const renderColorPicker=()=>{
+      const colors=[...BASE_COLORS,...self._customColors];
+      return `<div style="display:flex;flex-wrap:wrap;gap:6px;align-items:center;">
+        ${colors.map(c=>`<button type="button" data-color="${c}" class="color-pick-btn"
           style="width:26px;height:26px;border-radius:50%;background:${c};border:3px solid ${selectedColor===c?'white':'transparent'};cursor:pointer;flex-shrink:0;"></button>`).join('')}
         <input type="color" id="customColorPicker" value="${selectedColor}" style="width:26px;height:26px;padding:0;border:none;border-radius:50%;cursor:pointer;background:none;" title="직접 선택"/>
         <button type="button" id="btnAddCustomColor" class="btn btn-ghost btn-sm" style="font-size:11px;padding:2px 6px;">+저장</button>
       </div>`;
+    };
 
     // ── Outcomes list HTML ───────────────────────────────────────────────────
     const outcomesHTML=()=>currentOutcomes.map((o,i)=>{
@@ -614,9 +613,8 @@ window.Pages.eventGraph = {
       return `<div style="display:flex;align-items:center;gap:6px;margin-bottom:6px;padding:6px 8px;background:var(--color-surface2);border-radius:6px;">
         <input type="color" class="outcome-color-inp" data-i="${i}" value="${col}"
           style="width:22px;height:22px;padding:0;border:none;border-radius:50%;cursor:pointer;flex-shrink:0;" title="연결선 색 변경"/>
-        <span style="font-size:11px;padding:1px 6px;border-radius:4px;background:${col}22;color:${col};border:1px solid ${col}55;white-space:nowrap;">${o.type||'야기함'}</span>
         <span style="flex:1;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">
-          ${tgt?Utils.escHtml(tgt.name):'(삭제된 사건)'}
+          → ${tgt?Utils.escHtml(tgt.name):'(삭제된 사건)'}
           ${o.label?`<span style="color:var(--color-text-muted);font-size:11px;"> · ${Utils.escHtml(o.label)}</span>`:''}
         </span>
         <button type="button" class="btn btn-ghost btn-sm btn-del-outcome" data-i="${i}" style="color:var(--color-danger);padding:2px 6px;flex-shrink:0;">✕</button>
@@ -629,11 +627,11 @@ window.Pages.eventGraph = {
     <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
       <div class="form-group"><label class="form-label">사건명 *</label>
         <input class="input-field" id="fEvName" value="${Utils.escHtml(ev?.name||'')}" style="width:100%;box-sizing:border-box;"/></div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;">
+      <div style="display:grid;grid-template-columns:${AppFlags.get('useRegression',true)?'1fr 1fr':'1fr'};gap:8px;">
         <div class="form-group"><label class="form-label">날짜</label>
           <input class="input-field" id="fEvDate" value="${Utils.escHtml(ev?.date||'')}" placeholder="2024.01.01"/></div>
-        <div class="form-group"><label class="form-label">회귀 회차</label>
-          <input type="number" class="input-field" id="fEvCycle" value="${ev?.regressionCycle??0}" min="0"/></div>
+        ${AppFlags.get('useRegression',true)?`<div class="form-group"><label class="form-label">회귀 회차</label>
+          <input type="number" class="input-field" id="fEvCycle" value="${ev?.regressionCycle??0}" min="0"/></div>`:'<input type="hidden" id="fEvCycle" value="0"/>'}
       </div>
       <div class="form-group"><label class="form-label">중요도</label>
         <select class="select-input" id="fEvImportance">
@@ -667,15 +665,9 @@ window.Pages.eventGraph = {
             <option value="">사건 선택...</option>
             ${otherEvents.map(e=>`<option value="${Utils.escHtml(e.id)}">${Utils.escHtml(e.name)}</option>`).join('')}
           </select>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
-            <select class="select-input" id="outcomeType" style="flex:1;min-width:80px;">
-              ${this.EDGE_TYPES.map(t=>`<option value="${t}">${t}</option>`).join('')}
-            </select>
-            <input type="color" id="outcomeEdgeColor" value="#ef4444"
-              style="width:32px;height:32px;padding:2px;border-radius:6px;border:1px solid var(--color-border);cursor:pointer;flex-shrink:0;" title="연결선 색상 (기본: 유형별 색상)"/>
-            <button type="button" id="btnResetEdgeColor" class="btn btn-ghost btn-sm" style="font-size:10px;white-space:nowrap;">유형색</button>
-          </div>
-          <div style="display:flex;gap:6px;margin-top:6px;">
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">
+            <input type="color" id="outcomeEdgeColor" value="#6b7280"
+              style="width:32px;height:32px;padding:2px;border-radius:6px;border:1px solid var(--color-border);cursor:pointer;flex-shrink:0;" title="연결선 색상"/>
             <input class="input-field" id="outcomeLabel" placeholder="설명 (선택)" style="flex:1;"/>
             <button type="button" id="btnAddOutcome" class="btn btn-primary btn-sm">+ 추가</button>
           </div>
@@ -690,7 +682,7 @@ window.Pages.eventGraph = {
             const out=(src.outcomes||[]).find(o=>o.targetId===ev?.id);
             const col=out?.edgeColor||edgeColors[out?.type]||'#6b7280';
             return `<span style="font-size:12px;padding:2px 8px;border-radius:6px;background:${col}22;color:${col};border:1px solid ${col}55;">
-              ← ${Utils.escHtml(src.name)} (${out?.type||''})
+              ← ${Utils.escHtml(src.name)}
             </span>`;
           }).join('')}
         </div>
@@ -772,17 +764,6 @@ window.Pages.eventGraph = {
       };
       bindOutcomeRows();
 
-      // Outcome type → update edge color default
-      const typeEl=document.getElementById('outcomeType');
-      const ecEl=document.getElementById('outcomeEdgeColor');
-      typeEl?.addEventListener('change',()=>{
-        if(ecEl) ecEl.value=edgeColors[typeEl.value]||'#6b7280';
-      });
-      document.getElementById('btnResetEdgeColor')?.addEventListener('click',()=>{
-        if(typeEl&&ecEl) ecEl.value=edgeColors[typeEl.value]||'#6b7280';
-      });
-      if(ecEl&&typeEl) ecEl.value=edgeColors[typeEl.value]||'#ef4444';
-
       // Outcome target filter
       document.getElementById('outcomeTargetFilter')?.addEventListener('input',e=>{
         const q=e.target.value.toLowerCase();
@@ -797,11 +778,9 @@ window.Pages.eventGraph = {
       document.getElementById('btnAddOutcome')?.addEventListener('click',()=>{
         const targetId=document.getElementById('outcomeTarget')?.value;
         if(!targetId){ Utils.toast('사건을 선택하세요','error'); return; }
-        const type=document.getElementById('outcomeType')?.value||'야기함';
         const label=document.getElementById('outcomeLabel')?.value.trim()||'';
-        const ec=document.getElementById('outcomeEdgeColor')?.value||'';
-        const defCol=edgeColors[type]||'#6b7280';
-        currentOutcomes.push({ targetId, type, label, edgeColor: ec!==defCol?ec:'' });
+        const edgeColor=document.getElementById('outcomeEdgeColor')?.value||'#6b7280';
+        currentOutcomes.push({ targetId, label, edgeColor });
         const ol=document.getElementById('outcomesList'); if(ol){ ol.innerHTML=outcomesHTML(); bindOutcomeRows(); }
         const li=document.getElementById('outcomeLabel'); if(li) li.value='';
       });

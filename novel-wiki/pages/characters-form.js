@@ -149,15 +149,15 @@ Object.assign(window.Pages.characters, {
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">이름 *</label>
           <input class="input-field" id="fCharName" value="${Utils.escHtml(char?.name || '')}" placeholder="이름" style="width:100%;box-sizing:border-box;" />
         </div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <div style="display:grid;grid-template-columns:${AppFlags.get('useRegression',true)?'1fr 1fr':'1fr'};gap:10px;">
           <div class="form-group">
             <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">레벨</label>
             <input type="number" class="input-field" id="fCharLevel" value="${char?.level || 0}" style="width:100%;box-sizing:border-box;" />
           </div>
-          <div class="form-group">
+          ${AppFlags.get('useRegression',true) ? `<div class="form-group">
             <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">회귀 회차</label>
             <input type="number" class="input-field" id="fCharCycle" value="${char?.cycle !== null && char?.cycle !== undefined ? char.cycle : ''}" placeholder="0" style="width:100%;box-sizing:border-box;" />
-          </div>
+          </div>` : '<input type="hidden" id="fCharCycle" value=""/>'}
         </div>
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">칭호</label>

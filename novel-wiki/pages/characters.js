@@ -384,7 +384,7 @@ window.Pages.characters = {
         <div class="status-row">ㅣ종족: ${Utils.escHtml(char.race || '인간')}</div>
         ${char.age ? `<div class="status-row">ㅣ나이: ${char.age}</div>` : ''}
         ${char.gender && char.gender !== '미지정' ? `<div class="status-row">ㅣ성별: ${Utils.escHtml(char.gender)}</div>` : ''}
-        ${char.cycle !== null && char.cycle !== undefined ? `<div class="status-row">ㅣ회귀 회차: ${char.cycle}회차</div>` : ''}
+        ${char.cycle !== null && char.cycle !== undefined && AppFlags.get('useRegression',true) ? `<div class="status-row">ㅣ회귀 회차: ${char.cycle}회차</div>` : ''}
         <div style="color:rgba(100,150,255,0.5);margin:6px 0;">────────────</div>
         ${char.title ? `<div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[핵심칭호]</div><div class="status-row">ㄴ${Utils.escHtml(char.title)}</div>` : ''}
         <div class="status-row" style="color:rgba(200,220,255,0.9);">ㅣ[보유칭호]</div>
