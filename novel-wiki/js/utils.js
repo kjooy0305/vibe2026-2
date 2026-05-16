@@ -55,6 +55,7 @@ const Utils = (function() {
 
     titleEl.textContent = title;
     bodyEl.innerHTML = bodyHTML;
+    addFieldToggles(bodyEl);
 
     if (onConfirm) {
       footer.style.display = 'flex';
@@ -213,6 +214,40 @@ const Utils = (function() {
     });
   }
 
+  function addFieldToggles(root) {
+    (root || document).querySelectorAll('label.form-label').forEach(label => {
+      if (label.querySelector('.field-toggle-btn')) return;
+      const ta = label.nextElementSibling;
+      if (!ta || ta.tagName !== 'TEXTAREA') return;
+
+      label.style.display = 'flex';
+      label.style.alignItems = 'center';
+      label.style.justifyContent = 'space-between';
+
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'field-toggle-btn';
+      btn.textContent = '접기';
+      btn.style.cssText = [
+        'font-size:10px', 'padding:1px 8px', 'border-radius:10px',
+        'border:1px solid var(--color-border)', 'background:transparent',
+        'color:var(--color-text-muted)', 'cursor:pointer', 'flex-shrink:0',
+        'line-height:1.6', 'transition:color .15s,border-color .15s',
+      ].join(';');
+
+      let collapsed = false;
+      btn.addEventListener('click', () => {
+        collapsed = !collapsed;
+        ta.style.display = collapsed ? 'none' : '';
+        btn.textContent = collapsed ? '펼치기' : '접기';
+        btn.style.color = collapsed ? 'var(--color-primary)' : 'var(--color-text-muted)';
+        btn.style.borderColor = collapsed ? 'var(--color-primary)' : 'var(--color-border)';
+      });
+
+      label.appendChild(btn);
+    });
+  }
+
   function autoResizeTextareas(root) {
     (root || document).querySelectorAll('textarea').forEach(ta => {
       ta.style.height = 'auto';
@@ -249,7 +284,7 @@ const Utils = (function() {
     return !firstEmpty;
   }
 
-  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery, autoResizeTextareas, fieldError };
+  return { toast, confirm, confirmWithInput, openModal, closeModal, gradeColor, gradeBadge, escHtml, nl2br, formatDate, copyText, imageToBase64, renderImage, fieldRow, toTextExport, matchesQuery, autoResizeTextareas, addFieldToggles, fieldError };
 })();
 window.Utils = Utils;
 
