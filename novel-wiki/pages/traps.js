@@ -238,6 +238,13 @@ window.Pages.traps = {
         ${row('작동 효과', trap.effect)}
         ${row('해체 방법', trap.disarmMethod)}
         ${row('제작 과정', trap.craftProcess)}
+        ${(trap.linkedSkills || []).length ? `
+          <div style="padding:10px 0;border-bottom:1px solid var(--color-border);">
+            <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:6px;">연동 스킬</div>
+            <div style="display:flex;flex-wrap:wrap;gap:5px;">
+              ${(trap.linkedSkills || []).map(sk => `<span style="font-size:12px;padding:2px 8px;border-radius:10px;background:rgba(99,102,241,0.12);border:1px solid rgba(99,102,241,0.3);">✨ ${Utils.escHtml(sk.name)}</span>`).join('')}
+            </div>
+          </div>` : ''}
         ${originsHtml}
         ${trap.authorNotes ? `
           <div style="margin-top:12px;background:rgba(245,158,11,0.08);border-left:3px solid var(--color-warning);border-radius:6px;padding:10px 14px;">
@@ -281,10 +288,13 @@ window.Pages.traps = {
     const tr = trap || {};
     const self = this;
 
-    const [towers, gates] = await Promise.all([
+    const [towers, gates, allSkills] = await Promise.all([
       DB.getAll('towers', wid),
       DB.getAll('gates', wid),
+      DB.getAll('skills', wid),
     ]);
+    const sortedSkills = allSkills.slice().sort((a, b) => (a.name || '').localeCompare(b.name || '', 'ko'));
+    let linkedSkillIds = new Set((tr.linkedSkills || []).map(s => s.id));
 
     const currentOrigins = this._getOrigins(tr);
 
@@ -356,6 +366,15 @@ window.Pages.traps = {
             style="width:100%;box-sizing:border-box;">${Utils.escHtml(tr.craftProcess || '')}</textarea>
         </div>
         ${originsFormHtml}
+        <div class="form-group" style="border:1px solid rgba(99,102,241,0.3);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="display:block;margin-bottom:6px;">✨ 연동 스킬 <span style="font-size:11px;font-weight:400;color:var(--color-text-muted);">(이 함정에 관련된 스킬)</span></label>
+          <div id="trapSkillChips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:8px;"></div>
+          ${sortedSkills.length > 0 ? `
+          <div style="position:relative;">
+            <input class="input-field" id="trapSkillSearch" placeholder="스킬 이름 검색..." style="width:100%;box-sizing:border-box;font-size:12px;"/>
+            <div id="trapSkillResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:160px;overflow-y:auto;"></div>
+          </div>` : `<div style="font-size:12px;color:var(--color-text-muted);">이 세계에 스킬이 없습니다</div>`}
+        </div>
         <div class="form-group">
           <label class="form-label">작가 메모 <span style="font-size:11px;color:var(--color-text-dim);">(소설에 미표시)</span></label>
           <textarea class="input-field" id="fTrNotes" rows="2"
@@ -383,6 +402,7 @@ window.Pages.traps = {
         disarmMethod: document.getElementById('fTrDisarm')?.value.trim()   || '',
         craftProcess: document.getElementById('fTrCraft')?.value.trim()    || '',
         origins,
+        linkedSkills: [...linkedSkillIds].map(sid => { const sk = sortedSkills.find(x => x.id === sid); return sk ? { id: sk.id, name: sk.name || '' } : null; }).filter(Boolean),
         authorNotes:  document.getElementById('fTrNotes')?.value.trim()   || '',
         id: tr.id || DB.genId(),
         createdAt: tr.createdAt || Date.now(),
@@ -399,6 +419,42 @@ window.Pages.traps = {
     }, isEdit ? '저장' : '추가');
 
     setTimeout(async () => {
+      // Skill chips
+      const renderSkillChips = () => {
+        const el = document.getElementById('trapSkillChips'); if (!el) return;
+        el.innerHTML = [...linkedSkillIds].map(sid => {
+          const sk = sortedSkills.find(x => x.id === sid);
+          if (!sk) return '';
+          return `<span style="display:inline-flex;align-items:center;gap:4px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.4);padding:2px 8px;border-radius:12px;font-size:12px;">✨ ${Utils.escHtml(sk.name)}<span class="trap-skill-del" data-sid="${Utils.escHtml(sid)}" style="cursor:pointer;color:var(--color-danger);padding:0 2px;">✕</span></span>`;
+        }).join('');
+        el.querySelectorAll('.trap-skill-del').forEach(btn => {
+          btn.addEventListener('click', () => { linkedSkillIds.delete(btn.dataset.sid); renderSkillChips(); });
+        });
+      };
+      renderSkillChips();
+
+      const skillIn = document.getElementById('trapSkillSearch');
+      const skillRs = document.getElementById('trapSkillResults');
+      if (skillIn && skillRs) {
+        skillIn.addEventListener('input', () => {
+          const q = skillIn.value.trim().toLowerCase();
+          if (!q) { skillRs.style.display = 'none'; return; }
+          const hits = sortedSkills.filter(s => !linkedSkillIds.has(s.id) && (s.name || '').toLowerCase().includes(q)).slice(0, 8);
+          if (!hits.length) { skillRs.style.display = 'none'; return; }
+          skillRs.style.display = 'block';
+          skillRs.innerHTML = hits.map(s => `<div class="skill-res" data-sid="${Utils.escHtml(s.id)}" data-sname="${Utils.escHtml(s.name)}" style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">✨ ${Utils.escHtml(s.name)}</div>`).join('');
+          skillRs.querySelectorAll('.skill-res').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              linkedSkillIds.add(row.dataset.sid);
+              skillIn.value = ''; skillRs.style.display = 'none';
+              renderSkillChips();
+            });
+          });
+        });
+        skillIn.addEventListener('blur', () => setTimeout(() => { skillRs.style.display = 'none'; }, 150));
+      }
+
       const trapIcons = await DB.getSetting('iconList_trap', null) || ['🪤','⚙️','💣','🔩','🧨','⛏️','🗡️','☠️','🔥','❄️','⚡','💀','🕷️','🌀','🧲','🔮','🪝','🔒','⚰️','🧪'];
       const pickerEl = document.createElement('div');
       pickerEl.id = 'trapIconPickerPanel';

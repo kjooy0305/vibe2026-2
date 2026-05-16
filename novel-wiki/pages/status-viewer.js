@@ -167,24 +167,24 @@ window.Pages.statusViewer = {
       </div>
 
       <!-- Community panels -->
-      <div style="display:flex;gap:8px;flex-wrap:wrap;margin-bottom:16px;">
-        <div style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;">
+      <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:16px;">
+        <div style="background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,0.2);border-radius:8px;padding:10px 12px;">
           <div style="font-size:12px;color:#6b9de8;">[알림 기록실]</div>
           <div style="font-size:11px;color:rgba(107,157,232,0.5);margin-top:4px;">새로운 알림이 없습니다</div>
         </div>
-        <div style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,${cl ? '0.2' : '0.45'});border-radius:8px;padding:10px 12px;transition:border-color .2s;" id="communityPanel">
+        <div style="background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,${cl ? '0.2' : '0.45'});border-radius:8px;padding:10px 12px;transition:border-color .2s;" id="communityPanel">
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:12px;color:#6b9de8;">[커뮤니티]</span>
+            <span style="font-size:12px;color:#6b9de8;">${cl ? '(잠금)' : '[커뮤니티]'}</span>
             <button id="btnToggleCommunity" title="${cl ? '잠금 해제' : '잠금'}" style="background:none;border:none;cursor:pointer;font-size:13px;color:#6b9de8;padding:0 2px;line-height:1;">${cl ? '🔒' : '🔓'}</button>
           </div>
-          <div id="communityContent" style="font-size:11px;margin-top:4px;">${mkLockContent(cl, '새로운 글이 없습니다')}</div>
+          ${cl ? '' : `<div id="communityContent" style="font-size:11px;margin-top:4px;">${mkLockContent(cl, '새로운 글이 없습니다')}</div>`}
         </div>
-        <div style="flex:1;min-width:130px;background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,${gl ? '0.2' : '0.45'});border-radius:8px;padding:10px 12px;transition:border-color .2s;" id="guildPanel">
+        <div style="background:rgba(8,20,48,0.7);border:1px solid rgba(96,165,250,${gl ? '0.2' : '0.45'});border-radius:8px;padding:10px 12px;transition:border-color .2s;" id="guildPanel">
           <div style="display:flex;align-items:center;justify-content:space-between;">
-            <span style="font-size:12px;color:#6b9de8;">[길드 커뮤니티]</span>
+            <span style="font-size:12px;color:#6b9de8;">${gl ? '(잠금)' : '[길드 커뮤니티]'}</span>
             <button id="btnToggleGuild" title="${gl ? '잠금 해제' : '잠금'}" style="background:none;border:none;cursor:pointer;font-size:13px;color:#6b9de8;padding:0 2px;line-height:1;">${gl ? '🔒' : '🔓'}</button>
           </div>
-          <div id="guildContent" style="font-size:11px;margin-top:4px;">${mkLockContent(gl, '새로운 길드 공지가 없습니다')}</div>
+          ${gl ? '' : `<div id="guildContent" style="font-size:11px;margin-top:4px;">${mkLockContent(gl, '새로운 길드 공지가 없습니다')}</div>`}
         </div>
       </div>
 
@@ -227,13 +227,22 @@ window.Pages.statusViewer = {
       self._communityLocked = !self._communityLocked;
       const locked = self._communityLocked;
       const btn = document.getElementById('btnToggleCommunity');
-      const content = document.getElementById('communityContent');
       const panel = document.getElementById('communityPanel');
       if (btn) { btn.textContent = locked ? '🔒' : '🔓'; btn.title = locked ? '잠금 해제' : '잠금'; }
-      if (content) content.innerHTML = locked
-        ? '<span style="color:rgba(107,157,232,0.3);letter-spacing:0.05em;">[&gt;[잠금]&lt;]</span>'
-        : '<span style="color:rgba(107,157,232,0.5);">새로운 글이 없습니다</span>';
-      if (panel) panel.style.borderColor = locked ? 'rgba(96,165,250,0.2)' : 'rgba(96,165,250,0.45)';
+      if (panel) {
+        panel.style.borderColor = locked ? 'rgba(96,165,250,0.2)' : 'rgba(96,165,250,0.45)';
+        const titleEl = panel.querySelector('span');
+        if (titleEl) titleEl.textContent = locked ? '(잠금)' : '[커뮤니티]';
+        let contentEl = panel.querySelector('#communityContent');
+        if (locked && contentEl) { contentEl.remove(); }
+        else if (!locked && !contentEl) {
+          contentEl = document.createElement('div');
+          contentEl.id = 'communityContent';
+          contentEl.style.cssText = 'font-size:11px;margin-top:4px;';
+          contentEl.innerHTML = '<span style="color:rgba(107,157,232,0.5);">새로운 글이 없습니다</span>';
+          panel.appendChild(contentEl);
+        }
+      }
       self._refreshStatusText(displayChar, linkedAchievements, linkedConstellations, linkedItems);
     });
 
@@ -241,13 +250,22 @@ window.Pages.statusViewer = {
       self._guildLocked = !self._guildLocked;
       const locked = self._guildLocked;
       const btn = document.getElementById('btnToggleGuild');
-      const content = document.getElementById('guildContent');
       const panel = document.getElementById('guildPanel');
       if (btn) { btn.textContent = locked ? '🔒' : '🔓'; btn.title = locked ? '잠금 해제' : '잠금'; }
-      if (content) content.innerHTML = locked
-        ? '<span style="color:rgba(107,157,232,0.3);letter-spacing:0.05em;">[&gt;[잠금]&lt;]</span>'
-        : '<span style="color:rgba(107,157,232,0.5);">새로운 길드 공지가 없습니다</span>';
-      if (panel) panel.style.borderColor = locked ? 'rgba(96,165,250,0.2)' : 'rgba(96,165,250,0.45)';
+      if (panel) {
+        panel.style.borderColor = locked ? 'rgba(96,165,250,0.2)' : 'rgba(96,165,250,0.45)';
+        const titleEl = panel.querySelector('span');
+        if (titleEl) titleEl.textContent = locked ? '(잠금)' : '[길드 커뮤니티]';
+        let contentEl = panel.querySelector('#guildContent');
+        if (locked && contentEl) { contentEl.remove(); }
+        else if (!locked && !contentEl) {
+          contentEl = document.createElement('div');
+          contentEl.id = 'guildContent';
+          contentEl.style.cssText = 'font-size:11px;margin-top:4px;';
+          contentEl.innerHTML = '<span style="color:rgba(107,157,232,0.5);">새로운 길드 공지가 없습니다</span>';
+          panel.appendChild(contentEl);
+        }
+      }
       self._refreshStatusText(displayChar, linkedAchievements, linkedConstellations, linkedItems);
     });
 

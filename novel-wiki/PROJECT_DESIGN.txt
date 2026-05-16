@@ -19,7 +19,7 @@
 
   커밋/배포 원칙:
     - 항상 master:master 로 push (git push origin master:master)
-    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v70)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v71)
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
@@ -29,7 +29,7 @@
   [ 루트 파일 ]
     index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
     manifest.json   — PWA 매니페스트
-    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v70)
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v71)
 
   [ js/ — 핵심 모듈 ]
     js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
@@ -59,7 +59,7 @@
     home.js           — 홈 화면 (스트릭, 미션, 바로가기 북마크 5슬롯, 전체페이지 그리드,
                         편집 이력 아이콘버튼 → 이전 버전 모달)
     shortcuts.js      — 바로가기 전용 페이지 (하단탭 마지막 칸, 북마크+전체페이지 그리드)
-    timeline.js       — 타임라인
+    timeline.js       — 타임라인 (사건 추가/편집 가능, 카드 클릭 → 상세 모달 → 편집 버튼)
     event-graph.js    — 사건 그래프
                         · 캔버스 기반 노드-엣지 그래프 (드래그/핀치 줌 지원)
                         · 노드색상: BASE_COLORS + 커스텀 컬러 피커 (+저장 버튼)
@@ -128,6 +128,7 @@
                         · 아이콘 필드 (icon, 기본: 🪤)
                         · 제작 조건 (craftCondition, 구 craftLevel 대체)
                         · 사용되는 탑/게이트 섹션 접기 기능
+                        · 연동 스킬 (linkedSkills [{id,name}] 검색+칩UI)
 
     ── 스킬 & 능력 ──
     skills.js         — 스킬
@@ -252,6 +253,8 @@
 7. 버전 이력 (최근)
 ================================================================================
 
+  v71 (2026-05-17): 타임라인 사건 편집/추가 기능, 모든 회차 기본값 1로 변경,
+                    함정 스킬 연동, 상태창 커뮤니티 패널 세로 레이아웃 수정
   v70 (2026-05-17): 사건그래프 연결타입 제거(화살표 방향만), 노드색상 피커 버그수정,
                     회귀 시스템 플래그(useRegression) 추가,
                     캐릭터/사건/직업 폼에서 회귀 회차 필드 플래그 연동

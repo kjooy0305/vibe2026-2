@@ -14,9 +14,9 @@ window.Pages.timeline = {
       return;
     }
 
-    const events = await DB.getAll('events', wid);
-    const cycles = [...new Set(events.map(e => e.regressionCycle ?? 0))].sort((a, b) => a - b);
-    let selectedCycle = cycles[0] ?? 0;
+    let events = await DB.getAll('events', wid);
+    const cycles = [...new Set(events.map(e => e.regressionCycle ?? 1))].sort((a, b) => a - b);
+    let selectedCycle = cycles[0] ?? 1;
     let compareMode = false;
 
     const self = this;
@@ -24,15 +24,18 @@ window.Pages.timeline = {
     const render = () => {
       const filtered = compareMode
         ? events
-        : events.filter(e => (e.regressionCycle ?? 0) === selectedCycle);
+        : events.filter(e => (e.regressionCycle ?? 1) === selectedCycle);
       const sorted = [...filtered].sort((a, b) => (a.date || '').localeCompare(b.date || ''));
 
       container.innerHTML = `
       <div class="page active">
         <div class="page-header">
-          <div style="display:flex;align-items:center;justify-content:space-between;">
-            <h2 class="page-title">타임라인</h2>
-            <button class="btn btn-ghost btn-sm" id="btnCompare">${compareMode ? '단일 뷰' : '비교 뷰'}</button>
+          <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
+            <h2 class="page-title" style="margin:0;">타임라인</h2>
+            <div style="display:flex;gap:6px;">
+              <button class="btn btn-ghost btn-sm" id="btnCompare">${compareMode ? '단일 뷰' : '비교 뷰'}</button>
+              <button class="btn btn-primary btn-sm" id="btnAddEventTL">+ 추가</button>
+            </div>
           </div>
           ${!compareMode ? `
           <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:8px;overflow-x:auto;padding-bottom:4px;">
@@ -58,6 +61,13 @@ window.Pages.timeline = {
         render();
       });
 
+      document.getElementById('btnAddEventTL')?.addEventListener('click', () => {
+        Pages.eventGraph._openForm(null, wid, 200 + Math.random()*80, 200 + Math.random()*80, async () => {
+          events = await DB.getAll('events', wid);
+          render();
+        });
+      });
+
       container.querySelectorAll('.filter-chip[data-cycle]').forEach(btn => {
         btn.addEventListener('click', () => {
           selectedCycle = Number(btn.dataset.cycle);
@@ -69,7 +79,7 @@ window.Pages.timeline = {
         card.addEventListener('click', () => {
           const id = card.dataset.id;
           const ev = events.find(e => e.id === id);
-          if (ev) self._showDetail(ev, events);
+          if (ev) self._showDetail(ev, events, wid, async () => { events = await DB.getAll('events', wid); render(); });
         });
       });
     };
@@ -89,7 +99,7 @@ window.Pages.timeline = {
           <!-- Spacer -->
           <div style="flex:1;padding:0 20px;${isLeft ? 'padding-right:32px;' : 'padding-left:32px;'}">
             <div class="timeline-card" data-id="${Utils.escHtml(ev.id)}" style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;border-left:3px solid ${col};cursor:pointer;transition:box-shadow 0.15s;">
-              <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">${Utils.escHtml(ev.date || '날짜 미정')} · ${ev.regressionCycle ?? 0}회차</div>
+              <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">${Utils.escHtml(ev.date || '날짜 미정')} · ${ev.regressionCycle ?? 1}회차</div>
               <div style="font-weight:700;margin-bottom:4px;font-size:14px;">${Utils.escHtml(ev.name)}</div>
               ${ev.description ? `<div style="font-size:12px;color:var(--color-text-dim);overflow:hidden;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;">${Utils.escHtml(ev.description)}</div>` : ''}
               ${(ev.involvedCharacters || []).length ? `
@@ -117,7 +127,7 @@ window.Pages.timeline = {
       <div style="display:grid;grid-template-columns:${cycles.map(() => 'minmax(180px,1fr)').join(' ')};gap:12px;min-width:${cycles.length * 190}px;">
         ${cycles.map(c => {
           const cycleEvents = events
-            .filter(e => (e.regressionCycle ?? 0) === c)
+            .filter(e => (e.regressionCycle ?? 1) === c)
             .sort((a, b) => (a.date || '').localeCompare(b.date || ''));
           return `
           <div>
@@ -136,19 +146,19 @@ window.Pages.timeline = {
     </div>`;
   },
 
-  _showDetail: function(ev, allEvents) {
+  _showDetail: function(ev, allEvents, wid, afterEdit) {
     const charLinks = (ev.involvedCharacters || []).map(c =>
       `<button class="btn btn-ghost btn-sm" onclick="AppRouter.navigate('characters',{highlightId:'${Utils.escHtml(c.id)}'});Utils.closeModal();">👤 ${Utils.escHtml(c.name)}</button>`
     ).join('');
 
     const outLinks = (ev.outcomes || []).map(o => {
       const t = allEvents.find(e => e.id === o.targetId);
-      return `<div style="font-size:13px;color:var(--color-text-muted);padding:4px 0;">→ ${t ? Utils.escHtml(t.name) : '?'} <span style="color:var(--color-text-dim);">(${Utils.escHtml(o.type || '야기함')})</span></div>`;
+      return `<div style="font-size:13px;color:var(--color-text-muted);padding:4px 0;">→ ${t ? Utils.escHtml(t.name) : '?'}${o.label ? ` <span style="color:var(--color-text-dim);">· ${Utils.escHtml(o.label)}</span>` : ''}</div>`;
     }).join('');
 
     Utils.openModal(ev.name, `
       <div>
-        <div style="color:var(--color-text-muted);font-size:12px;margin-bottom:12px;">${ev.regressionCycle ?? 0}회차 · ${Utils.escHtml(ev.date || '날짜 미정')}</div>
+        <div style="color:var(--color-text-muted);font-size:12px;margin-bottom:12px;">${ev.regressionCycle ?? 1}회차 · ${Utils.escHtml(ev.date || '날짜 미정')}</div>
         ${ev.description ? `<div style="white-space:pre-wrap;font-size:14px;line-height:1.7;margin-bottom:14px;">${Utils.nl2br(ev.description)}</div>` : ''}
         ${charLinks ? `
           <div style="margin-bottom:12px;">
@@ -156,12 +166,21 @@ window.Pages.timeline = {
             <div style="display:flex;flex-wrap:wrap;gap:6px;">${charLinks}</div>
           </div>` : ''}
         ${outLinks ? `
-          <div>
+          <div style="margin-bottom:12px;">
             <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:6px;font-weight:600;">인과관계</div>
             ${outLinks}
           </div>` : ''}
+        <div style="padding-top:12px;border-top:1px solid var(--color-border);">
+          <button class="btn btn-ghost btn-sm" id="btnEditEventTL" style="font-size:12px;">✏️ 편집</button>
+        </div>
       </div>
     `);
+    setTimeout(() => {
+      document.getElementById('btnEditEventTL')?.addEventListener('click', () => {
+        Utils.closeModal();
+        Pages.eventGraph._openForm(ev, wid, ev.x ?? 200, ev.y ?? 200, afterEdit);
+      });
+    }, 30);
   },
 
   destroy: function() {}

@@ -39,7 +39,7 @@ window.Pages.eventGraph = {
   },
 
   _render: function(container) {
-    const cycles = [...new Set(this._events.map(e => e.regressionCycle ?? 0))].sort((a,b)=>a-b);
+    const cycles = [...new Set(this._events.map(e => e.regressionCycle ?? 1))].sort((a,b)=>a-b);
     const self = this;
 
     container.innerHTML = `
@@ -135,7 +135,7 @@ window.Pages.eventGraph = {
   _filteredEvents: function() {
     let evs = this._filterCycle === 'all'
       ? this._events
-      : this._events.filter(e => (e.regressionCycle ?? 0) === this._filterCycle);
+      : this._events.filter(e => (e.regressionCycle ?? 1) === this._filterCycle);
     if (this._focusEventId) {
       const ids = this._depthIds(this._focusEventId, this._focusDepth);
       evs = evs.filter(e => ids.has(e.id));
@@ -206,7 +206,7 @@ window.Pages.eventGraph = {
 
     if (AppFlags.get('useRegression', true)) {
       ctx.fillStyle = col; ctx.font = 'bold 9px sans-serif'; ctx.textAlign = 'left';
-      ctx.fillText(`${ev.regressionCycle??0}회차`, x-w/2+6, y-h/2+14);
+      ctx.fillText(`${ev.regressionCycle??1}회차`, x-w/2+6, y-h/2+14);
     }
     ctx.fillStyle = '#e2e8f0'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
     const nm = ev.name||'이름 없음';
@@ -336,7 +336,7 @@ window.Pages.eventGraph = {
   // ── Controls ───────────────────────────────────────────────────────────────
 
   _refreshCycleChips: function() {
-    const cycles=[...new Set(this._events.map(e=>e.regressionCycle??0))].sort((a,b)=>a-b);
+    const cycles=[...new Set(this._events.map(e=>e.regressionCycle??1))].sort((a,b)=>a-b);
     const wrap=document.getElementById('cycleFilterWrap'); if(!wrap) return;
     wrap.innerHTML=`<button class="filter-chip ${this._filterCycle==='all'?'active':''}" data-cycle="all">전체</button>`
       +cycles.map(c=>`<button class="filter-chip ${this._filterCycle===c?'active':''}" data-cycle="${c}">${c}회차</button>`).join('');
@@ -456,7 +456,7 @@ window.Pages.eventGraph = {
     content.innerHTML=`
       <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:12px;">
         <div>
-          <div style="font-size:11px;color:var(--color-text-muted);">${ev.regressionCycle??0}회차 · ${ev.date||'날짜 미정'}</div>
+          <div style="font-size:11px;color:var(--color-text-muted);">${ev.regressionCycle??1}회차 · ${ev.date||'날짜 미정'}</div>
           <div style="font-weight:700;font-size:18px;">${Utils.escHtml(ev.name)}</div>
           <div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">연결: 나가는 ${outCount}개 / 들어오는 ${inEvents.length}개</div>
         </div>
@@ -554,7 +554,7 @@ window.Pages.eventGraph = {
       const inCount=this._events.filter(e=>(e.outcomes||[]).some(o=>o.targetId===ev.id)).length;
       return `<div class="list-item list-item--full" data-ev-id="${Utils.escHtml(ev.id)}" style="cursor:pointer;border-left:3px solid ${ev.color||'#3b82f6'};">
         <div style="flex:1;">
-          <div style="font-size:11px;color:var(--color-text-muted);">${ev.regressionCycle??0}회차 · ${ev.date||''}</div>
+          <div style="font-size:11px;color:var(--color-text-muted);">${ev.regressionCycle??1}회차 · ${ev.date||''}</div>
           <div style="font-weight:700;">${Utils.escHtml(ev.name)}</div>
           ${ev.description?`<div style="font-size:12px;color:var(--color-text-dim);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(ev.description)}</div>`:''}
         </div>
@@ -574,7 +574,7 @@ window.Pages.eventGraph = {
 
   // ── Form ───────────────────────────────────────────────────────────────────
 
-  _openForm: async function(ev, wid, defaultX=200, defaultY=200) {
+  _openForm: async function(ev, wid, defaultX=200, defaultY=200, afterSave=null) {
     const self=this;
     const isEdit=!!ev;
     const chars=await DB.getAll('characters', wid);
@@ -631,7 +631,7 @@ window.Pages.eventGraph = {
         <div class="form-group"><label class="form-label">날짜</label>
           <input class="input-field" id="fEvDate" value="${Utils.escHtml(ev?.date||'')}" placeholder="2024.01.01"/></div>
         ${AppFlags.get('useRegression',true)?`<div class="form-group"><label class="form-label">회귀 회차</label>
-          <input type="number" class="input-field" id="fEvCycle" value="${ev?.regressionCycle??0}" min="0"/></div>`:'<input type="hidden" id="fEvCycle" value="0"/>'}
+          <input type="number" class="input-field" id="fEvCycle" value="${ev?.regressionCycle??1}" min="0"/></div>`:'<input type="hidden" id="fEvCycle" value="0"/>'}
       </div>
       <div class="form-group"><label class="form-label">중요도</label>
         <select class="select-input" id="fEvImportance">
@@ -715,6 +715,7 @@ window.Pages.eventGraph = {
       Utils.toast(isEdit?'저장됨':'추가됨','success');
       self._events=await DB.getAll('events',wid);
       self._refreshCycleChips(); self._updateFilterState();
+      if (typeof afterSave === 'function') afterSave(item);
       return true;
     }, isEdit?'저장':'추가');
 
