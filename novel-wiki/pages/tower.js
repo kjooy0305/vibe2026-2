@@ -485,12 +485,12 @@ window.Pages.tower = {
         ${floor.quests ? `
           <div style="margin-bottom:10px;">
             <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[퀘스트]</div>
-            <div style="font-size:13px;white-space:pre-wrap;padding-left:8px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(floor.quests))}</div>
+            <div style="font-size:13px;white-space:pre-wrap;padding-left:8px;line-height:1.7;word-break:break-word;overflow-wrap:break-word;">${Utils.nl2br(Utils.escHtml(floor.quests))}</div>
           </div>` : ''}
         ${floor.rewards ? `
           <div style="margin-bottom:10px;">
             <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[보상]</div>
-            <div style="font-size:13px;white-space:pre-wrap;padding-left:8px;line-height:1.7;">${Utils.nl2br(Utils.escHtml(floor.rewards))}</div>
+            <div style="font-size:13px;white-space:pre-wrap;padding-left:8px;line-height:1.7;word-break:break-word;overflow-wrap:break-word;">${Utils.nl2br(Utils.escHtml(floor.rewards))}</div>
           </div>` : ''}
         ${floor.image ? `<div style="margin-bottom:10px;"><img src="${floor.image}" style="max-width:100%;border-radius:8px;" loading="lazy" /></div>` : ''}
 
@@ -554,7 +554,7 @@ window.Pages.tower = {
         <div style="font-size:12px;margin-bottom:3px;">
           ${sf.enemies.split('\n').filter(Boolean).map(e => `<div style="padding-left:4px;">ㄴ적: ${Utils.escHtml(e.trim())}</div>`).join('')}
         </div>` : ''}
-      ${sf.features ? `<div style="font-size:12px;white-space:pre-wrap;padding-left:4px;line-height:1.7;margin-bottom:3px;">${sf.features.split('\n').map(l => l.trim()).filter(Boolean).map(l => `ㄴ${Utils.escHtml(l)}`).join('<br>')}</div>` : ''}
+      ${sf.features ? `<div style="font-size:12px;white-space:pre-wrap;padding-left:4px;line-height:1.7;margin-bottom:3px;word-break:break-word;overflow-wrap:break-word;">${sf.features.split('\n').map(l => l.trim()).filter(Boolean).map(l => `ㄴ${Utils.escHtml(l)}`).join('<br>')}</div>` : ''}
       ${sf.quests ? `<div style="font-size:12px;padding-left:4px;margin-bottom:3px;">ㄴ퀘스트: ${Utils.escHtml(sf.quests)}</div>` : ''}
       ${sf.rewards ? `<div style="font-size:12px;padding-left:4px;color:var(--color-text-muted);">ㄴ보상: ${Utils.escHtml(sf.rewards)}</div>` : ''}
       ${sf.image ? `<div style="margin-top:6px;"><img src="${sf.image}" style="max-width:100%;max-height:120px;border-radius:6px;" loading="lazy" /></div>` : ''}
@@ -628,11 +628,11 @@ window.Pages.tower = {
     const chipHtml = (e, type) => {
       const icon = type === 'char' ? '👤' : type === 'trap' ? '⚠️' : type === 'item' ? '📦' : '👾';
       const gradeStr = e.grade ? ` (${Utils.escHtml(e.grade)})` : '';
-      return `<span class="entity-chip" data-eid="${Utils.escHtml(e.id)}" data-etype="${type}" data-ename="${Utils.escHtml(e.name || '')}" data-egrade="${Utils.escHtml(e.grade || '')}" style="display:inline-flex;align-items:center;gap:3px;background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:2px 5px;margin:2px;font-size:12px;">
-        ${icon} ${Utils.escHtml(e.name)}${gradeStr}
-        <input type="number" class="chip-count" value="${e.count || 1}" min="1" style="width:36px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;text-align:center;" />
-        <input class="chip-unit" value="${Utils.escHtml(e.unit || (type === 'char' ? '명' : type === 'trap' ? '개' : '마리'))}" style="width:28px;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;" />
-        <button class="chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;">✕</button>
+      return `<span class="entity-chip" data-eid="${Utils.escHtml(e.id)}" data-etype="${type}" data-ename="${Utils.escHtml(e.name || '')}" data-egrade="${Utils.escHtml(e.grade || '')}" style="display:inline-flex;align-items:center;gap:3px;background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:2px 5px;margin:2px;font-size:12px;max-width:100%;box-sizing:border-box;">
+        <span style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex-shrink:1;">${icon} ${Utils.escHtml(e.name)}${gradeStr}</span>
+        <input type="number" class="chip-count" value="${e.count || 1}" min="1" style="width:36px;flex-shrink:0;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;text-align:center;" />
+        <input class="chip-unit" value="${Utils.escHtml(e.unit || (type === 'char' ? '명' : type === 'trap' ? '개' : '마리'))}" style="width:28px;flex-shrink:0;padding:1px 3px;border-radius:4px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:11px;" />
+        <button class="chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:0 2px;flex-shrink:0;">✕</button>
       </span>`;
     };
 
@@ -651,7 +651,7 @@ window.Pages.tower = {
       const clearCondType = w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
       const radioStyle = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
       return `
-      <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;">
+      <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div style="font-weight:700;font-size:13px;color:#60a5fa;">${idx + 1}웨이브</div>
           <button class="btn btn-ghost btn-sm wave-del-btn" data-widx="${idx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
@@ -721,7 +721,7 @@ window.Pages.tower = {
 
     const phaseRowHtml = (p, pidx) => {
       const attacksHtml = (p.attacks || []).map((atk, aidx) => `
-        <div class="atk-row" data-pidx="${pidx}" data-aidx="${aidx}" style="background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;padding:8px;margin-bottom:6px;">
+        <div class="atk-row" data-pidx="${pidx}" data-aidx="${aidx}" style="background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;padding:8px;margin-bottom:6px;width:100%;box-sizing:border-box;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
             <div style="font-size:11px;font-weight:700;color:#c084fc;">공격 ${aidx + 1}</div>
             <button class="btn btn-ghost btn-sm atk-del-btn" data-pidx="${pidx}" data-aidx="${aidx}" style="color:var(--color-danger);font-size:10px;">삭제</button>
@@ -738,7 +738,7 @@ window.Pages.tower = {
             style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(atk.desc || '')}</textarea>
         </div>`).join('');
       return `
-      <div class="phase-row" data-pidx="${pidx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;">
+      <div class="phase-row" data-pidx="${pidx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
           <div style="font-weight:700;font-size:13px;color:#c084fc;">페이즈 ${pidx + 1}</div>
           <button class="btn btn-ghost btn-sm phase-del-btn" data-pidx="${pidx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
@@ -790,7 +790,7 @@ window.Pages.tower = {
     const exPlaceRef = mkPlaceRef(f.explorationConfig?.target?.type === 'place' ? f.explorationConfig.target : null);
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;overflow-x:hidden;min-width:0;">
 
         <!-- Basic info -->
         <div class="form-group">
@@ -1517,7 +1517,7 @@ window.Pages.tower = {
       : '';
 
     const body = `
-      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
+      <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;overflow-x:hidden;min-width:0;">
         <div class="form-group">
           <label class="form-label">서브층 이름</label>
           <input class="input-field" id="fSubName" value="${Utils.escHtml(s.name || defaultName)}"

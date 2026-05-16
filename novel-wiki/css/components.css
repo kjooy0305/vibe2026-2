@@ -907,8 +907,11 @@
 .modal-body {
   flex: 1;
   overflow-y: auto;
+  overflow-x: hidden;
   padding: var(--sp-4);
   -webkit-overflow-scrolling: touch;
+  word-break: break-word;
+  overflow-wrap: break-word;
 }
 
 .modal-footer {
