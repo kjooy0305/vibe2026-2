@@ -207,9 +207,10 @@ window.Pages.templates = {
 
     const tabHeader = `
       <div style="display:flex;gap:6px;margin-bottom:16px;position:sticky;top:0;z-index:20;background:var(--color-bg);padding:12px 0 4px;">
-        <button id="tabFieldsBtn" style="${tabBtnStyle(this._activeTab === 'fields')}">📋 항목 입력 양식</button>
-        <button id="tabConstBtn"  style="${tabBtnStyle(this._activeTab === 'constants')}">⚙️ 선택지/목록 관리</button>
-        <button id="tabGateBtn"   style="${tabBtnStyle(this._activeTab === 'gate')}">🌀 게이트 목록</button>
+        <button id="tabFieldsBtn"    style="${tabBtnStyle(this._activeTab === 'fields')}">📋 항목 입력 양식</button>
+        <button id="tabConstBtn"     style="${tabBtnStyle(this._activeTab === 'constants')}">⚙️ 선택지/목록 관리</button>
+        <button id="tabGateBtn"      style="${tabBtnStyle(this._activeTab === 'gate')}">🌀 게이트 목록</button>
+        <button id="tabWorldTypeBtn" style="${tabBtnStyle(this._activeTab === 'worldType')}">🌍 세계 타입</button>
       </div>`;
 
     container.innerHTML = `<div class="page active"><div class="page-header"><h2 class="page-title">기본 설정 관리</h2></div>${tabHeader}<div id="tabContent"></div></div>`;
@@ -229,12 +230,19 @@ window.Pages.templates = {
       await DB.setSetting('template_lastTab', 'gate');
       await self._render(container);
     });
+    container.querySelector('#tabWorldTypeBtn')?.addEventListener('click', async () => {
+      self._activeTab = 'worldType';
+      await DB.setSetting('template_lastTab', 'worldType');
+      await self._render(container);
+    });
 
     const tabContent = container.querySelector('#tabContent');
     if (this._activeTab === 'fields') {
       await this._renderFieldsTab(tabContent, container);
     } else if (this._activeTab === 'gate') {
       await this._renderGateListTab(tabContent, container);
+    } else if (this._activeTab === 'worldType') {
+      await this._renderWorldTypeTab(tabContent, container);
     } else {
       await this._renderConstantsTab(tabContent, container);
     }
@@ -742,6 +750,117 @@ window.Pages.templates = {
         window.Pages.gates._customBreakTypes = finalBreak;
       }
       Utils.toast('게이트 목록 저장됨', 'success');
+    });
+  },
+
+  // ── World type tab ────────────────────────────────────────────────────────────
+  _renderWorldTypeTab: async function(tabContent, container) {
+    const DEFAULT_WORLD_TYPES = ['천국', '지옥', '현재 세계', '커스텀'];
+    let worldTypes = (await DB.getSetting('worldTypes', null)) || [...DEFAULT_WORLD_TYPES];
+
+    const renderList = (types) => {
+      const list = tabContent.querySelector('#worldTypeList');
+      if (!list) return;
+      list.innerHTML = types.map((t, i) => `
+        <div class="world-type-row" data-idx="${i}"
+          style="display:flex;align-items:center;gap:4px;padding:5px 0;border-bottom:1px solid var(--color-border)33;">
+          <span class="wt-label" style="flex:1;font-size:13px;">${Utils.escHtml(t)}</span>
+          <input class="wt-input input-field" value="${Utils.escHtml(t)}"
+            style="display:none;flex:1;font-size:12px;padding:3px 6px;height:28px;" />
+          <button class="btn-wt btn btn-ghost btn-sm" data-action="edit"   data-idx="${i}" style="font-size:10px;padding:2px 6px;">편집</button>
+          <button class="btn-wt btn btn-primary btn-sm" data-action="save" data-idx="${i}" style="display:none;font-size:10px;padding:2px 6px;">✓</button>
+          <button class="btn-wt btn btn-ghost btn-sm" data-action="cancel" data-idx="${i}" style="display:none;font-size:10px;padding:2px 5px;">✕</button>
+          <button class="btn-wt btn btn-ghost btn-sm" data-action="del"    data-idx="${i}" style="font-size:10px;padding:2px 6px;color:var(--color-danger);">삭제</button>
+        </div>`).join('');
+      bindButtons(types);
+    };
+
+    const bindButtons = (types) => {
+      tabContent.querySelectorAll('#worldTypeList .btn-wt').forEach(btn => {
+        btn.addEventListener('click', async () => {
+          const idx = parseInt(btn.dataset.idx, 10);
+          const action = btn.dataset.action;
+          const row = tabContent.querySelector(`#worldTypeList .world-type-row[data-idx="${idx}"]`);
+          if (!row) return;
+          if (action === 'edit') {
+            row.querySelector('.wt-label').style.display = 'none';
+            row.querySelector('.wt-input').style.display = '';
+            row.querySelector('[data-action="edit"]').style.display = 'none';
+            row.querySelector('[data-action="save"]').style.display = '';
+            row.querySelector('[data-action="cancel"]').style.display = '';
+            row.querySelector('[data-action="del"]').style.display = 'none';
+            row.querySelector('.wt-input').focus();
+          } else if (action === 'save') {
+            const newVal = row.querySelector('.wt-input')?.value.trim();
+            if (!newVal) { Utils.toast('이름을 입력하세요', 'error'); return; }
+            worldTypes[idx] = newVal;
+            await DB.setSetting('worldTypes', worldTypes);
+            renderList(worldTypes);
+            Utils.toast('수정됨', 'success');
+          } else if (action === 'cancel') {
+            row.querySelector('.wt-label').style.display = '';
+            row.querySelector('.wt-input').style.display = 'none';
+            row.querySelector('[data-action="edit"]').style.display = '';
+            row.querySelector('[data-action="save"]').style.display = 'none';
+            row.querySelector('[data-action="cancel"]').style.display = 'none';
+            row.querySelector('[data-action="del"]').style.display = '';
+          } else if (action === 'del') {
+            if (worldTypes.length <= 1) { Utils.toast('최소 1개 필요', 'error'); return; }
+            Utils.confirm('타입 삭제', `"${worldTypes[idx]}" 타입을 삭제합니다.`, async () => {
+              worldTypes.splice(idx, 1);
+              await DB.setSetting('worldTypes', worldTypes);
+              renderList(worldTypes);
+              Utils.toast('삭제됨', 'info');
+            }, '삭제');
+          }
+        });
+      });
+      tabContent.querySelectorAll('#worldTypeList .wt-input').forEach(input => {
+        input.addEventListener('keydown', e => {
+          const idx = parseInt(input.closest('.world-type-row')?.dataset.idx, 10);
+          if (e.key === 'Enter')  tabContent.querySelector(`#worldTypeList [data-action="save"][data-idx="${idx}"]`)?.click();
+          if (e.key === 'Escape') tabContent.querySelector(`#worldTypeList [data-action="cancel"][data-idx="${idx}"]`)?.click();
+        });
+      });
+    };
+
+    tabContent.innerHTML = `
+      <div style="padding-bottom:80px;">
+        <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:12px;">
+          세계/차원 편집 시 선택할 수 있는 타입 목록입니다.
+        </div>
+        <div id="worldTypeList" style="display:flex;flex-direction:column;margin-bottom:10px;"></div>
+        <div style="display:flex;gap:6px;margin-bottom:16px;">
+          <input class="input-field" id="fNewWorldType" placeholder="새 타입 이름..." style="flex:1;font-size:12px;" />
+          <button class="btn btn-primary btn-sm" id="btnAddWorldType">+ 추가</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" id="btnResetWorldTypes"
+          style="font-size:11px;color:var(--color-text-muted);">기본값으로 초기화</button>
+      </div>`;
+
+    renderList(worldTypes);
+
+    tabContent.querySelector('#btnAddWorldType')?.addEventListener('click', async () => {
+      const input = tabContent.querySelector('#fNewWorldType');
+      const val = input?.value.trim();
+      if (!val) { Utils.toast('타입 이름을 입력하세요', 'error'); return; }
+      if (worldTypes.includes(val)) { Utils.toast('이미 존재하는 타입입니다', 'error'); return; }
+      worldTypes = [...worldTypes, val];
+      await DB.setSetting('worldTypes', worldTypes);
+      if (input) input.value = '';
+      renderList(worldTypes);
+      Utils.toast('추가됨', 'success');
+    });
+    tabContent.querySelector('#fNewWorldType')?.addEventListener('keydown', e => {
+      if (e.key === 'Enter') tabContent.querySelector('#btnAddWorldType')?.click();
+    });
+    tabContent.querySelector('#btnResetWorldTypes')?.addEventListener('click', () => {
+      Utils.confirm('타입 초기화', '기본 타입 목록(천국, 지옥, 현재 세계, 커스텀)으로 초기화합니다.', async () => {
+        worldTypes = [...DEFAULT_WORLD_TYPES];
+        await DB.setSetting('worldTypes', worldTypes);
+        renderList(worldTypes);
+        Utils.toast('초기화됨', 'success');
+      }, '초기화');
     });
   },
 

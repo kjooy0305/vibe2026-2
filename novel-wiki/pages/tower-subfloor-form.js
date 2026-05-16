@@ -1,11 +1,12 @@
 'use strict';
 // tower-subfloor-form.js — _openSubFloorForm for window.Pages.tower
 Object.assign(window.Pages.tower, {
-  _openSubFloorForm: async function(sub, parentFloor, tower, wid, container, world) {
+  _openSubFloorForm: async function(sub, parentFloor, tower, wid, container, world, defaultHidden) {
     const isEdit = !!sub;
     const s = sub || {};
+    const isHiddenMode = isEdit ? !!s.hidden : !!defaultHidden;
     const nextIdx = (parentFloor.subFloors || []).length + 1;
-    const defaultName = s.name || `${parentFloor.floorNum}-${nextIdx}층`;
+    const defaultName = s.name || `${parentFloor.floorNum}-${isHiddenMode ? '히든' : nextIdx}층`;
     let newSubImage = s.image || null;
 
     const allMonsters = await DB.getAll('monsters', wid);
@@ -25,17 +26,44 @@ Object.assign(window.Pages.tower, {
          </div>`
       : '';
 
+    const ACCESS_TYPES = [
+      { id: 'quest', label: '📋 퀘스트 완료' },
+      { id: 'item', label: '📦 아이템 보유' },
+      { id: 'stat', label: '📊 스텟 조건' },
+      { id: 'skill', label: '⚡ 스킬 보유' },
+      { id: 'level', label: '🔢 레벨 제한' },
+      { id: 'hidden', label: '🔍 히든 조건' },
+    ];
+    const savedAccessTypes = new Set(s.accessTypes || []);
+
     const body = `
       <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;overflow-x:hidden;min-width:0;">
+        ${isHiddenMode ? `<div style="background:rgba(251,191,36,0.08);border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:8px 12px;font-size:12px;color:#fbbf24;font-weight:600;">🔒 히든층 — 일반 이동으로 진입 불가능한 층입니다</div>` : ''}
         <div class="form-group">
-          <label class="form-label">서브층 이름</label>
+          <label class="form-label">${isHiddenMode ? '히든층' : '서브층'} 이름</label>
           <input class="input-field" id="fSubName" value="${Utils.escHtml(s.name || defaultName)}"
-            placeholder="예: 1-1층" style="width:100%;box-sizing:border-box;" />
+            placeholder="${isHiddenMode ? '예: 1-히든층' : '예: 1-1층'}" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
           <label class="form-label">테마</label>
           <input class="input-field" id="fSubTheme" value="${Utils.escHtml(s.theme || '')}"
-            placeholder="예: 히든 보스 구간" style="width:100%;box-sizing:border-box;" />
+            placeholder="${isHiddenMode ? '예: 히든 보스 구간' : '예: 특수 지형 구역'}" style="width:100%;box-sizing:border-box;" />
+        </div>
+        <div class="form-group">
+          <label class="form-label">접근 방식</label>
+          <div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px;">
+            ${ACCESS_TYPES.map(at => {
+              const active = savedAccessTypes.has(at.id);
+              return `<button type="button" class="sub-access-chip" data-id="${at.id}" data-active="${active}"
+                style="padding:4px 10px;border-radius:7px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid ${active ? 'rgba(99,102,241,0.7)' : 'var(--color-border)'};
+                  background:${active ? 'rgba(99,102,241,0.2)' : 'var(--color-surface3,#1e2030)'};
+                  color:${active ? '#a5b4fc' : 'var(--color-text-muted)'};">
+                ${at.label}
+              </button>`;
+            }).join('')}
+          </div>
+          <input class="input-field" id="fSubAccessDesc" value="${Utils.escHtml(s.accessDesc || '')}"
+            placeholder="접근 조건 상세 (예: 특정 퀘스트 클리어 후, S급 이상 통행증 필요)" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
@@ -50,12 +78,13 @@ Object.assign(window.Pages.tower, {
         </div>
         ${ta('fSubFeatures', '특징', s.features, 3, '특징 설명')}
         ${ta('fSubQuests', '퀘스트', s.quests, 2, '퀘스트 조건')}
+        ${!isHiddenMode ? `
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
-            <input type="checkbox" id="fSubHidden" ${s.hidden ? 'checked' : ''} />
-            히든 서브층
+            <input type="checkbox" id="fSubHidden" />
+            히든층으로 전환
           </label>
-        </div>
+        </div>` : `<input type="hidden" id="fSubHidden" value="hidden" />`}
         <div class="form-group">
           <label class="form-label">이미지</label>
           <div id="subImgPreview">${imgHtml}</div>
@@ -68,14 +97,16 @@ Object.assign(window.Pages.tower, {
       if (imgFile) newSubImage = await Utils.imageToBase64(imgFile);
 
       const subData = {
-        subId:    s.subId || DB.genId(),
-        name:     document.getElementById('fSubName')?.value.trim()     || defaultName,
-        theme:    document.getElementById('fSubTheme')?.value.trim()    || '',
-        enemies:  document.getElementById('fSubEnemies')?.value.trim()  || '',
-        features: document.getElementById('fSubFeatures')?.value.trim() || '',
-        quests:   document.getElementById('fSubQuests')?.value.trim()   || '',
-        hidden:   document.getElementById('fSubHidden')?.checked        || false,
-        image:    newSubImage,
+        subId:       s.subId || DB.genId(),
+        name:        document.getElementById('fSubName')?.value.trim()      || defaultName,
+        theme:       document.getElementById('fSubTheme')?.value.trim()     || '',
+        enemies:     document.getElementById('fSubEnemies')?.value.trim()   || '',
+        features:    document.getElementById('fSubFeatures')?.value.trim()  || '',
+        quests:      document.getElementById('fSubQuests')?.value.trim()    || '',
+        hidden:      isHiddenMode || document.getElementById('fSubHidden')?.checked || false,
+        accessTypes: [...document.querySelectorAll('#globalModalBody .sub-access-chip[data-active="true"]')].map(b => b.dataset.id),
+        accessDesc:  document.getElementById('fSubAccessDesc')?.value.trim() || '',
+        image:       newSubImage,
       };
 
       const subFloors = (parentFloor.subFloors || []).filter(sf => sf.subId !== subData.subId);
@@ -117,6 +148,17 @@ Object.assign(window.Pages.tower, {
         newSubImage = null;
         const prev = document.getElementById('subImgPreview');
         if (prev) prev.innerHTML = '';
+      });
+
+      // Access type chip toggles
+      document.querySelectorAll('#globalModalBody .sub-access-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const active = btn.dataset.active !== 'true';
+          btn.dataset.active = active;
+          btn.style.border = `1px solid ${active ? 'rgba(99,102,241,0.7)' : 'var(--color-border)'}`;
+          btn.style.background = active ? 'rgba(99,102,241,0.2)' : 'var(--color-surface3,#1e2030)';
+          btn.style.color = active ? '#a5b4fc' : 'var(--color-text-muted)';
+        });
       });
 
       // Sub-floor monster picker

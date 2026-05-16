@@ -5,18 +5,7 @@ window.Pages.settings = {
 
   APP_VERSION: 'v1.0',
 
-  THEMATIC_QUESTIONS: [
-    '회귀자의 먼치킨 능력이 어떤 고통을 가지고 행동한것인지 모르는 사람이 많음. 그래서 그 과정을 써보고 싶음.',
-    '탄생과 죽음을 더 생각해보게 함.',
-    '과연 선이 선할까?',
-    '죽음에 의해 닳고 닳은 사람은 어떻게 될까?',
-    '기나긴 삶은 아주 정신이 튼튼한 사람조차 미치게 만들 수 있을까?',
-    '빛과 어둠. 과연 뭐가 먼저일까? / 빛이 있기에 어둠이 정의되었다. / 어둠 사이에서 빛이 생기며 어둠과 빛이 생겨났다.',
-    '과연 가장 큰 재능은 노력일까?',
-    '인과에는 앞뒤가 없다. 그것은 이미 일어난 선택이다.',
-    '끝을 모르는 자는 없다. 그것을 무시할 뿐이다.',
-    '잘못된 희생은 피해를 야기한다.',
-  ],
+  THEMATIC_QUESTIONS: [],
 
   FEATURE_FLAGS: [
     { key: 'gradeColors',              group: '표시', default: true,
@@ -143,9 +132,6 @@ window.Pages.settings = {
     const currentHistoryLen = (streakData.history || []).length;
 
     const defaultClearCondTypes = await DB.getSetting('defaultClearCondTypes', ['enemies']);
-
-    const DEFAULT_WORLD_TYPES = ['천국', '지옥', '현재 세계', '커스텀'];
-    let worldTypes = (await DB.getSetting('worldTypes', null)) || [...DEFAULT_WORLD_TYPES];
 
     // Load full icon list per category
     const catIcons = {};
@@ -288,16 +274,16 @@ window.Pages.settings = {
         <button id="btnSaveDCC" class="btn btn-ghost btn-sm" style="margin-top:8px;font-size:12px;">저장</button>
       </div>
 
-      <!-- ③-c 히스토리 길이 -->
+      <!-- ③-c 수정 기록 보관 수 -->
       <div style="${secStyle}">
-        <div style="${secLabel}">📅 히스토리 길이</div>
+        <div style="${secLabel}">📝 수정 기록 보관 수</div>
         <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
-          <span style="font-size:13px;flex:1;">스트릭 히스토리 최대 보관 일수</span>
+          <span style="font-size:13px;flex:1;">수정 기록 최대 보관 수</span>
           <input type="number" id="historyMaxLenInput" value="${historyMaxLen}" min="30" max="9999"
             style="width:72px;padding:5px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:13px;text-align:center;" />
           <button id="btnSaveHistLen" class="btn btn-ghost btn-sm" style="font-size:12px;">저장</button>
         </div>
-        <div style="font-size:11px;color:var(--color-text-muted);">현재 기록: ${currentHistoryLen}일 분량</div>
+        <div style="font-size:11px;color:var(--color-text-muted);">현재 ${currentHistoryLen}개 보관 중</div>
       </div>
 
       <!-- ④ 검색 범위 -->
@@ -334,31 +320,7 @@ window.Pages.settings = {
         </button>
       </div>
 
-      <!-- ⑥ 세계 타입 관리 -->
-      <div style="${secStyle}">
-        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-          <div style="${secLabel}margin:0;">세계/차원 타입 관리</div>
-          <button class="btn btn-ghost btn-sm" id="btnResetWorldTypes" style="font-size:11px;color:var(--color-text-muted);">초기화</button>
-        </div>
-        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:8px;">세계/차원 편집 시 선택할 수 있는 타입 목록입니다.</div>
-        <div id="worldTypeList" style="display:flex;flex-direction:column;margin-bottom:8px;">
-          ${worldTypes.map((t, i) => `
-            <div class="world-type-row" data-idx="${i}" style="display:flex;align-items:center;gap:4px;padding:5px 0;border-bottom:1px solid var(--color-border)33;">
-              <span class="wt-label" style="flex:1;font-size:12px;">${Utils.escHtml(t)}</span>
-              <input class="wt-input input-field" value="${Utils.escHtml(t)}" style="display:none;flex:1;font-size:12px;padding:3px 6px;height:28px;" />
-              <button class="btn-wt btn btn-ghost btn-sm" data-action="edit" data-idx="${i}" style="font-size:10px;padding:2px 6px;">편집</button>
-              <button class="btn-wt btn btn-primary btn-sm" data-action="save" data-idx="${i}" style="display:none;font-size:10px;padding:2px 6px;">✓</button>
-              <button class="btn-wt btn btn-ghost btn-sm" data-action="cancel" data-idx="${i}" style="display:none;font-size:10px;padding:2px 5px;">✕</button>
-              <button class="btn-wt btn btn-ghost btn-sm" data-action="del" data-idx="${i}" style="font-size:10px;padding:2px 6px;color:var(--color-danger);">삭제</button>
-            </div>`).join('')}
-        </div>
-        <div style="display:flex;gap:6px;">
-          <input class="input-field" id="fNewWorldType" placeholder="새 타입 이름..." style="flex:1;font-size:12px;" />
-          <button class="btn btn-primary btn-sm" id="btnAddWorldType">+ 추가</button>
-        </div>
-      </div>
-
-      <!-- ⑦ 소설 주제 질문들 (편집 가능) -->
+      <!-- ⑥ 소설 주제 질문들 (편집 가능) -->
       <div style="${secStyle}border-left:3px solid var(--color-primary);">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:6px;">
           <div style="font-weight:700;font-size:13px;color:var(--color-primary);">소설 주제 질문들</div>
@@ -600,95 +562,6 @@ window.Pages.settings = {
             Utils.toast('가져오기 오류: ' + err.message, 'error');
           }
         }, '가져오기');
-    });
-
-    // ── World type management ─────────────────────────────────────────────
-    const renderWorldTypeList = (types) => {
-      const list = container.querySelector('#worldTypeList');
-      if (!list) return;
-      list.innerHTML = types.map((t, i) => `
-        <div class="world-type-row" data-idx="${i}" style="display:flex;align-items:center;gap:4px;padding:5px 0;border-bottom:1px solid var(--color-border)33;">
-          <span class="wt-label" style="flex:1;font-size:12px;">${Utils.escHtml(t)}</span>
-          <input class="wt-input input-field" value="${Utils.escHtml(t)}" style="display:none;flex:1;font-size:12px;padding:3px 6px;height:28px;" />
-          <button class="btn-wt btn btn-ghost btn-sm" data-action="edit" data-idx="${i}" style="font-size:10px;padding:2px 6px;">편집</button>
-          <button class="btn-wt btn btn-primary btn-sm" data-action="save" data-idx="${i}" style="display:none;font-size:10px;padding:2px 6px;">✓</button>
-          <button class="btn-wt btn btn-ghost btn-sm" data-action="cancel" data-idx="${i}" style="display:none;font-size:10px;padding:2px 5px;">✕</button>
-          <button class="btn-wt btn btn-ghost btn-sm" data-action="del" data-idx="${i}" style="font-size:10px;padding:2px 6px;color:var(--color-danger);">삭제</button>
-        </div>`).join('');
-      bindWorldTypeButtons(types);
-    };
-
-    const bindWorldTypeButtons = (types) => {
-      container.querySelectorAll('#worldTypeList .btn-wt').forEach(btn => {
-        btn.addEventListener('click', async () => {
-          const idx = parseInt(btn.dataset.idx, 10);
-          const action = btn.dataset.action;
-          const row = container.querySelector(`#worldTypeList .world-type-row[data-idx="${idx}"]`);
-          if (!row) return;
-          if (action === 'edit') {
-            row.querySelector('.wt-label').style.display = 'none';
-            row.querySelector('.wt-input').style.display = '';
-            row.querySelector('[data-action="edit"]').style.display = 'none';
-            row.querySelector('[data-action="save"]').style.display = '';
-            row.querySelector('[data-action="cancel"]').style.display = '';
-            row.querySelector('[data-action="del"]').style.display = 'none';
-            row.querySelector('.wt-input').focus();
-          } else if (action === 'save') {
-            const newVal = row.querySelector('.wt-input')?.value.trim();
-            if (!newVal) { Utils.toast('이름을 입력하세요', 'error'); return; }
-            worldTypes[idx] = newVal;
-            await DB.setSetting('worldTypes', worldTypes);
-            renderWorldTypeList(worldTypes);
-            Utils.toast('수정됨', 'success');
-          } else if (action === 'cancel') {
-            row.querySelector('.wt-label').style.display = '';
-            row.querySelector('.wt-input').style.display = 'none';
-            row.querySelector('[data-action="edit"]').style.display = '';
-            row.querySelector('[data-action="save"]').style.display = 'none';
-            row.querySelector('[data-action="cancel"]').style.display = 'none';
-            row.querySelector('[data-action="del"]').style.display = '';
-          } else if (action === 'del') {
-            if (worldTypes.length <= 1) { Utils.toast('최소 1개 필요', 'error'); return; }
-            Utils.confirm('타입 삭제', `"${worldTypes[idx]}" 타입을 삭제합니다.`, async () => {
-              worldTypes.splice(idx, 1);
-              await DB.setSetting('worldTypes', worldTypes);
-              renderWorldTypeList(worldTypes);
-              Utils.toast('삭제됨', 'info');
-            }, '삭제');
-          }
-        });
-      });
-      container.querySelectorAll('#worldTypeList .wt-input').forEach(input => {
-        input.addEventListener('keydown', e => {
-          const idx = parseInt(input.closest('.world-type-row')?.dataset.idx, 10);
-          if (e.key === 'Enter') container.querySelector(`#worldTypeList [data-action="save"][data-idx="${idx}"]`)?.click();
-          if (e.key === 'Escape') container.querySelector(`#worldTypeList [data-action="cancel"][data-idx="${idx}"]`)?.click();
-        });
-      });
-    };
-    bindWorldTypeButtons(worldTypes);
-
-    container.querySelector('#btnAddWorldType')?.addEventListener('click', async () => {
-      const input = container.querySelector('#fNewWorldType');
-      const val = input?.value.trim();
-      if (!val) { Utils.toast('타입 이름을 입력하세요', 'error'); return; }
-      if (worldTypes.includes(val)) { Utils.toast('이미 존재하는 타입입니다', 'error'); return; }
-      worldTypes = [...worldTypes, val];
-      await DB.setSetting('worldTypes', worldTypes);
-      if (input) input.value = '';
-      renderWorldTypeList(worldTypes);
-      Utils.toast('추가됨', 'success');
-    });
-    container.querySelector('#fNewWorldType')?.addEventListener('keydown', e => {
-      if (e.key === 'Enter') container.querySelector('#btnAddWorldType')?.click();
-    });
-    container.querySelector('#btnResetWorldTypes')?.addEventListener('click', () => {
-      Utils.confirm('타입 초기화', '기본 타입 목록(천국, 지옥, 현재 세계, 커스텀)으로 초기화합니다.', async () => {
-        worldTypes = [...DEFAULT_WORLD_TYPES];
-        await DB.setSetting('worldTypes', worldTypes);
-        renderWorldTypeList(worldTypes);
-        Utils.toast('초기화됨', 'success');
-      }, '초기화');
     });
 
     // ── Questions CRUD ────────────────────────────────────────────────────

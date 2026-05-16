@@ -475,6 +475,30 @@
       </svg>
     </button>
   </div>
+  <div id="searchFilterBar" style="display:flex;flex-wrap:wrap;gap:5px;padding:8px 16px 0;border-bottom:1px solid var(--color-border);">
+    <button class="search-type-chip" data-type="all" data-active="true"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-primary);background:var(--color-primary);color:#000;">전체</button>
+    <button class="search-type-chip" data-type="characters" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">👤 캐릭터</button>
+    <button class="search-type-chip" data-type="skills" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">⚡ 스킬</button>
+    <button class="search-type-chip" data-type="achievements" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">🏅 업적</button>
+    <button class="search-type-chip" data-type="items" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">📦 아이템</button>
+    <button class="search-type-chip" data-type="monsters" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">👾 몬스터</button>
+    <button class="search-type-chip" data-type="constellations" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">⭐ 성좌</button>
+    <button class="search-type-chip" data-type="gates" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">🌀 게이트</button>
+    <button class="search-type-chip" data-type="organizations" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">🏛️ 조직</button>
+    <button class="search-type-chip" data-type="jobs" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">🏷️ 직업</button>
+    <button class="search-type-chip" data-type="countries" data-active="false"
+      style="padding:3px 10px;border-radius:12px;font-size:11px;font-weight:600;cursor:pointer;border:1px solid var(--color-border);background:transparent;color:var(--color-text-muted);">🌍 국가</button>
+  </div>
   <div class="search-results" id="searchResults" role="listbox" aria-label="검색 결과">
     <!-- Search results rendered by JS -->
     <div class="search-empty" id="searchEmpty">

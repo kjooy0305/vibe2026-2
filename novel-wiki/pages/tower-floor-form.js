@@ -243,10 +243,10 @@ Object.assign(window.Pages.tower, {
       { id: 'exploration', label: '탐험(exploration)', disabled: false },
       { id: 'decapitation', label: '참수작전(decapitation)', disabled: false },
       { id: 'boss', label: '보스전(boss)', disabled: false },
-      { id: 'defense', label: '방어전', disabled: true },
-      { id: 'siege', label: '공성전', disabled: true },
-      { id: 'speedrun', label: '스피드런', disabled: true },
-      { id: 'survival', label: '생존', disabled: true },
+      { id: 'defense', label: '방어전', disabled: false },
+      { id: 'siege', label: '공성전', disabled: false },
+      { id: 'speedrun', label: '스피드런', disabled: false },
+      { id: 'survival', label: '생존', disabled: false },
     ];
 
     const conceptChipsHtml = CONCEPT_DEFS.map(c => {

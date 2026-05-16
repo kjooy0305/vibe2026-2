@@ -11,18 +11,7 @@ window.Pages.novelView = {
   _undoPos: -1,
   _undoPushTimer: null,
 
-  THEMATIC_QUESTIONS: [
-    '회귀자의 먼치킨 능력이 어떤 고통을 가지고 행동한것인지 모르는 사람이 많음. 그래서 그 과정을 써보고 싶음.',
-    '탄생과 죽음을 더 생각해보게 함.',
-    '과연 선이 선할까?',
-    '죽음에 의해 닳고 닳은 사람은 어떻게 될까?',
-    '기나긴 삶은 아주 정신이 튼튼한 사람조차 미치게 만들 수 있을까?',
-    '빛과 어둠. 과연 뭐가 먼저일까? / 빛이 있기에 어둠이 정의되었다. / 어둠 사이에서 빛이 생기며 어둠과 빛이 생겨났다.',
-    '과연 가장 큰 재능은 노력일까?',
-    '인과에는 앞뒤가 없다. 그것은 이미 일어난 선택이다.',
-    '끝을 모르는 자는 없다. 그것을 무시할 뿐이다.',
-    '잘못된 희생은 피해를 야기한다.',
-  ],
+  THEMATIC_QUESTIONS: [],
 
   // ── Undo stack helpers ────────────────────────────────────────────────────
   _pushUndo: function(text) {
@@ -271,20 +260,38 @@ window.Pages.novelView = {
     document.getElementById('btnUndo')?.addEventListener('click', () => {
       if (self._undoPos <= 0) return;
       self._undoPos--;
-      textarea.value = self._undoStack[self._undoPos];
-      textarea.dispatchEvent(new Event('input'));
+      const val = self._undoStack[self._undoPos];
+      textarea.value = val;
+      if (charCountEl) charCountEl.textContent = self._countChars(val).toLocaleString() + '자';
+      markDirty();
+      clearTimeout(self._saveTimer);
+      clearTimeout(self._undoPushTimer);
+      self._saveTimer = setTimeout(async () => {
+        await DB.setSetting('novelDraft_' + wid, textarea.value);
+        await AppStore.updateStreak();
+        markSaved('저장됨');
+      }, 1500);
       self._refreshUndoButtons();
-      Utils.toast(`되돌림 (${self._undoPos + 1}/${self._undoStack.length})`, 'info', 1200);
+      Utils.toast('↩ 되돌렸습니다', 'info', 800);
     });
 
     // ── Redo ─────────────────────────────────────────────────
     document.getElementById('btnRedo')?.addEventListener('click', () => {
       if (self._undoPos >= self._undoStack.length - 1) return;
       self._undoPos++;
-      textarea.value = self._undoStack[self._undoPos];
-      textarea.dispatchEvent(new Event('input'));
+      const val = self._undoStack[self._undoPos];
+      textarea.value = val;
+      if (charCountEl) charCountEl.textContent = self._countChars(val).toLocaleString() + '자';
+      markDirty();
+      clearTimeout(self._saveTimer);
+      clearTimeout(self._undoPushTimer);
+      self._saveTimer = setTimeout(async () => {
+        await DB.setSetting('novelDraft_' + wid, textarea.value);
+        await AppStore.updateStreak();
+        markSaved('저장됨');
+      }, 1500);
       self._refreshUndoButtons();
-      Utils.toast(`다시실행 (${self._undoPos + 1}/${self._undoStack.length})`, 'info', 1200);
+      Utils.toast('↪ 다시 실행했습니다', 'info', 800);
     });
 
     // ── Copy all ─────────────────────────────────────────────

@@ -149,6 +149,25 @@ window.Pages.home = {
     <div class="page active" id="page-home">
       <div class="page-header" style="padding-bottom:12px;">
 
+        <!-- 바로가기 슬롯 (명언 위) -->
+        <div style="display:flex;align-items:center;justify-content:flex-end;margin-bottom:4px;">
+          <button id="btnEditBookmarks" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--color-primary);padding:2px 6px;">편집</button>
+        </div>
+        <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px;" id="bookmarkSlots">
+          ${Array.from({length:5}, (_,i) => {
+            const bm = bookmarks[i] ? HOME_ALL_PAGES.find(p => p.page === bookmarks[i]) : null;
+            return `<button class="bookmark-slot" data-slot="${i}" data-page="${bm ? bm.page : ''}"
+              onclick="${bm ? `AppRouter.navigate('${bm.page}')` : 'document.getElementById(\'btnEditBookmarks\').click()'}"
+              style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+                background:${bm ? 'var(--color-surface2)' : 'rgba(99,102,241,0.06)'};
+                border:${bm ? '1px solid var(--color-border)' : '1px dashed rgba(99,102,241,0.3)'};
+                border-radius:10px;padding:10px 4px;cursor:pointer;min-height:60px;">
+              <div style="font-size:20px;">${bm ? bm.icon : '＋'}</div>
+              <div style="font-size:10px;font-weight:600;color:${bm ? 'var(--color-text)' : 'var(--color-text-muted)'};text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${bm ? bm.name : '빈 슬롯'}</div>
+            </button>`;
+          }).join('')}
+        </div>
+
         <!-- Quote banner -->
         <div style="background:linear-gradient(135deg,rgba(0,188,212,0.12),rgba(124,58,237,0.12));border:1px solid rgba(0,188,212,0.25);border-radius:12px;padding:14px 16px;margin-bottom:14px;">
           <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:4px;letter-spacing:0.5px;">✦ 오늘의 명언</div>
@@ -292,25 +311,6 @@ window.Pages.home = {
             <div style="font-size:10px;color:var(--color-text-dim);">${unit}</div>
           </div>
         `).join('')}
-      </div>
-
-      <!-- ── 바로가기 슬롯 ── -->
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <button id="btnEditBookmarks" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--color-primary);padding:2px 6px;margin-left:auto;">편집</button>
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px;" id="bookmarkSlots">
-        ${Array.from({length:5}, (_,i) => {
-          const bm = bookmarks[i] ? HOME_ALL_PAGES.find(p => p.page === bookmarks[i]) : null;
-          return `<button class="bookmark-slot" data-slot="${i}" data-page="${bm ? bm.page : ''}"
-            onclick="${bm ? `AppRouter.navigate('${bm.page}')` : 'document.getElementById(\'btnEditBookmarks\').click()'}"
-            style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
-              background:${bm ? 'var(--color-surface2)' : 'rgba(99,102,241,0.06)'};
-              border:${bm ? '1px solid var(--color-border)' : '1px dashed rgba(99,102,241,0.3)'};
-              border-radius:10px;padding:10px 4px;cursor:pointer;min-height:60px;">
-            <div style="font-size:20px;">${bm ? bm.icon : '＋'}</div>
-            <div style="font-size:10px;font-weight:600;color:${bm ? 'var(--color-text)' : 'var(--color-text-muted)'};text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${bm ? bm.name : '빈 슬롯'}</div>
-          </button>`;
-        }).join('')}
       </div>
 
       <!-- ── 최근 수정 (아이콘 버튼) ── -->

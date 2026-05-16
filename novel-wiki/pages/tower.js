@@ -377,8 +377,9 @@ window.Pages.tower = {
       btn.addEventListener('click', e => {
         e.stopPropagation();
         const floorNum = parseInt(btn.dataset.floorNum, 10);
+        const isHidden = btn.dataset.hidden === 'true';
         const floor = (tower.floors || []).find(f => f.floorNum === floorNum);
-        if (floor) this._openSubFloorForm(null, floor, tower, wid, container, world);
+        if (floor) this._openSubFloorForm(null, floor, tower, wid, container, world, isHidden);
       });
     });
 
@@ -504,11 +505,15 @@ window.Pages.tower = {
             ${subFloorsHtml}
           </div>` : ''}
 
-        <div style="margin-top:12px;">
-          <button class="btn btn-ghost btn-sm btn-add-subfloor btn-floor-action" data-floor-num="${fn}"
-            style="font-size:12px;border:1px dashed var(--color-border);">+ 히든 층 추가</button>
+        <div style="margin-top:12px;display:flex;gap:6px;flex-wrap:wrap;">
+          <button class="btn btn-ghost btn-sm btn-add-subfloor btn-floor-action" data-floor-num="${fn}" data-hidden="false"
+            style="font-size:12px;border:1px dashed rgba(99,102,241,0.4);color:#a5b4fc;">+ 서브층 추가</button>
+          <button class="btn btn-ghost btn-sm btn-add-subfloor btn-floor-action" data-floor-num="${fn}" data-hidden="true"
+            style="font-size:12px;border:1px dashed rgba(251,191,36,0.5);color:#fbbf24;">🔒 히든층 추가</button>
         </div>
       </div>` : '';
+
+    const compositeLabel = floor.isComposite && floor.compositeRange ? floor.compositeRange : null;
 
     return `
     <div class="floor-card" data-floor-num="${fn}"
@@ -516,7 +521,9 @@ window.Pages.tower = {
       <div class="floor-card-header" data-floor-num="${fn}"
         style="display:flex;align-items:center;gap:10px;padding:12px 14px;background:${bgGrad};cursor:pointer;user-select:none;">
         <div style="min-width:52px;text-align:center;flex-shrink:0;">
-          <div style="font-weight:900;font-size:22px;line-height:1;color:${accentColor};">${fn}</div>
+          ${compositeLabel
+            ? `<div style="font-weight:900;font-size:14px;line-height:1.2;color:${accentColor};">${Utils.escHtml(compositeLabel)}</div>`
+            : `<div style="font-weight:900;font-size:22px;line-height:1;color:${accentColor};">${fn}</div>`}
           <div style="font-size:10px;color:var(--color-text-muted);">${isZero ? '0층' : '층'}</div>
         </div>
         <div style="flex:1;min-width:0;">
@@ -542,19 +549,31 @@ window.Pages.tower = {
   // ── SUB-FLOOR CARD ──────────────────────────────────────────
   _subFloorSection: function(parentFloor, sf) {
     const label = sf.name || `${parentFloor.floorNum}-서브`;
+    const isHidden = !!sf.hidden;
+    const accentColor = isHidden ? '#fbbf24' : '#a5b4fc';
+    const borderColor = isHidden ? 'rgba(251,191,36,0.45)' : 'rgba(99,102,241,0.35)';
+    const ACCESS_LABEL = { quest: '퀘스트', item: '아이템', stat: '스텟', skill: '스킬', level: '레벨', hidden: '히든조건' };
+    const accessChips = (sf.accessTypes || []).map(id =>
+      `<span style="font-size:10px;padding:1px 6px;border-radius:4px;background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);">${ACCESS_LABEL[id] || id}</span>`
+    ).join('');
     return `
-    <div style="border-left:2px solid rgba(251,191,36,0.4);padding-left:12px;margin-bottom:10px;">
+    <div style="border-left:2px solid ${borderColor};padding-left:12px;margin-bottom:10px;">
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
-        <div style="font-weight:700;font-size:13px;color:#fbbf24;">
+        <div style="font-weight:700;font-size:13px;color:${accentColor};display:flex;align-items:center;flex-wrap:wrap;gap:4px;">
           ${Utils.escHtml(label)}
-          ${sf.theme ? `<span style="font-size:11px;color:var(--color-text-muted);font-weight:400;margin-left:6px;">· ${Utils.escHtml(sf.theme)}</span>` : ''}
-          ${sf.hidden ? '<span style="font-size:10px;background:rgba(251,191,36,0.12);color:#fbbf24;padding:1px 5px;border-radius:4px;margin-left:4px;">히든</span>' : ''}
+          ${sf.theme ? `<span style="font-size:11px;color:var(--color-text-muted);font-weight:400;">· ${Utils.escHtml(sf.theme)}</span>` : ''}
+          ${isHidden ? '<span style="font-size:10px;background:rgba(251,191,36,0.12);color:#fbbf24;padding:1px 5px;border-radius:4px;">🔒 히든</span>' : ''}
         </div>
         <div style="display:flex;gap:4px;">
           <button class="btn btn-ghost btn-sm btn-edit-subfloor btn-floor-action" data-floor-num="${parentFloor.floorNum}" data-sub-id="${Utils.escHtml(sf.subId)}" style="font-size:11px;padding:2px 6px;">편집</button>
           <button class="btn btn-ghost btn-sm btn-del-subfloor btn-floor-action" data-floor-num="${parentFloor.floorNum}" data-sub-id="${Utils.escHtml(sf.subId)}" style="color:var(--color-danger);font-size:11px;padding:2px 6px;">삭제</button>
         </div>
       </div>
+      ${accessChips || sf.accessDesc ? `
+        <div style="display:flex;align-items:center;flex-wrap:wrap;gap:4px;margin-bottom:4px;padding-left:4px;">
+          ${accessChips}
+          ${sf.accessDesc ? `<span style="font-size:11px;color:var(--color-text-muted);">${Utils.escHtml(sf.accessDesc)}</span>` : ''}
+        </div>` : ''}
       ${sf.enemies ? `
         <div style="font-size:12px;margin-bottom:3px;">
           ${sf.enemies.split('\n').filter(Boolean).map(e => `<div style="padding-left:4px;">ㄴ적: ${Utils.escHtml(e.trim())}</div>`).join('')}

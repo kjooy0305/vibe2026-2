@@ -40,12 +40,13 @@ const SearchEngine = (function() {
     return parts.join(' ').toLowerCase();
   }
 
-  async function search(query, worldId, scopeAll = false) {
+  async function search(query, worldId, scopeAll = false, typeFilter = null) {
     if (!query || query.length < 1) return [];
     const q = query.toLowerCase();
     const results = [];
+    const stores = typeFilter ? SEARCH_STORES.filter(s => s.name === typeFilter) : SEARCH_STORES;
 
-    for (const store of SEARCH_STORES) {
+    for (const store of stores) {
       try {
         const items = scopeAll ? await DB.getAll(store.name) : await DB.getAll(store.name, worldId);
         items.forEach(item => {
@@ -104,6 +105,44 @@ const SearchEngine = (function() {
     const openBtn = document.getElementById('btnOpenSearch');
     const closeBtn = document.getElementById('btnCloseSearch');
 
+    let activeTypeFilter = null; // null = all
+
+    const runSearch = async () => {
+      const q = input.value.trim();
+      if (!q) {
+        resultsEl.innerHTML = '<div class="search-empty"><div style="font-size:32px;opacity:0.3;">🔍</div><div>검색어를 입력하세요</div></div>';
+        return;
+      }
+      const worldId = AppStore.getCurrentWorldId();
+      const scopeAll = AppStore.getState().searchScope === 'all';
+      const results = await search(q, worldId, scopeAll, activeTypeFilter);
+      resultsEl.innerHTML = renderResults(results);
+      resultsEl.querySelectorAll('.search-result-item').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const page = btn.dataset.page;
+          const id = btn.dataset.id;
+          closeBtn.click();
+          if (window.AppRouter) AppRouter.navigate(page, { highlightId: id });
+        });
+      });
+    };
+
+    // Type filter chips
+    document.querySelectorAll('.search-type-chip').forEach(chip => {
+      chip.addEventListener('click', () => {
+        const type = chip.dataset.type;
+        activeTypeFilter = type === 'all' ? null : type;
+        document.querySelectorAll('.search-type-chip').forEach(c => {
+          const isActive = c === chip;
+          c.dataset.active = isActive;
+          c.style.background = isActive ? 'var(--color-primary)' : 'transparent';
+          c.style.color = isActive ? '#000' : 'var(--color-text-muted)';
+          c.style.borderColor = isActive ? 'var(--color-primary)' : 'var(--color-border)';
+        });
+        runSearch();
+      });
+    });
+
     openBtn?.addEventListener('click', () => {
       overlay.classList.add('open');
       overlay.setAttribute('aria-hidden', 'false');
@@ -122,25 +161,7 @@ const SearchEngine = (function() {
       const q = input.value.trim();
       clearBtn.style.display = q ? 'flex' : 'none';
       clearTimeout(debounceTimer);
-      debounceTimer = setTimeout(async () => {
-        if (!q) {
-          resultsEl.innerHTML = '<div class="search-empty"><div style="font-size:32px;opacity:0.3;">🔍</div><div>검색어를 입력하세요</div></div>';
-          return;
-        }
-        const worldId = AppStore.getCurrentWorldId();
-        const scopeAll = AppStore.getState().searchScope === 'all';
-        const results = await search(q, worldId, scopeAll);
-        resultsEl.innerHTML = renderResults(results);
-
-        resultsEl.querySelectorAll('.search-result-item').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const page = btn.dataset.page;
-            const id = btn.dataset.id;
-            closeBtn.click();
-            if (window.AppRouter) AppRouter.navigate(page, { highlightId: id });
-          });
-        });
-      }, 250);
+      debounceTimer = setTimeout(runSearch, 250);
     });
 
     clearBtn?.addEventListener('click', () => {

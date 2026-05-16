@@ -6,12 +6,15 @@ Object.assign(window.Pages.characters, {
     const stats = char?.stats || {};
     const isTemplate = char?.charType === 'template';
 
-    // Load constellations, stat definitions, and skills
-    const [allConsts, allStatDefs, allSkillsRaw] = await Promise.all([
+    // Load constellations, stat definitions, skills, and achievements
+    const [allConsts, allStatDefs, allSkillsRaw, allAchievementsRaw] = await Promise.all([
       DB.getAll('constellations', wid),
       DB.getAll('statDefs', wid),
       DB.getAll('skills', wid),
+      DB.getAll('achievements', wid),
     ]);
+    const sortedAchievements = allAchievementsRaw.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+    const linkedAchievementIds = new Set((char?.achievements || []).map(a => typeof a === 'string' ? a : a.id).filter(Boolean));
 
     if (allStatDefs.length === 0) {
       const catMap = { '힘 특화': '전투스텟', '민첩 특화': '전투스텟', '체력 특화': '전투스텟', '마나 계열': '마나계열', '정신 계열': '정신계열', '기타': '기타' };
@@ -277,6 +280,24 @@ Object.assign(window.Pages.characters, {
             </div>
           </div>
         </div>` : ''}
+        ${sortedAchievements.length > 0 ? `
+        <div class="form-group" style="border:1px solid rgba(251,191,36,0.3);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">🏆 보유 업적</label>
+          <div id="linkedAchChips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:6px;">
+            ${[...linkedAchievementIds].map(aid => {
+              const a = sortedAchievements.find(x => x.id === aid);
+              if (!a) return '';
+              return `<span class="ach-chip" data-aid="${Utils.escHtml(aid)}"
+                style="display:inline-flex;align-items:center;gap:4px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+                title="클릭하여 제거">${Utils.escHtml(a.name||'')} ✕</span>`;
+            }).filter(Boolean).join('')}
+          </div>
+          <div style="position:relative;">
+            <input class="input-field" id="achSearch" placeholder="업적 이름 검색..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="achResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:150px;overflow-y:auto;"></div>
+          </div>
+        </div>` : ''}
         <div class="form-group">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">작가 메모 (작가 뷰에만 표시)</label>
           <textarea class="textarea-field" id="fCharAuthorNotes" rows="3"
@@ -354,7 +375,10 @@ Object.assign(window.Pages.characters, {
         authorNotes: document.getElementById('fCharAuthorNotes')?.value.trim() || '',
         image: newImage,
         skills: char?.skills || [],
-        achievements: char?.achievements || [],
+        achievements: [...linkedAchievementIds].map(aid => {
+          const a = sortedAchievements.find(x => x.id === aid);
+          return a ? { id: a.id, name: a.name || '' } : null;
+        }).filter(Boolean),
         organizations: char?.organizations || [],
         updatedAt: Date.now(),
         createdAt: char?.createdAt || Date.now(),
@@ -534,6 +558,51 @@ Object.assign(window.Pages.characters, {
         provisionalConstIds,
         { bg: 'rgba(80,160,200,0.2)', border: 'rgba(80,160,200,0.5)' }
       );
+
+      // ── Achievement linking search ─────────────────────────────
+      const achInput = document.getElementById('achSearch');
+      const achResults = document.getElementById('achResults');
+      const achChipsEl = document.getElementById('linkedAchChips');
+      if (achInput && achResults && achChipsEl) {
+        const renderAchChips = () => {
+          achChipsEl.innerHTML = [...linkedAchievementIds].map(aid => {
+            const a = sortedAchievements.find(x => x.id === aid);
+            if (!a) return '';
+            return `<span class="ach-chip" data-aid="${Utils.escHtml(aid)}"
+              style="display:inline-flex;align-items:center;gap:4px;background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.4);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+              title="클릭하여 제거">${Utils.escHtml(a.name||'')} ✕</span>`;
+          }).filter(Boolean).join('');
+          achChipsEl.querySelectorAll('.ach-chip').forEach(chip => {
+            chip.addEventListener('click', () => {
+              linkedAchievementIds.delete(chip.dataset.aid);
+              renderAchChips();
+            });
+          });
+        };
+        renderAchChips();
+        achInput.addEventListener('input', () => {
+          const q = achInput.value.trim().toLowerCase();
+          if (!q) { achResults.style.display = 'none'; return; }
+          const matches = sortedAchievements.filter(a => !linkedAchievementIds.has(a.id) && (a.name||'').toLowerCase().includes(q)).slice(0, 10);
+          if (!matches.length) { achResults.style.display = 'none'; return; }
+          achResults.style.display = 'block';
+          achResults.innerHTML = matches.map(a => `
+            <div class="ach-result-row" data-aid="${Utils.escHtml(a.id)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">
+              ${Utils.escHtml(a.name||'')}${a.grade ? `<span style="font-size:11px;color:var(--color-text-dim);margin-left:6px;">${Utils.escHtml(a.grade)}</span>` : ''}
+            </div>`).join('');
+          achResults.querySelectorAll('.ach-result-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              linkedAchievementIds.add(row.dataset.aid);
+              achInput.value = '';
+              achResults.style.display = 'none';
+              renderAchChips();
+            });
+          });
+        });
+        achInput.addEventListener('blur', () => setTimeout(() => { achResults.style.display = 'none'; }, 150));
+      }
 
       // ── Template character UI ──────────────────────────────────
       document.querySelectorAll('[name="charTypeSel"]').forEach(r => {
