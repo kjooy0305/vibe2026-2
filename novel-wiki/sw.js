@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v60';
+const CACHE_VERSION = 'novel-wiki-v61';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
@@ -25,32 +25,42 @@ const PRECACHE_ASSETS = [
   './pages/home.js',
   './pages/world.js',
   './pages/characters.js',
+  './pages/characters-form.js',
   './pages/organizations.js',
+  './pages/organizations-form.js',
   './pages/skills.js',
+  './pages/skills-form.js',
   './pages/achievements.js',
   './pages/constellations.js',
+  './pages/constellations-form.js',
   './pages/gates.js',
   './pages/gates-form.js',
   './pages/monsters.js',
+  './pages/monsters-form.js',
   './pages/tower.js',
   './pages/tower-floor-form.js',
+  './pages/tower-subfloor-form.js',
   './pages/timeline.js',
   './pages/event-graph.js',
   './pages/family-tree.js',
   './pages/world-rules.js',
   './pages/items.js',
+  './pages/items-form.js',
   './pages/jobs.js',
+  './pages/jobs-form.js',
   './pages/templates.js',
   './pages/status-viewer.js',
   './pages/novel-view.js',
   './pages/settings.js',
   './pages/countries.js',
+  './pages/countries-form.js',
   './pages/companies.js',
   './pages/reminders.js',
   './pages/keywords.js',
   './pages/stat-defs.js',
   './pages/traps.js',
   './pages/places.js',
+  './pages/places-form.js',
   './pages/gods.js',
   './pages/races.js',
   './pages/quests.js'
