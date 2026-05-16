@@ -294,13 +294,11 @@ window.Pages.home = {
         `).join('')}
       </div>
 
-      <!-- ── 바로가기 ── -->
+      <!-- ── 바로가기 슬롯 ── -->
       <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-        <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);">바로가기</div>
-        <button id="btnEditBookmarks" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--color-primary);padding:2px 6px;">편집</button>
+        <button id="btnEditBookmarks" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--color-primary);padding:2px 6px;margin-left:auto;">편집</button>
       </div>
-      <!-- 북마크 슬롯 5개 -->
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;" id="bookmarkSlots">
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:14px;" id="bookmarkSlots">
         ${Array.from({length:5}, (_,i) => {
           const bm = bookmarks[i] ? HOME_ALL_PAGES.find(p => p.page === bookmarks[i]) : null;
           return `<button class="bookmark-slot" data-slot="${i}" data-page="${bm ? bm.page : ''}"
@@ -313,16 +311,6 @@ window.Pages.home = {
             <div style="font-size:10px;font-weight:600;color:${bm ? 'var(--color-text)' : 'var(--color-text-muted)'};text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${bm ? bm.name : '빈 슬롯'}</div>
           </button>`;
         }).join('')}
-      </div>
-      <!-- 전체 페이지 그리드 -->
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;">
-        ${HOME_ALL_PAGES.map(({page, icon, name}) => `
-          <button onclick="AppRouter.navigate('${page}')"
-            style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:10px;padding:10px 4px;cursor:pointer;min-height:60px;">
-            <div style="font-size:18px;">${icon}</div>
-            <div style="font-size:10px;font-weight:600;color:var(--color-text);text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${name}</div>
-          </button>
-        `).join('')}
       </div>
 
       <!-- ── 최근 수정 (아이콘 버튼) ── -->
