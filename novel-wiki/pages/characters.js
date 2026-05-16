@@ -246,7 +246,7 @@ window.Pages.characters = {
   _charCard: function(c) {
     const searchText = [c.name || '', c.race || '', c.country || '', c.region || '', c.guild || '', c.title || ''].join(' ').toLowerCase();
     const isTemplate = c.charType === 'template';
-    const countBadge = isTemplate && c.templateData?.count ? ` ×${c.templateData.count}` : '';
+    const countBadge = '';
     return `
     <div class="list-item list-item--full char-card"
       data-id="${Utils.escHtml(c.id)}"
@@ -571,7 +571,6 @@ window.Pages.characters = {
           <button class="btn btn-ghost btn-sm" id="btnBackChars">← 목록</button>
           <span style="font-size:11px;padding:2px 8px;border-radius:4px;background:rgba(167,139,250,0.2);color:#a78bfa;border:1px solid rgba(167,139,250,0.3);">약식</span>
           <h2 class="page-title" style="font-size:18px;">${Utils.escHtml(char.name||'캐릭터')}</h2>
-          ${td.count ? `<span class="badge" style="font-size:12px;padding:3px 8px;background:#a78bfa;color:#fff;border-radius:6px;">×${td.count}</span>` : ''}
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" id="btnEditChar">편집</button>
@@ -583,7 +582,7 @@ window.Pages.characters = {
       <div class="status-window" style="background:rgba(40,30,70,0.85);border:1px solid rgba(167,139,250,0.4);border-radius:8px;padding:16px;font-family:monospace;font-size:13px;line-height:1.8;color:#e0d4ff;margin-bottom:16px;">
         <div style="text-align:center;color:rgba(167,139,250,0.7);font-size:11px;margin-bottom:8px;">${'ㅡ'.repeat(16)}</div>
         ${char.title ? `<div>ㅣ칭호: ${Utils.escHtml(char.title)}</div>` : ''}
-        <div>ㅣ이름: <strong>${Utils.escHtml(char.name||'')}</strong>${td.count ? ` (${td.count}명)` : ''}</div>
+        <div>ㅣ이름: <strong>${Utils.escHtml(char.name||'')}</strong></div>
         ${char.country ? `<div>ㅣ국가: ${Utils.escHtml(char.country)}</div>` : ''}
         ${char.guild ? `<div>ㅣ길드: ${Utils.escHtml(char.guild)}</div>` : ''}
         <div>ㅣ종족: ${Utils.escHtml(char.race||'인간')}</div>
@@ -735,10 +734,7 @@ window.Pages.characters = {
     const templateSection = `
       <div id="tplSection" style="${isTemplate?'':'display:none;'}">
         <div style="font-size:12px;color:#a78bfa;font-weight:700;padding:6px 10px;background:rgba(167,139,250,0.1);border-radius:6px;margin-bottom:8px;">약식 캐릭터 설정</div>
-        <div class="form-group">
-          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">수량</label>
-          <input type="number" class="input-field" id="fTplCount" value="${td.count || ''}" placeholder="몇 명인지 (예: 10)" style="width:140px;box-sizing:border-box;" />
-        </div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:8px;">수량은 게이트·타워 등 배치 시 해당 칩에서 설정합니다.</div>
         <div class="form-group" style="border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:10px 12px;">
           <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
             <label class="form-label" style="margin:0;font-size:13px;font-weight:600;">스탯 범위</label>
@@ -975,9 +971,7 @@ window.Pages.characters = {
       let templateData = null;
       if (isTpl) {
         syncTplStatsFromDOM();
-        const countVal = document.getElementById('fTplCount')?.value;
         templateData = {
-          count: countVal ? Number(countVal) : null,
           statRanges: tplStatRanges.filter(s => s.name.trim()),
           fixedSkills: tplFixedSkills,
           variableSkills: tplVarSkills,
