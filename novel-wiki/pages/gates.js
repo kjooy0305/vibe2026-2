@@ -292,6 +292,30 @@ window.Pages.gates = {
               const tgt = gate.explorationConfig.target?.name || '';
               details += `<div style="font-size:12px;margin-bottom:4px;">🔍 탐험 목표: ${Utils.escHtml(tgt) || '?'}</div>`;
             }
+            if (concepts.includes('defense') && gate.defenseConfig) {
+              const dc = gate.defenseConfig;
+              const targetNames = (dc.targets || []).map(t => Utils.escHtml(t.name)).join(', ');
+              const invaderNames = (dc.invaders || []).map(e => Utils.escHtml(e.name)).join(', ');
+              const defenderNames = (dc.defenders || []).map(e => Utils.escHtml(e.name)).join(', ');
+              details += `<div style="font-size:12px;margin-bottom:4px;">🛡️ 방어전${targetNames ? ` — 지킬 대상: ${targetNames}` : ''}${invaderNames ? ` / 침공군: ${invaderNames}` : ''}${defenderNames ? ` / 방어군: ${defenderNames}` : ''}</div>`;
+            }
+            if (concepts.includes('siege') && gate.siegeConfig) {
+              const sc = gate.siegeConfig;
+              const targetNames = (sc.targets || []).map(t => Utils.escHtml(t.name)).join(', ');
+              const defenderNames = (sc.defenders || []).map(e => Utils.escHtml(e.name)).join(', ');
+              const attackerNames = (sc.attackers || []).map(e => Utils.escHtml(e.name)).join(', ');
+              details += `<div style="font-size:12px;margin-bottom:4px;">⚔️ 공성전${targetNames ? ` — 공략 대상: ${targetNames}` : ''}${defenderNames ? ` / 수비군: ${defenderNames}` : ''}${attackerNames ? ` / 공격군: ${attackerNames}` : ''}</div>`;
+            }
+            if (concepts.includes('speedrun') && gate.speedrunConfig) {
+              const src = gate.speedrunConfig;
+              details += `<div style="font-size:12px;margin-bottom:4px;">🏃 스피드런 — 제한: ${Utils.escHtml(src.timeLimit || '?')}${src.scope ? ` (${Utils.escHtml(src.scope)})` : ''}</div>`;
+            }
+            if (concepts.includes('survival') && gate.survivalConfig) {
+              const sv = gate.survivalConfig;
+              const monNames = (sv.monsters || []).map(e => Utils.escHtml(e.name)).join(', ');
+              const statCount = (sv.statReductions || []).length;
+              details += `<div style="font-size:12px;margin-bottom:4px;">⏳ 생존 — 목표: ${Utils.escHtml(sv.duration || '?')}${monNames ? ` / 위협: ${monNames}` : ''}${statCount > 0 ? ` / 스텟감소 ${statCount}종` : ''}</div>`;
+            }
             return `<div style="margin-bottom:10px;">
               <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">컨셉</div>
               <div style="display:flex;gap:4px;flex-wrap:wrap;margin-bottom:6px;">${badges}</div>

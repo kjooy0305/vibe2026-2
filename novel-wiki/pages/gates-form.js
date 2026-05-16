@@ -40,6 +40,20 @@ Object.assign(window.Pages.gates, {
     const mkPlaceRef = (src) => ({ type: src?.type || 'text', id: src?.id || '', name: src?.name || '', desc: src?.desc || '' });
     let bossPlace = mkPlaceRef(g.bossConfig?.place);
 
+    // Defense state
+    let defInvaders   = [...(g.defenseConfig?.invaders   || [])];
+    let defDefenders  = [...(g.defenseConfig?.defenders  || [])];
+    let defTargets    = [...(g.defenseConfig?.targets    || [])]; // [{type:'text'|'place', id?, name, desc?}]
+    let defLocPlace   = mkPlaceRef(g.defenseConfig?.location);
+    // Siege state
+    let siegeDefenders = [...(g.siegeConfig?.defenders || [])];
+    let siegeAttackers = [...(g.siegeConfig?.attackers || [])];
+    let siegeTargets   = [...(g.siegeConfig?.targets   || [])];
+    let siegeLocPlace  = mkPlaceRef(g.siegeConfig?.location);
+    // Survival state
+    let svMonsters        = [...(g.survivalConfig?.monsters       || [])];
+    let svStatReductions  = (g.survivalConfig?.statReductions || []).map(r => ({...r}));
+
     const allTypes = [...this.TYPES, ...(this._customTypes || [])];
     const allBreakTypes = [...this.BREAK_TYPES, ...(this._customBreakTypes || [])];
     const existingType = g.type || '';
@@ -203,10 +217,14 @@ Object.assign(window.Pages.gates, {
     const exPlaceRef = mkPlaceRef(g.explorationConfig?.target?.type === 'place' ? g.explorationConfig.target : null);
 
     const conceptChipsHtml = [
-      { id: 'wave', label: '웨이브(wave)' },
+      { id: 'wave',        label: '웨이브(wave)' },
       { id: 'exploration', label: '탐험(exploration)' },
-      { id: 'decapitation', label: '참수작전(decapitation)' },
-      { id: 'boss', label: '보스전(boss)' },
+      { id: 'decapitation',label: '참수작전(decapitation)' },
+      { id: 'boss',        label: '보스전(boss)' },
+      { id: 'defense',     label: '🛡️ 방어전' },
+      { id: 'siege',       label: '⚔️ 공성전' },
+      { id: 'speedrun',    label: '🏃 스피드런' },
+      { id: 'survival',    label: '⏳ 생존' },
     ].map(c => `<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface3,#1e2030);cursor:pointer;font-size:12px;">
       <input type="checkbox" class="concept-cb" value="${c.id}" ${formConcepts.has(c.id) ? 'checked' : ''} /> ${c.label}
     </label>`).join('');
@@ -337,6 +355,156 @@ Object.assign(window.Pages.gates, {
           <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">페이즈</div>
           <div id="phaseList">${bossPhases.map((p, i) => phaseRowHtml(p, i)).join('')}</div>
           <button class="btn btn-ghost btn-sm" id="btnAddPhase" style="width:100%;border:1px dashed #c084fc55;font-size:12px;color:#c084fc;margin-top:4px;">+ 페이즈 추가</button>
+        </div>
+
+        <!-- Defense section -->
+        <div id="sectionDefense" style="display:${formConcepts.has('defense') ? 'block' : 'none'};border-top:1px solid #f59e0b44;padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#f59e0b;margin-bottom:8px;">🛡️ 방어전 설정</div>
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">전장 위치</div>
+          ${placeRefHtml('defLoc', defLocPlace)}
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">지킬 대상 (물건 또는 장소)</div>
+          <div id="defTargetChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:4px;">${defTargets.map(t =>
+            `<span class="def-target-chip" data-dtype="${Utils.escHtml(t.type||'text')}" data-did="${Utils.escHtml(t.id||'')}" data-dname="${Utils.escHtml(t.name||'')}"
+              style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);">
+              ${t.type === 'place' ? '📍' : '📦'} ${Utils.escHtml(t.name||'')}
+              <button class="def-target-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+            </span>`).join('')}</div>
+          <div style="display:flex;gap:6px;margin-bottom:4px;">
+            <input class="input-field" id="defTargetTextInput" placeholder="물건/항목 이름 직접 입력" style="flex:1;font-size:12px;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddDefTargetText" style="font-size:11px;flex-shrink:0;">+ 텍스트</button>
+          </div>
+          <div style="position:relative;">
+            <input class="input-field" id="defTargetPlaceSearch" placeholder="장소창에서 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="defTargetPlaceResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">침공군 (몬스터 / 약식 캐릭터)</div>
+          <div id="defInvaderChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${defInvaders.map(e => chipHtml(e, e.type || 'monster')).join('')}</div>
+          ${entitySearchHtml('defInvaderSearch', 'defInvaderResults', '몬스터/캐릭터 검색...')}
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">방어군 (캐릭터)</div>
+          <div id="defDefenderChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${defDefenders.map(e => chipHtml(e, 'char')).join('')}</div>
+          ${entitySearchHtml('defDefenderSearch', 'defDefenderResults', '캐릭터 검색...')}
+
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:8px;">
+            <input type="checkbox" id="defLinkWave" ${g.defenseConfig?.linkWave ? 'checked' : ''} /> 웨이브 연계
+          </label>
+          <div class="form-group" style="margin-top:8px;">
+            <label class="form-label" style="font-size:12px;">메모</label>
+            <textarea class="input-field" id="defNotes" rows="2" placeholder="방어전 관련 메모..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.defenseConfig?.notes || '')}</textarea>
+          </div>
+        </div>
+
+        <!-- Siege section -->
+        <div id="sectionSiege" style="display:${formConcepts.has('siege') ? 'block' : 'none'};border-top:1px solid #ef444444;padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px;">⚔️ 공성전 설정</div>
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">전장 위치</div>
+          ${placeRefHtml('siegeLoc', siegeLocPlace)}
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">공략 대상 (장소 또는 물건)</div>
+          <div id="siegeTargetChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:4px;">${siegeTargets.map(t =>
+            `<span class="siege-target-chip" data-stype="${Utils.escHtml(t.type||'text')}" data-sid="${Utils.escHtml(t.id||'')}" data-sname="${Utils.escHtml(t.name||'')}"
+              style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);">
+              ${t.type === 'place' ? '📍' : '🎯'} ${Utils.escHtml(t.name||'')}
+              <button class="siege-target-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+            </span>`).join('')}</div>
+          <div style="display:flex;gap:6px;margin-bottom:4px;">
+            <input class="input-field" id="siegeTargetTextInput" placeholder="공략 대상 이름 직접 입력" style="flex:1;font-size:12px;" />
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddSiegeTargetText" style="font-size:11px;flex-shrink:0;">+ 텍스트</button>
+          </div>
+          <div style="position:relative;">
+            <input class="input-field" id="siegeTargetPlaceSearch" placeholder="장소창에서 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="siegeTargetPlaceResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">수비군 (몬스터 / 적 캐릭터)</div>
+          <div id="siegeDefenderChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${siegeDefenders.map(e => chipHtml(e, e.type || 'monster')).join('')}</div>
+          ${entitySearchHtml('siegeDefenderSearch', 'siegeDefenderResults', '몬스터/캐릭터 검색...')}
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;margin-top:8px;">공격군 (아군 캐릭터)</div>
+          <div id="siegeAttackerChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${siegeAttackers.map(e => chipHtml(e, 'char')).join('')}</div>
+          ${entitySearchHtml('siegeAttackerSearch', 'siegeAttackerResults', '캐릭터 검색...')}
+
+          <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-top:8px;">
+            <input type="checkbox" id="siegeLinkWave" ${g.siegeConfig?.linkWave ? 'checked' : ''} /> 웨이브 연계
+          </label>
+          <div class="form-group" style="margin-top:8px;">
+            <label class="form-label" style="font-size:12px;">메모</label>
+            <textarea class="input-field" id="siegeNotes" rows="2" placeholder="공성전 관련 메모..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.siegeConfig?.notes || '')}</textarea>
+          </div>
+        </div>
+
+        <!-- Speedrun section -->
+        <div id="sectionSpeedrun" style="display:${formConcepts.has('speedrun') ? 'block' : 'none'};border-top:1px solid #22d3ee44;padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#22d3ee;margin-bottom:8px;">🏃 스피드런 설정</div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">제한 시간</label>
+            <input class="input-field" id="srTimeLimit" value="${Utils.escHtml(g.speedrunConfig?.timeLimit || '')}"
+              placeholder="예: 30분, 2시간" style="width:100%;box-sizing:border-box;font-size:12px;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">적용 범위 (어떤 구간/조건에 적용되는지)</label>
+            <textarea class="input-field" id="srScope" rows="2" placeholder="예: 전체, 웨이브 1-3, 보스전"
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.speedrunConfig?.scope || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">성공 시 보상 / 이득</label>
+            <textarea class="input-field" id="srSuccessRewards" rows="2" placeholder="성공 보상 내용..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.speedrunConfig?.successRewards || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">실패 시 패널티 / 손해</label>
+            <textarea class="input-field" id="srFailPenalties" rows="2" placeholder="실패 패널티 내용..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.speedrunConfig?.failPenalties || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">기타 메모</label>
+            <textarea class="input-field" id="srNotes" rows="2" placeholder="스피드런 관련 기타 내용..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.speedrunConfig?.notes || '')}</textarea>
+          </div>
+        </div>
+
+        <!-- Survival section -->
+        <div id="sectionSurvival" style="display:${formConcepts.has('survival') ? 'block' : 'none'};border-top:1px solid #a78bfa44;padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#a78bfa;margin-bottom:8px;">⏳ 생존 설정</div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">생존 목표 시간</label>
+            <input class="input-field" id="svDuration" value="${Utils.escHtml(g.survivalConfig?.duration || '')}"
+              placeholder="예: 72시간, 1주일, 72시간 이상" style="width:100%;box-sizing:border-box;font-size:12px;" />
+          </div>
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">위협 요소 — 몬스터</div>
+          <div id="svMonChips" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${svMonsters.map(e => chipHtml(e, e.type || 'monster')).join('')}</div>
+          ${entitySearchHtml('svMonSearch', 'svMonResults', '몬스터/캐릭터 검색...')}
+
+          <div class="form-group" style="margin-top:8px;">
+            <label class="form-label" style="font-size:12px;">위협 요소 — 환경 / 기타</label>
+            <textarea class="input-field" id="svEnvThreat" rows="2"
+              placeholder="예: 극한 온도, 독가스, 공허, 시간 압박..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.survivalConfig?.envThreat || '')}</textarea>
+          </div>
+
+          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;margin-top:4px;">스텟 감소 목록</div>
+          <div id="svStatList" style="display:flex;flex-direction:column;gap:6px;"></div>
+          <button type="button" class="btn btn-ghost btn-sm" id="btnAddSvStat"
+            style="width:100%;border:1px dashed #a78bfa55;font-size:12px;color:#a78bfa;margin-top:4px;">+ 스텟 감소 추가</button>
+
+          <div class="form-group" style="margin-top:8px;">
+            <label class="form-label" style="font-size:12px;">기타 위험 상황</label>
+            <textarea class="input-field" id="svOtherHazards" rows="2"
+              placeholder="독이 넘쳐나는 상황, 식량 부족, 동료 전투불능 등..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.survivalConfig?.otherHazards || '')}</textarea>
+          </div>
+          <div class="form-group">
+            <label class="form-label" style="font-size:12px;">메모</label>
+            <textarea class="input-field" id="svNotes" rows="2" placeholder="생존전 관련 기타 메모..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.survivalConfig?.notes || '')}</textarea>
+          </div>
         </div>
 
         <div style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
@@ -704,6 +872,48 @@ Object.assign(window.Pages.gates, {
         bossConfig: formConcepts.has('boss') ? {
           place: savedBossPlace, enemies: savedBossEnemies, phases: bossPhases.map(p => ({ ...p })),
         } : null,
+        defenseConfig: formConcepts.has('defense') ? {
+          location: readPlaceRef('defLoc'),
+          targets: [...document.querySelectorAll('#globalModalBody .def-target-chip')].map(el => ({
+            type: el.dataset.dtype || 'text', id: el.dataset.did || '', name: el.dataset.dname || '',
+          })),
+          invaders: readChipsFromContainer('defInvaderChips', 'monster'),
+          defenders: readChipsFromContainer('defDefenderChips', 'char'),
+          linkWave: document.getElementById('defLinkWave')?.checked || false,
+          notes: document.getElementById('defNotes')?.value || '',
+        } : null,
+        siegeConfig: formConcepts.has('siege') ? {
+          location: readPlaceRef('siegeLoc'),
+          targets: [...document.querySelectorAll('#globalModalBody .siege-target-chip')].map(el => ({
+            type: el.dataset.stype || 'text', id: el.dataset.sid || '', name: el.dataset.sname || '',
+          })),
+          defenders: readChipsFromContainer('siegeDefenderChips', 'monster'),
+          attackers: readChipsFromContainer('siegeAttackerChips', 'char'),
+          linkWave: document.getElementById('siegeLinkWave')?.checked || false,
+          notes: document.getElementById('siegeNotes')?.value || '',
+        } : null,
+        speedrunConfig: formConcepts.has('speedrun') ? {
+          timeLimit: document.getElementById('srTimeLimit')?.value.trim() || '',
+          scope: document.getElementById('srScope')?.value.trim() || '',
+          successRewards: document.getElementById('srSuccessRewards')?.value.trim() || '',
+          failPenalties: document.getElementById('srFailPenalties')?.value.trim() || '',
+          notes: document.getElementById('srNotes')?.value.trim() || '',
+        } : null,
+        survivalConfig: formConcepts.has('survival') ? {
+          duration: document.getElementById('svDuration')?.value.trim() || '',
+          monsters: readChipsFromContainer('svMonChips', 'monster'),
+          envThreat: document.getElementById('svEnvThreat')?.value.trim() || '',
+          statReductions: svStatReductions.map((sr, idx) => ({
+            statId:       document.getElementById('svStatId' + idx)?.value || sr.statId || '',
+            statName:     document.getElementById('svStatName' + idx)?.value || sr.statName || '',
+            amount:       document.getElementById('svStatAmount' + idx)?.value.trim() || sr.amount || '',
+            intervalType: document.querySelector(`[name="svStatIval${idx}"]:checked`)?.value || sr.intervalType || 'periodic',
+            interval:     document.getElementById('svStatInterval' + idx)?.value.trim() || sr.interval || '',
+            desc:         document.getElementById('svStatDesc' + idx)?.value.trim() || sr.desc || '',
+          })),
+          otherHazards: document.getElementById('svOtherHazards')?.value.trim() || '',
+          notes: document.getElementById('svNotes')?.value.trim() || '',
+        } : null,
         createdAt: g.createdAt || Date.now(),
         updatedAt: Date.now(),
       };
@@ -937,6 +1147,177 @@ Object.assign(window.Pages.gates, {
         syncBossPhasesFromDOM();
         bossPhases.push({ condition: '', desc: '', attacks: [] });
         reRenderPhaseList();
+      });
+
+      // ── Defense section ──────────────────────────────────────────────────────
+      const allMonCharsAll = [
+        ...allMonsters.map(m => ({ ...m, _etype: 'monster' })),
+        ...allChars.map(c => ({ ...c, _etype: 'char' })),
+      ];
+
+      const renderDefTargets = () => {
+        const wrap = document.getElementById('defTargetChips');
+        if (!wrap) return;
+        wrap.innerHTML = defTargets.map(t =>
+          `<span class="def-target-chip" data-dtype="${Utils.escHtml(t.type||'text')}" data-did="${Utils.escHtml(t.id||'')}" data-dname="${Utils.escHtml(t.name||'')}"
+            style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(245,158,11,0.15);border:1px solid rgba(245,158,11,0.4);">
+            ${t.type === 'place' ? '📍' : '📦'} ${Utils.escHtml(t.name||'')}
+            <button class="def-target-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+          </span>`).join('');
+        wrap.querySelectorAll('.def-target-del').forEach((btn, i) => {
+          btn.addEventListener('click', () => { defTargets.splice(i, 1); renderDefTargets(); });
+        });
+      };
+      renderDefTargets();
+
+      document.getElementById('btnAddDefTargetText')?.addEventListener('click', () => {
+        const inp = document.getElementById('defTargetTextInput');
+        const name = inp?.value.trim();
+        if (!name) return;
+        defTargets.push({ type: 'text', id: '', name });
+        renderDefTargets();
+        if (inp) inp.value = '';
+      });
+
+      wireSearch('defTargetPlaceSearch', 'defTargetPlaceResults', allPlaces, placeRow, (ds) => {
+        defTargets.push({ type: 'place', id: ds.id, name: ds.name });
+        renderDefTargets();
+        const inp = document.getElementById('defTargetPlaceSearch');
+        if (inp) inp.value = '';
+      });
+
+      wirePlaceRef('defLoc', defLocPlace);
+      wireChipDeletes('defInvaderChips');
+      wireSearch('defInvaderSearch', 'defInvaderResults', allMonCharsAll, entityRow, (ds) => {
+        addChipToContainer('defInvaderChips', { id: ds.id, name: ds.name, grade: ds.grade }, ds._etype || 'monster');
+      });
+      wireChipDeletes('defDefenderChips');
+      wireSearch('defDefenderSearch', 'defDefenderResults', allChars.map(c => ({ ...c, _etype: 'char' })), entityRow, (ds) => {
+        addChipToContainer('defDefenderChips', { id: ds.id, name: ds.name, grade: ds.grade }, 'char');
+      });
+
+      // ── Siege section ────────────────────────────────────────────────────────
+      const renderSiegeTargets = () => {
+        const wrap = document.getElementById('siegeTargetChips');
+        if (!wrap) return;
+        wrap.innerHTML = siegeTargets.map(t =>
+          `<span class="siege-target-chip" data-stype="${Utils.escHtml(t.type||'text')}" data-sid="${Utils.escHtml(t.id||'')}" data-sname="${Utils.escHtml(t.name||'')}"
+            style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(239,68,68,0.15);border:1px solid rgba(239,68,68,0.4);">
+            ${t.type === 'place' ? '📍' : '🎯'} ${Utils.escHtml(t.name||'')}
+            <button class="siege-target-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+          </span>`).join('');
+        wrap.querySelectorAll('.siege-target-del').forEach((btn, i) => {
+          btn.addEventListener('click', () => { siegeTargets.splice(i, 1); renderSiegeTargets(); });
+        });
+      };
+      renderSiegeTargets();
+
+      document.getElementById('btnAddSiegeTargetText')?.addEventListener('click', () => {
+        const inp = document.getElementById('siegeTargetTextInput');
+        const name = inp?.value.trim();
+        if (!name) return;
+        siegeTargets.push({ type: 'text', id: '', name });
+        renderSiegeTargets();
+        if (inp) inp.value = '';
+      });
+
+      wireSearch('siegeTargetPlaceSearch', 'siegeTargetPlaceResults', allPlaces, placeRow, (ds) => {
+        siegeTargets.push({ type: 'place', id: ds.id, name: ds.name });
+        renderSiegeTargets();
+        const inp = document.getElementById('siegeTargetPlaceSearch');
+        if (inp) inp.value = '';
+      });
+
+      wirePlaceRef('siegeLoc', siegeLocPlace);
+      wireChipDeletes('siegeDefenderChips');
+      wireSearch('siegeDefenderSearch', 'siegeDefenderResults', allMonCharsAll, entityRow, (ds) => {
+        addChipToContainer('siegeDefenderChips', { id: ds.id, name: ds.name, grade: ds.grade }, ds._etype || 'monster');
+      });
+      wireChipDeletes('siegeAttackerChips');
+      wireSearch('siegeAttackerSearch', 'siegeAttackerResults', allChars.map(c => ({ ...c, _etype: 'char' })), entityRow, (ds) => {
+        addChipToContainer('siegeAttackerChips', { id: ds.id, name: ds.name, grade: ds.grade }, 'char');
+      });
+
+      // ── Survival section ─────────────────────────────────────────────────────
+      const svStatRowHtml = (sr, idx) => `
+        <div class="sv-stat-row" data-sridx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:8px 10px;position:relative;">
+          <button class="sv-stat-del btn btn-ghost btn-sm" data-sridx="${idx}" style="position:absolute;top:6px;right:6px;color:var(--color-danger);font-size:10px;">삭제</button>
+          <div style="display:flex;gap:6px;align-items:center;margin-bottom:4px;">
+            <span style="font-size:11px;color:var(--color-text-muted);flex-shrink:0;">스텟:</span>
+            <div style="position:relative;flex:1;">
+              <input class="input-field" id="svStatName${idx}" value="${Utils.escHtml(sr.statName||'')}" placeholder="스텟 검색..." autocomplete="off"
+                style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="svStatResults${idx}" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;z-index:20;max-height:100px;overflow-y:auto;"></div>
+              <input type="hidden" id="svStatId${idx}" value="${Utils.escHtml(sr.statId||'')}" />
+            </div>
+            <span style="font-size:11px;color:var(--color-text-muted);flex-shrink:0;">감소량:</span>
+            <input class="input-field" id="svStatAmount${idx}" value="${Utils.escHtml(sr.amount||'')}" placeholder="예: 10, 5%"
+              style="width:72px;font-size:12px;" />
+          </div>
+          <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:4px;">
+            <span style="font-size:11px;color:var(--color-text-muted);">주기:</span>
+            <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer;">
+              <input type="radio" name="svStatIval${idx}" value="periodic" ${(sr.intervalType||'periodic')==='periodic'?'checked':''} /> 정기적
+            </label>
+            <label style="display:flex;align-items:center;gap:3px;font-size:12px;cursor:pointer;">
+              <input type="radio" name="svStatIval${idx}" value="irregular" ${sr.intervalType==='irregular'?'checked':''} /> 비정기적
+            </label>
+            <input class="input-field" id="svStatInterval${idx}" value="${Utils.escHtml(sr.interval||'')}" placeholder="예: 1시간마다, 랜덤"
+              style="flex:1;min-width:80px;font-size:12px;" />
+          </div>
+          <textarea class="input-field" id="svStatDesc${idx}" rows="2" placeholder="추가 설명 (예: 독 중첩 시 배로 증가)"
+            style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(sr.desc||'')}</textarea>
+        </div>`;
+
+      const renderSvStatList = () => {
+        const el = document.getElementById('svStatList');
+        if (!el) return;
+        el.innerHTML = svStatReductions.map((sr, i) => svStatRowHtml(sr, i)).join('');
+        el.querySelectorAll('.sv-stat-del').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const i = parseInt(btn.dataset.sridx, 10);
+            svStatReductions.splice(i, 1);
+            renderSvStatList();
+          });
+        });
+        svStatReductions.forEach((_, idx) => {
+          const nameEl = document.getElementById('svStatName' + idx);
+          const resultsEl = document.getElementById('svStatResults' + idx);
+          const idEl = document.getElementById('svStatId' + idx);
+          if (nameEl && resultsEl && idEl) {
+            nameEl.addEventListener('input', () => {
+              const q = nameEl.value.trim().toLowerCase();
+              if (!q) { resultsEl.style.display = 'none'; return; }
+              const hits = allStatDefs.filter(s => (s.name||'').toLowerCase().includes(q)).slice(0, 8);
+              resultsEl.innerHTML = hits.map(s =>
+                `<div class="sv-stat-result" data-sid="${Utils.escHtml(s.id)}" data-sname="${Utils.escHtml(s.name||'')}"
+                  style="padding:6px 10px;cursor:pointer;font-size:12px;border-bottom:1px solid var(--color-border);">📊 ${Utils.escHtml(s.name||'')}</div>`).join('');
+              resultsEl.style.display = hits.length ? 'block' : 'none';
+              resultsEl.querySelectorAll('.sv-stat-result').forEach(row => {
+                row.addEventListener('mousedown', e => {
+                  e.preventDefault();
+                  idEl.value = row.dataset.sid;
+                  nameEl.value = row.dataset.sname;
+                  svStatReductions[idx].statId = row.dataset.sid;
+                  svStatReductions[idx].statName = row.dataset.sname;
+                  resultsEl.style.display = 'none';
+                });
+              });
+            });
+            nameEl.addEventListener('blur', () => setTimeout(() => { resultsEl.style.display = 'none'; }, 150));
+          }
+        });
+      };
+      renderSvStatList();
+
+      document.getElementById('btnAddSvStat')?.addEventListener('click', () => {
+        svStatReductions.push({ statId: '', statName: '', amount: '', intervalType: 'periodic', interval: '', desc: '' });
+        renderSvStatList();
+      });
+
+      wireChipDeletes('svMonChips');
+      wireSearch('svMonSearch', 'svMonResults', allMonCharsAll, entityRow, (ds) => {
+        addChipToContainer('svMonChips', { id: ds.id, name: ds.name, grade: ds.grade }, ds._etype || 'monster');
       });
 
     }, 50);
