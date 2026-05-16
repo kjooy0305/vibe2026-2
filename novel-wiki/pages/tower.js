@@ -177,8 +177,8 @@ window.Pages.tower = {
       const preFloors = !isEdit ? (Number(document.getElementById('fTowerPreFloors')?.value) || 0) : 0;
       const preFloorArr = preFloors > 0
         ? Array.from({ length: preFloors }, (_, i) => ({
-            floorNum: i + 1, theme: '', enemies: '', features: '', quests: '',
-            rewards: '', hidden: false, image: null, subFloors: [], createdAt: Date.now(),
+            floorNum: i + 1, theme: '', enemies: '', featureEntries: [], quests: '',
+            hidden: false, image: null, subFloors: [], createdAt: Date.now(),
           }))
         : [];
       const data = {
@@ -476,21 +476,24 @@ window.Pages.tower = {
             ${floor.enemies.split('\n').map(e => e.trim()).filter(Boolean).map(e =>
               `<div style="font-size:13px;padding:1px 0 1px 8px;">ㄴ${Utils.escHtml(e)}</div>`).join('')}
           </div>` : ''}
-        ${floor.features ? `
-          <div style="margin-bottom:10px;">
-            <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[특징]</div>
-            ${floor.features.split('\n').map(l => l.trim()).filter(Boolean).map(l =>
-              `<div style="font-size:13px;padding:1px 0 1px 8px;line-height:1.7;">ㄴ${Utils.escHtml(l)}</div>`).join('')}
-          </div>` : ''}
+        ${(() => {
+            const featureEntries = floor.featureEntries || [];
+            if (featureEntries.length > 0) {
+              const REF_ICONS_D = { monster: '👾', stat: '📊', skill: '✨', '': '📝' };
+              const listHtml = featureEntries.map((e, i) => {
+                const refBadge = e.refType ? `<span style="font-size:11px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:4px;padding:1px 5px;margin-right:4px;">${REF_ICONS_D[e.refType] || '📝'} ${Utils.escHtml(e.refName)}</span>` : '';
+                return `<div style="font-size:13px;padding:1px 0 1px 8px;line-height:1.7;">ㄴ ${refBadge}${Utils.escHtml(e.text)}</div>`;
+              }).join('');
+              return `<div style="margin-bottom:10px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[특징]</div>${listHtml}</div>`;
+            } else if (floor.features) {
+              return `<div style="margin-bottom:10px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[특징]</div>${floor.features.split('\n').map(l => l.trim()).filter(Boolean).map(l => `<div style="font-size:13px;padding:1px 0 1px 8px;line-height:1.7;">ㄴ${Utils.escHtml(l)}</div>`).join('')}</div>`;
+            }
+            return '';
+          })()}
         ${floor.quests ? `
           <div style="margin-bottom:10px;">
             <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[퀘스트]</div>
             <div style="font-size:13px;white-space:pre-wrap;padding-left:8px;line-height:1.7;word-break:break-word;overflow-wrap:break-word;">${Utils.nl2br(Utils.escHtml(floor.quests))}</div>
-          </div>` : ''}
-        ${floor.rewards ? `
-          <div style="margin-bottom:10px;">
-            <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">ㅣ[보상]</div>
-            <div style="font-size:13px;white-space:pre-wrap;padding-left:8px;line-height:1.7;word-break:break-word;overflow-wrap:break-word;">${Utils.nl2br(Utils.escHtml(floor.rewards))}</div>
           </div>` : ''}
         ${floor.image ? `<div style="margin-bottom:10px;"><img src="${floor.image}" style="max-width:100%;border-radius:8px;" loading="lazy" /></div>` : ''}
 
@@ -556,7 +559,6 @@ window.Pages.tower = {
         </div>` : ''}
       ${sf.features ? `<div style="font-size:12px;white-space:pre-wrap;padding-left:4px;line-height:1.7;margin-bottom:3px;word-break:break-word;overflow-wrap:break-word;">${sf.features.split('\n').map(l => l.trim()).filter(Boolean).map(l => `ㄴ${Utils.escHtml(l)}`).join('<br>')}</div>` : ''}
       ${sf.quests ? `<div style="font-size:12px;padding-left:4px;margin-bottom:3px;">ㄴ퀘스트: ${Utils.escHtml(sf.quests)}</div>` : ''}
-      ${sf.rewards ? `<div style="font-size:12px;padding-left:4px;color:var(--color-text-muted);">ㄴ보상: ${Utils.escHtml(sf.rewards)}</div>` : ''}
       ${sf.image ? `<div style="margin-top:6px;"><img src="${sf.image}" style="max-width:100%;max-height:120px;border-radius:6px;" loading="lazy" /></div>` : ''}
     </div>`;
   },
@@ -573,14 +575,28 @@ window.Pages.tower = {
       : undefined;
 
     // Load all required data
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills] = await Promise.all([
+    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefs] = await Promise.all([
       DB.getAll('monsters', wid),
       DB.getAll('characters', wid),
       DB.getAll('traps', wid),
       DB.getAll('items', wid),
       DB.getAll('places', wid),
       DB.getAll('skills', wid),
+      DB.getAll('stat-defs', wid),
     ]);
+
+    let formFeatureEntries = (() => {
+      if (Array.isArray(f.featureEntries)) {
+        return f.featureEntries.map(e => ({...e}));
+      }
+      const old = f.features || '';
+      if (typeof old === 'string' && old.trim()) {
+        return old.split('\n').filter(l => l.trim()).map(l => ({
+          id: DB.genId(), refType: '', refId: '', refName: '', text: l.trim(),
+        }));
+      }
+      return [];
+    })();
 
     // State
     let formConcepts = new Set(f.concepts || []);
@@ -648,8 +664,17 @@ window.Pages.tower = {
       const wavePlace = mkPlaceRef(w.place);
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
-      const clearCondType = w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
+      const clearTypes = w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']);
       const radioStyle = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
+      const clearCondHtml = [
+        ['enemies', '적 처치 완료'],
+        ['exploration', '탐험 클리어'],
+        ['decapitation', '참수 클리어'],
+        ['boss', '보스전 클리어'],
+        ['custom', '직접 입력'],
+      ].map(([val, label]) =>
+        `<label style="${radioStyle}"><input type="checkbox" class="wave-clear-type" value="${val}" data-widx="${idx}" ${clearTypes.includes(val) ? 'checked' : ''} /> ${label}</label>`
+      ).join('');
       return `
       <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -692,29 +717,17 @@ window.Pages.tower = {
           <div class="wave-trap-chips" id="waveTrapChips${idx}" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${trapChips}</div>
           ${entitySearchHtml('waveTrapSearch' + idx, 'waveTrapResults' + idx, '트랩 검색...')}
         </div>
-        <div class="form-group" style="margin-bottom:4px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <label style="${radioStyle}">
-              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="enemies" data-widx="${idx}" ${clearCondType === 'enemies' ? 'checked' : ''} /> 적 처치 완료
-            </label>
-            <label style="${radioStyle}">
-              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="exploration" data-widx="${idx}" ${clearCondType === 'exploration' ? 'checked' : ''} /> 탐험 클리어
-            </label>
-            <label style="${radioStyle}">
-              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="decapitation" data-widx="${idx}" ${clearCondType === 'decapitation' ? 'checked' : ''} /> 참수 클리어
-            </label>
-            <label style="${radioStyle}">
-              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="boss" data-widx="${idx}" ${clearCondType === 'boss' ? 'checked' : ''} /> 보스전 클리어
-            </label>
-            <label style="${radioStyle}">
-              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="custom" data-widx="${idx}" ${clearCondType === 'custom' ? 'checked' : ''} /> 직접 입력
-            </label>
+        <div style="margin-bottom:6px;">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택 가능)</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">${clearCondHtml}</div>
+          <div id="waveClearCustomWrap${idx}" style="display:${clearTypes.includes('custom') ? 'block' : 'none'};margin-top:4px;">
+            <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="직접 입력 조건 내용" style="width:100%;box-sizing:border-box;font-size:12px;" />
           </div>
-          <div id="waveClearCustomWrap${idx}" style="display:${clearCondType === 'custom' ? 'block' : 'none'};margin-top:4px;">
-            <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="클리어 조건 내용"
-              style="width:100%;box-sizing:border-box;font-size:12px;" />
-          </div>
+          <textarea class="input-field wave-clear-comment" data-widx="${idx}" rows="2" placeholder="클리어 조건 코멘트..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;margin-top:6px;">${Utils.escHtml(w.clearConditionComment || '')}</textarea>
+        </div>
+        <div style="margin-bottom:4px;">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">기타 메모</div>
+          <textarea class="input-field wave-notes" data-widx="${idx}" rows="2" placeholder="기타 메모..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(w.waveNotes || '')}</textarea>
         </div>
       </div>`;
     };
@@ -805,20 +818,22 @@ window.Pages.tower = {
           <input class="input-field" id="fFloorTheme" value="${Utils.escHtml(f.theme || '')}"
             placeholder="예: 슬라임 사냥터, 마의 삼림" style="width:100%;box-sizing:border-box;" />
         </div>
-        <div class="form-group">
-          <label class="form-label">특징</label>
-          <textarea class="input-field" id="fFloorFeatures" rows="3" placeholder="예: 마기 농도 높음&#10;중력 2배"
-            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.features || '')}</textarea>
+        <div style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="display:block;margin-bottom:8px;">📌 특징</label>
+          <div id="featList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="position:relative;flex:1;min-width:120px;">
+              <input class="input-field" id="featSearch" placeholder="몬스터/스탯/스킬 검색 후 추가..." autocomplete="off"
+                style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="featResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:160px;overflow-y:auto;"></div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddCustomFeat" style="font-size:11px;flex-shrink:0;">+ 직접 입력</button>
+          </div>
         </div>
         <div class="form-group">
           <label class="form-label">퀘스트</label>
           <textarea class="input-field" id="fFloorQuests" rows="2" placeholder="퀘스트 조건"
             style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.quests || '')}</textarea>
-        </div>
-        <div class="form-group">
-          <label class="form-label">보상</label>
-          <textarea class="input-field" id="fFloorRewards" rows="2" placeholder="보상 내용"
-            style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(f.rewards || '')}</textarea>
         </div>
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
@@ -1137,11 +1152,14 @@ window.Pages.tower = {
           });
         });
         wirePlaceRef('waveP' + idx, w.place ? mkPlaceRef(w.place) : { type: 'text', id: '', name: '', desc: '' });
-        // Clear condition type radio toggle
-        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(r => {
-          r.addEventListener('change', () => {
-            const wrap = document.getElementById('waveClearCustomWrap' + idx);
-            if (wrap) wrap.style.display = r.value === 'custom' ? 'block' : 'none';
+        // Clear condition checkbox toggle
+        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(cb => {
+          cb.addEventListener('change', () => {
+            const customWrap = document.getElementById('waveClearCustomWrap' + idx);
+            if (customWrap) {
+              const hasCustom = [...document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`)].some(c => c.value === 'custom' && c.checked);
+              customWrap.style.display = hasCustom ? 'block' : 'none';
+            }
           });
         });
         // Event checkbox
@@ -1164,11 +1182,13 @@ window.Pages.tower = {
               formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
               formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-              const clearTypeEl = row.querySelector('.wave-clear-type:checked');
-              const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
-              formWaves[wi].clearConditionType = clearType;
-              formWaves[wi].explorationLink = clearType === 'exploration';
-              formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+              const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
+              const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+              formWaves[wi].clearConditionTypes = clearTypes2;
+              formWaves[wi].explorationLink = clearTypes2.includes('exploration');
+              formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+              formWaves[wi].clearConditionComment = row.querySelector('.wave-clear-comment')?.value || '';
+              formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
               formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
               formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
             });
@@ -1245,6 +1265,14 @@ window.Pages.tower = {
       });
     };
 
+    const saveFeatTextsFromDOM = () => {
+      document.querySelectorAll('#globalModalBody .feat-row').forEach(row => {
+        const idx = parseInt(row.dataset.fidx, 10);
+        if (formFeatureEntries[idx] === undefined) return;
+        formFeatureEntries[idx].text = row.querySelector('.feat-text')?.value.trim() || '';
+      });
+    };
+
     // ── Save callback ──
     Utils.openModal(isEdit ? `${f.floorNum}층 편집` : '새 층 추가', body, async () => {
       const numVal = document.getElementById('fFloorNum')?.value;
@@ -1266,6 +1294,8 @@ window.Pages.tower = {
         const row = document.querySelector(`.wave-row[data-widx="${idx}"]`);
         const locRadioEl = row ? row.querySelector('.wave-loc-radio:checked') : null;
         const locType = locRadioEl ? locRadioEl.value : (w.locationFixed || 'move');
+        const checkedEls = row ? [...row.querySelectorAll('.wave-clear-type:checked')] : [];
+        const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']));
         return {
           locationFixed: locType,
           place: locType === 'fixed' ? readPlaceRef('waveP' + idx) : null,
@@ -1273,15 +1303,11 @@ window.Pages.tower = {
           eventDesc: row ? (row.querySelector('.wave-event-desc')?.value || '') : (w.eventDesc || ''),
           enemies: readChipsFromContainer('waveEnemyChips' + idx, 'monster'),
           traps: readChipsFromContainer('waveTrapChips' + idx, 'trap'),
-          ...(() => {
-            const clearTypeEl = row ? row.querySelector('.wave-clear-type:checked') : null;
-            const clearType = clearTypeEl ? clearTypeEl.value : (w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies')));
-            return {
-              clearConditionType: clearType,
-              explorationLink: clearType === 'exploration',
-              clearCondition: clearType === 'custom' ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
-            };
-          })(),
+          clearConditionTypes: clearTypes2,
+          explorationLink: clearTypes2.includes('exploration'),
+          clearCondition: clearTypes2.includes('custom') ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
+          clearConditionComment: row ? (row.querySelector('.wave-clear-comment')?.value || '') : (w.clearConditionComment || ''),
+          waveNotes: row ? (row.querySelector('.wave-notes')?.value || '') : (w.waveNotes || ''),
         };
       });
 
@@ -1303,12 +1329,12 @@ window.Pages.tower = {
         savedExRef = { type: 'place', id: document.getElementById('exPlaceId')?.value || '', name: document.getElementById('exPlaceSearch')?.value || '' };
       }
 
+      saveFeatTextsFromDOM();
       const floorData = {
         floorNum,
         theme:    document.getElementById('fFloorTheme')?.value.trim()    || '',
-        features: document.getElementById('fFloorFeatures')?.value.trim() || '',
+        featureEntries: formFeatureEntries.filter(e => e.text.trim() || e.refId),
         quests:   document.getElementById('fFloorQuests')?.value.trim()   || '',
-        rewards:  document.getElementById('fFloorRewards')?.value.trim()  || '',
         hidden:   document.getElementById('fFloorHidden')?.checked        || false,
         image:    newImage,
         subFloors: f.subFloors || [],
@@ -1391,6 +1417,67 @@ window.Pages.tower = {
         if (prev) prev.innerHTML = '';
       });
 
+      // ── Feature entries ──
+      const REF_ICONS_F = { monster: '👾', stat: '📊', skill: '✨', '': '📝' };
+      const renderFeatList = () => {
+        const el = document.getElementById('featList');
+        if (!el) return;
+        el.innerHTML = formFeatureEntries.map((e, idx) => `
+          <div class="feat-row" data-fidx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:8px 10px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="font-size:12px;color:var(--color-primary);font-weight:700;min-width:18px;">${idx + 1}.</span>
+              ${e.refType ? `<span style="font-size:11px;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:4px;padding:1px 6px;">${REF_ICONS_F[e.refType] || '📝'} ${Utils.escHtml(e.refName)}</span>` : ''}
+              <button class="feat-del-btn btn btn-ghost btn-sm" data-fidx="${idx}" style="margin-left:auto;color:var(--color-danger);font-size:10px;padding:1px 6px;">삭제</button>
+            </div>
+            <textarea class="input-field feat-text" data-fidx="${idx}" rows="2" placeholder="${e.refType ? '효과 설명 (예: 50% 감소, 봉인 등)' : '특징 설명'}"
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(e.text || '')}</textarea>
+          </div>`).join('');
+        el.querySelectorAll('.feat-del-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            saveFeatTextsFromDOM();
+            formFeatureEntries.splice(parseInt(btn.dataset.fidx, 10), 1);
+            renderFeatList();
+          });
+        });
+      };
+      renderFeatList();
+      const featIn = document.getElementById('featSearch');
+      const featRs = document.getElementById('featResults');
+      if (featIn && featRs) {
+        const featAll = [
+          ...allMonsters.map(m => ({ id: m.id, name: m.name || '', refType: 'monster', grade: m.grade || '' })),
+          ...allStatDefs.map(s => ({ id: s.id, name: s.name || '', refType: 'stat', grade: '' })),
+          ...allSkills.map(s => ({ id: s.id, name: s.name || '', refType: 'skill', grade: s.grade || '' })),
+        ];
+        featIn.addEventListener('input', () => {
+          const q = featIn.value.trim();
+          if (!q) { featRs.style.display = 'none'; return; }
+          const ql = q.toLowerCase();
+          const hits = featAll.filter(x => x.name.toLowerCase().includes(ql)).slice(0, 10);
+          featRs.innerHTML = hits.map(x =>
+            `<div class="feat-result" data-fid="${Utils.escHtml(x.id)}" data-fname="${Utils.escHtml(x.name)}" data-ftype="${x.refType}"
+              style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:6px;">
+              ${REF_ICONS_F[x.refType] || '📝'} <span>${Utils.escHtml(x.name)}${x.grade ? ` <span style="font-size:11px;color:var(--color-text-muted);">(${Utils.escHtml(x.grade)})</span>` : ''}</span>
+            </div>`).join('');
+          featRs.style.display = hits.length ? 'block' : 'none';
+          featRs.querySelectorAll('.feat-result').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              saveFeatTextsFromDOM();
+              formFeatureEntries.push({ id: DB.genId(), refType: row.dataset.ftype, refId: row.dataset.fid, refName: row.dataset.fname, text: '' });
+              featIn.value = ''; featRs.style.display = 'none';
+              renderFeatList();
+            });
+          });
+        });
+        featIn.addEventListener('blur', () => setTimeout(() => { featRs.style.display = 'none'; }, 150));
+      }
+      document.getElementById('btnAddCustomFeat')?.addEventListener('click', () => {
+        saveFeatTextsFromDOM();
+        formFeatureEntries.push({ id: DB.genId(), refType: '', refId: '', refName: '', text: '' });
+        renderFeatList();
+      });
+
       // Concept chip toggles
       document.querySelectorAll('.concept-cb').forEach(cb => {
         cb.addEventListener('change', () => {
@@ -1430,15 +1517,17 @@ window.Pages.tower = {
           formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
           formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-          const clearTypeEl = row.querySelector('.wave-clear-type:checked');
-          const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
-          formWaves[wi].clearConditionType = clearType;
-          formWaves[wi].explorationLink = clearType === 'exploration';
-          formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+          const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
+          const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+          formWaves[wi].clearConditionTypes = clearTypes2;
+          formWaves[wi].explorationLink = clearTypes2.includes('exploration');
+          formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+          formWaves[wi].clearConditionComment = row.querySelector('.wave-clear-comment')?.value || '';
+          formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
           formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
         });
-        formWaves.push({ locationFixed: 'move', hasEvent: false, eventDesc: '', enemies: [], traps: [], clearCondition: '', explorationLink: false });
+        formWaves.push({ locationFixed: 'move', hasEvent: false, eventDesc: '', enemies: [], traps: [], clearConditionTypes: ['enemies'], clearCondition: '', clearConditionComment: '', waveNotes: '', explorationLink: false });
         reRenderWaveList();
       });
 
@@ -1541,7 +1630,6 @@ window.Pages.tower = {
         </div>
         ${ta('fSubFeatures', '특징', s.features, 3, '특징 설명')}
         ${ta('fSubQuests', '퀘스트', s.quests, 2, '퀘스트 조건')}
-        ${ta('fSubRewards', '보상', s.rewards, 2, '보상 내용')}
         <div class="form-group">
           <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
             <input type="checkbox" id="fSubHidden" ${s.hidden ? 'checked' : ''} />
@@ -1566,7 +1654,6 @@ window.Pages.tower = {
         enemies:  document.getElementById('fSubEnemies')?.value.trim()  || '',
         features: document.getElementById('fSubFeatures')?.value.trim() || '',
         quests:   document.getElementById('fSubQuests')?.value.trim()   || '',
-        rewards:  document.getElementById('fSubRewards')?.value.trim()  || '',
         hidden:   document.getElementById('fSubHidden')?.checked        || false,
         image:    newSubImage,
       };

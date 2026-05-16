@@ -51,6 +51,7 @@
     const items = [
       { icon: '🌍', label: '세계/차원 관리', page: 'world' },
       { icon: '⚙️', label: '설정', page: 'settings' },
+      { icon: '📋', label: '퀘스트', page: 'quests' },
       { icon: '📋', label: '기본 설정 관리', page: 'templates' },
       { icon: '📖', label: '상태창 뷰어', page: 'status-viewer' },
     ];
@@ -119,6 +120,7 @@
         ['places', window.Pages?.places],
         ['gods', window.Pages?.gods],
         ['races', window.Pages?.races],
+        ['quests', window.Pages?.quests],
       ];
 
       pageModules.forEach(([id, mod]) => {

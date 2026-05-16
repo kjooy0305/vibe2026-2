@@ -298,7 +298,20 @@ window.Pages.gates = {
               <div>${details || '<span style="font-size:12px;color:var(--color-text-dim);">-</span>'}</div>
             </div>`;
           })()}
-          ${field('특징', gate.features, true)}
+          ${(() => {
+            const featureEntries = gate.featureEntries || [];
+            if (featureEntries.length > 0) {
+              const REF_ICONS_D = { monster: '👾', stat: '📊', skill: '✨', '': '📝' };
+              const listHtml = featureEntries.map((e, i) => {
+                const refBadge = e.refType ? `<span style="font-size:11px;background:rgba(99,102,241,0.15);border:1px solid rgba(99,102,241,0.3);border-radius:4px;padding:1px 5px;margin-right:4px;">${REF_ICONS_D[e.refType] || '📝'} ${Utils.escHtml(e.refName)}</span>` : '';
+                return `<div style="margin-bottom:4px;"><span style="font-size:12px;color:var(--color-primary);font-weight:700;">${i+1}. </span>${refBadge}<span style="font-size:13px;">${Utils.escHtml(e.text)}</span></div>`;
+              }).join('');
+              return `<div style="margin-bottom:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">📌 특징</div>${listHtml}</div>`;
+            } else if (gate.features) {
+              return field('특징', gate.features, true);
+            }
+            return '';
+          })()}
           ${field('내부 구성', gate.internalStructure, true)}
           ${field('공략 방법', gate.strategy, true)}
         </div>
@@ -392,14 +405,28 @@ window.Pages.gates = {
     const g = gate || {};
     const self = this;
 
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills] = await Promise.all([
+    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefs] = await Promise.all([
       DB.getAll('monsters', wid),
       DB.getAll('characters', wid),
       DB.getAll('traps', wid),
       DB.getAll('items', wid),
       DB.getAll('places', wid),
       DB.getAll('skills', wid),
+      DB.getAll('stat-defs', wid),
     ]);
+
+    let formFeatureEntries = (() => {
+      if (Array.isArray(g.featureEntries)) {
+        return g.featureEntries.map(e => ({...e}));
+      }
+      const old = g.features || '';
+      if (typeof old === 'string' && old.trim()) {
+        return old.split('\n').filter(l => l.trim()).map(l => ({
+          id: DB.genId(), refType: '', refId: '', refName: '', text: l.trim(),
+        }));
+      }
+      return [];
+    })();
 
     // Concept state
     let formConcepts = new Set(g.concepts || []);
@@ -490,8 +517,17 @@ window.Pages.gates = {
     const waveRowHtml = (w, idx) => {
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
-      const clearCondType = w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
+      const clearTypes = w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']);
       const rs = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
+      const clearCondHtml = [
+        ['enemies', '적 처치 완료'],
+        ['exploration', '탐험 클리어'],
+        ['decapitation', '참수 클리어'],
+        ['boss', '보스전 클리어'],
+        ['custom', '직접 입력'],
+      ].map(([val, label]) =>
+        `<label style="${rs}"><input type="checkbox" class="wave-clear-type" value="${val}" data-widx="${idx}" ${clearTypes.includes(val) ? 'checked' : ''} /> ${label}</label>`
+      ).join('');
       return `
       <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -517,19 +553,17 @@ window.Pages.gates = {
           <div class="wave-trap-chips" id="waveTrapChips${idx}" style="display:flex;flex-wrap:wrap;gap:2px;min-height:24px;">${trapChips}</div>
           ${entitySearchHtml('waveTrapSearch' + idx, 'waveTrapResults' + idx, '트랩 검색...')}
         </div>
+        <div style="margin-bottom:6px;">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택 가능)</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">${clearCondHtml}</div>
+          <div id="waveClearCustomWrap${idx}" style="display:${clearTypes.includes('custom') ? 'block' : 'none'};margin-top:4px;">
+            <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="직접 입력 조건 내용" style="width:100%;box-sizing:border-box;font-size:12px;" />
+          </div>
+          <textarea class="input-field wave-clear-comment" data-widx="${idx}" rows="2" placeholder="클리어 조건 코멘트..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;margin-top:6px;">${Utils.escHtml(w.clearConditionComment || '')}</textarea>
+        </div>
         <div style="margin-bottom:4px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">
-            <label style="${rs}"><input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="enemies" data-widx="${idx}" ${clearCondType === 'enemies' ? 'checked' : ''} /> 적 처치 완료</label>
-            <label style="${rs}"><input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="exploration" data-widx="${idx}" ${clearCondType === 'exploration' ? 'checked' : ''} /> 탐험 클리어</label>
-            <label style="${rs}"><input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="decapitation" data-widx="${idx}" ${clearCondType === 'decapitation' ? 'checked' : ''} /> 참수 클리어</label>
-            <label style="${rs}"><input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="boss" data-widx="${idx}" ${clearCondType === 'boss' ? 'checked' : ''} /> 보스전 클리어</label>
-            <label style="${rs}"><input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="custom" data-widx="${idx}" ${clearCondType === 'custom' ? 'checked' : ''} /> 직접 입력</label>
-          </div>
-          <div id="waveClearCustomWrap${idx}" style="display:${clearCondType === 'custom' ? 'block' : 'none'};margin-top:4px;">
-            <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="클리어 조건 내용"
-              style="width:100%;box-sizing:border-box;font-size:12px;" />
-          </div>
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">기타 메모</div>
+          <textarea class="input-field wave-notes" data-widx="${idx}" rows="2" placeholder="기타 메모..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(w.waveNotes || '')}</textarea>
         </div>
       </div>`;
     };
@@ -703,7 +737,18 @@ window.Pages.gates = {
           <button class="btn btn-ghost btn-sm" id="btnAddPhase" style="width:100%;border:1px dashed #c084fc55;font-size:12px;color:#c084fc;margin-top:4px;">+ 페이즈 추가</button>
         </div>
 
-        ${ta('fGateFeatures', '특징', g.features, '특징 설명', 4)}
+        <div style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="display:block;margin-bottom:8px;">📌 특징</label>
+          <div id="featList" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px;"></div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">
+            <div style="position:relative;flex:1;min-width:120px;">
+              <input class="input-field" id="featSearch" placeholder="몬스터/스탯/스킬 검색 후 추가..." autocomplete="off"
+                style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="featResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:160px;overflow-y:auto;"></div>
+            </div>
+            <button type="button" class="btn btn-ghost btn-sm" id="btnAddCustomFeat" style="font-size:11px;flex-shrink:0;">+ 직접 입력</button>
+          </div>
+        </div>
         ${ta('fGateInternalStructure', '내부 구성', g.internalStructure, '내부 구성 설명', 3)}
         ${ta('fGateStrategy', '공략 방법', g.strategy, '공략 방법', 3)}
         ${ta('fGateClearCondition', '클리어 조건', g.clearCondition, '클리어 조건', 2)}
@@ -882,10 +927,13 @@ window.Pages.gates = {
           () => { const used = getUsedTrapIds(); return allTraps.filter(t => !used.has(t.id)); },
           entityRowTrap, (ds) => addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap')
         );
-        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(r => {
-          r.addEventListener('change', () => {
-            const wrap = document.getElementById('waveClearCustomWrap' + idx);
-            if (wrap) wrap.style.display = r.value === 'custom' ? 'block' : 'none';
+        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(cb => {
+          cb.addEventListener('change', () => {
+            const customWrap = document.getElementById('waveClearCustomWrap' + idx);
+            if (customWrap) {
+              const hasCustom = [...document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`)].some(c => c.value === 'custom' && c.checked);
+              customWrap.style.display = hasCustom ? 'block' : 'none';
+            }
           });
         });
         const evCb = document.querySelector(`.wave-event-cb[data-widx="${idx}"]`);
@@ -899,11 +947,13 @@ window.Pages.gates = {
               if (!formWaves[wi]) return;
               formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-              const clearTypeEl = row.querySelector('.wave-clear-type:checked');
-              const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
-              formWaves[wi].clearConditionType = clearType;
-              formWaves[wi].explorationLink = clearType === 'exploration';
-              formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+              const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
+              const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+              formWaves[wi].clearConditionTypes = clearTypes2;
+              formWaves[wi].explorationLink = clearTypes2.includes('exploration');
+              formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+              formWaves[wi].clearConditionComment = row.querySelector('.wave-clear-comment')?.value || '';
+              formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
               formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
               formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
             });
@@ -962,6 +1012,14 @@ window.Pages.gates = {
       });
     };
 
+    const saveFeatTextsFromDOM = () => {
+      document.querySelectorAll('#globalModalBody .feat-row').forEach(row => {
+        const idx = parseInt(row.dataset.fidx, 10);
+        if (formFeatureEntries[idx] === undefined) return;
+        formFeatureEntries[idx].text = row.querySelector('.feat-text')?.value.trim() || '';
+      });
+    };
+
     Utils.openModal(isEdit ? '던전 편집' : '새 던전 추가', body, async () => {
       const name = document.getElementById('fGateName')?.value.trim();
       if (!name) { Utils.fieldError('fGateName'); return false; }
@@ -979,16 +1037,18 @@ window.Pages.gates = {
       // Collect wave data
       const savedWaves = formWaves.map((w, idx) => {
         const row = document.querySelector(`.wave-row[data-widx="${idx}"]`);
-        const clearTypeEl = row ? row.querySelector('.wave-clear-type:checked') : null;
-        const clearType = clearTypeEl ? clearTypeEl.value : (w.clearConditionType || 'enemies');
+        const checkedEls = row ? [...row.querySelectorAll('.wave-clear-type:checked')] : [];
+        const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']));
         return {
           hasEvent: row ? (row.querySelector('.wave-event-cb')?.checked || false) : (w.hasEvent || false),
           eventDesc: row ? (row.querySelector('.wave-event-desc')?.value || '') : (w.eventDesc || ''),
           enemies: readChipsFromContainer('waveEnemyChips' + idx, 'monster'),
           traps: readChipsFromContainer('waveTrapChips' + idx, 'trap'),
-          clearConditionType: clearType,
-          explorationLink: clearType === 'exploration',
-          clearCondition: clearType === 'custom' ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
+          clearConditionTypes: clearTypes2,
+          explorationLink: clearTypes2.includes('exploration'),
+          clearCondition: clearTypes2.includes('custom') ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
+          clearConditionComment: row ? (row.querySelector('.wave-clear-comment')?.value || '') : (w.clearConditionComment || ''),
+          waveNotes: row ? (row.querySelector('.wave-notes')?.value || '') : (w.waveNotes || ''),
         };
       });
 
@@ -1014,7 +1074,7 @@ window.Pages.gates = {
         levelLimit: document.getElementById('fGateLevelLimit')?.value.trim() || '',
         maxPlayers: document.getElementById('fGateMaxPlayers')?.value.trim() || '',
         scale: document.getElementById('fGateScale')?.value.trim() || '',
-        features: document.getElementById('fGateFeatures')?.value.trim() || '',
+        featureEntries: (() => { saveFeatTextsFromDOM(); return formFeatureEntries.filter(e => e.text.trim() || e.refId); })(),
         internalStructure: document.getElementById('fGateInternalStructure')?.value.trim() || '',
         strategy: document.getElementById('fGateStrategy')?.value.trim() || '',
         clearCondition: document.getElementById('fGateClearCondition')?.value.trim() || '',
@@ -1142,6 +1202,67 @@ window.Pages.gates = {
         });
       });
 
+      // ── Feature entries ──
+      const REF_ICONS = { monster: '👾', stat: '📊', skill: '✨', '': '📝' };
+      const renderFeatList = () => {
+        const el = document.getElementById('featList');
+        if (!el) return;
+        el.innerHTML = formFeatureEntries.map((e, idx) => `
+          <div class="feat-row" data-fidx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:6px;padding:8px 10px;">
+            <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;">
+              <span style="font-size:12px;color:var(--color-primary);font-weight:700;min-width:18px;">${idx + 1}.</span>
+              ${e.refType ? `<span style="font-size:11px;background:rgba(99,102,241,0.18);border:1px solid rgba(99,102,241,0.35);border-radius:4px;padding:1px 6px;">${REF_ICONS[e.refType] || '📝'} ${Utils.escHtml(e.refName)}</span>` : ''}
+              <button class="feat-del-btn btn btn-ghost btn-sm" data-fidx="${idx}" style="margin-left:auto;color:var(--color-danger);font-size:10px;padding:1px 6px;">삭제</button>
+            </div>
+            <textarea class="input-field feat-text" data-fidx="${idx}" rows="2" placeholder="${e.refType ? '효과 설명 (예: 50% 감소, 봉인 등)' : '특징 설명'}"
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(e.text || '')}</textarea>
+          </div>`).join('');
+        el.querySelectorAll('.feat-del-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            saveFeatTextsFromDOM();
+            formFeatureEntries.splice(parseInt(btn.dataset.fidx, 10), 1);
+            renderFeatList();
+          });
+        });
+      };
+      renderFeatList();
+      const featIn = document.getElementById('featSearch');
+      const featRs = document.getElementById('featResults');
+      if (featIn && featRs) {
+        const featAll = [
+          ...allMonsters.map(m => ({ id: m.id, name: m.name || '', refType: 'monster', grade: m.grade || '' })),
+          ...allStatDefs.map(s => ({ id: s.id, name: s.name || '', refType: 'stat', grade: '' })),
+          ...allSkills.map(s => ({ id: s.id, name: s.name || '', refType: 'skill', grade: s.grade || '' })),
+        ];
+        featIn.addEventListener('input', () => {
+          const q = featIn.value.trim();
+          if (!q) { featRs.style.display = 'none'; return; }
+          const ql = q.toLowerCase();
+          const hits = featAll.filter(x => x.name.toLowerCase().includes(ql)).slice(0, 10);
+          featRs.innerHTML = hits.map(x =>
+            `<div class="feat-result" data-fid="${Utils.escHtml(x.id)}" data-fname="${Utils.escHtml(x.name)}" data-ftype="${x.refType}"
+              style="padding:7px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:6px;">
+              ${REF_ICONS[x.refType] || '📝'} <span>${Utils.escHtml(x.name)}${x.grade ? ` <span style="font-size:11px;color:var(--color-text-muted);">(${Utils.escHtml(x.grade)})</span>` : ''}</span>
+            </div>`).join('');
+          featRs.style.display = hits.length ? 'block' : 'none';
+          featRs.querySelectorAll('.feat-result').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              saveFeatTextsFromDOM();
+              formFeatureEntries.push({ id: DB.genId(), refType: row.dataset.ftype, refId: row.dataset.fid, refName: row.dataset.fname, text: '' });
+              featIn.value = ''; featRs.style.display = 'none';
+              renderFeatList();
+            });
+          });
+        });
+        featIn.addEventListener('blur', () => setTimeout(() => { featRs.style.display = 'none'; }, 150));
+      }
+      document.getElementById('btnAddCustomFeat')?.addEventListener('click', () => {
+        saveFeatTextsFromDOM();
+        formFeatureEntries.push({ id: DB.genId(), refType: '', refId: '', refName: '', text: '' });
+        renderFeatList();
+      });
+
       // Wave global controls
       document.getElementById('waveGlobalEventFixed')?.addEventListener('change', e => {
         const wrap = document.getElementById('waveGlobalEventWrap');
@@ -1156,15 +1277,17 @@ window.Pages.gates = {
           if (!formWaves[wi]) return;
           formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-          const clearTypeEl = row.querySelector('.wave-clear-type:checked');
-          const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
-          formWaves[wi].clearConditionType = clearType;
-          formWaves[wi].explorationLink = clearType === 'exploration';
-          formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+          const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
+          const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+          formWaves[wi].clearConditionTypes = clearTypes2;
+          formWaves[wi].explorationLink = clearTypes2.includes('exploration');
+          formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
+          formWaves[wi].clearConditionComment = row.querySelector('.wave-clear-comment')?.value || '';
+          formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
           formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
         });
-        formWaves.push({ hasEvent: false, eventDesc: '', enemies: [], traps: [], clearCondition: '', explorationLink: false });
+        formWaves.push({ hasEvent: false, eventDesc: '', enemies: [], traps: [], clearConditionTypes: ['enemies'], clearCondition: '', clearConditionComment: '', waveNotes: '', explorationLink: false });
         reRenderWaveList();
       });
 
