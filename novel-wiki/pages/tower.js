@@ -648,6 +648,8 @@ window.Pages.tower = {
       const wavePlace = mkPlaceRef(w.place);
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
+      const clearCondType = w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies');
+      const radioStyle = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
       return `
       <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -691,13 +693,23 @@ window.Pages.tower = {
           ${entitySearchHtml('waveTrapSearch' + idx, 'waveTrapResults' + idx, '트랩 검색...')}
         </div>
         <div class="form-group" style="margin-bottom:4px;">
-          <label style="font-size:11px;color:var(--color-text-muted);font-weight:600;">클리어 조건</label>
-          <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="클리어 조건"
-            style="width:100%;box-sizing:border-box;font-size:12px;" />
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건</div>
+          <div style="display:flex;gap:12px;flex-wrap:wrap;">
+            <label style="${radioStyle}">
+              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="enemies" data-widx="${idx}" ${clearCondType === 'enemies' ? 'checked' : ''} /> 적 처치 완료
+            </label>
+            <label style="${radioStyle}">
+              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="exploration" data-widx="${idx}" ${clearCondType === 'exploration' ? 'checked' : ''} /> 탐험 클리어
+            </label>
+            <label style="${radioStyle}">
+              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="custom" data-widx="${idx}" ${clearCondType === 'custom' ? 'checked' : ''} /> 직접 입력
+            </label>
+          </div>
+          <div id="waveClearCustomWrap${idx}" style="display:${clearCondType === 'custom' ? 'block' : 'none'};margin-top:4px;">
+            <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="클리어 조건 내용"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+          </div>
         </div>
-        <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;">
-          <input type="checkbox" class="wave-exlink-cb" data-widx="${idx}" ${w.explorationLink ? 'checked' : ''} /> 탐험컨셉연계
-        </label>
       </div>`;
     };
 
@@ -1119,6 +1131,13 @@ window.Pages.tower = {
           });
         });
         wirePlaceRef('waveP' + idx, w.place ? mkPlaceRef(w.place) : { type: 'text', id: '', name: '', desc: '' });
+        // Clear condition type radio toggle
+        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(r => {
+          r.addEventListener('change', () => {
+            const wrap = document.getElementById('waveClearCustomWrap' + idx);
+            if (wrap) wrap.style.display = r.value === 'custom' ? 'block' : 'none';
+          });
+        });
         // Event checkbox
         const evCb = document.querySelector(`.wave-event-cb[data-widx="${idx}"]`);
         const evWrap = document.getElementById('waveEventWrap' + idx);
@@ -1139,8 +1158,10 @@ window.Pages.tower = {
               formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
               formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-              formWaves[wi].clearCondition = row.querySelector('.wave-clear-cond')?.value || '';
-              formWaves[wi].explorationLink = row.querySelector('.wave-exlink-cb')?.checked || false;
+              const clearTypeEl = row.querySelector('.wave-clear-type:checked');
+              const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
+              formWaves[wi].explorationLink = clearType === 'exploration';
+              formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
               formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
               formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
             });
@@ -1245,8 +1266,14 @@ window.Pages.tower = {
           eventDesc: row ? (row.querySelector('.wave-event-desc')?.value || '') : (w.eventDesc || ''),
           enemies: readChipsFromContainer('waveEnemyChips' + idx, 'monster'),
           traps: readChipsFromContainer('waveTrapChips' + idx, 'trap'),
-          clearCondition: row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || ''),
-          explorationLink: row ? (row.querySelector('.wave-exlink-cb')?.checked || false) : (w.explorationLink || false),
+          ...(() => {
+            const clearTypeEl = row ? row.querySelector('.wave-clear-type:checked') : null;
+            const clearType = clearTypeEl ? clearTypeEl.value : (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
+            return {
+              explorationLink: clearType === 'exploration',
+              clearCondition: clearType === 'custom' ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
+            };
+          })(),
         };
       });
 
@@ -1395,8 +1422,10 @@ window.Pages.tower = {
           formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
           formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-          formWaves[wi].clearCondition = row.querySelector('.wave-clear-cond')?.value || '';
-          formWaves[wi].explorationLink = row.querySelector('.wave-exlink-cb')?.checked || false;
+          const clearTypeEl = row.querySelector('.wave-clear-type:checked');
+          const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
+          formWaves[wi].explorationLink = clearType === 'exploration';
+          formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
           formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
         });
