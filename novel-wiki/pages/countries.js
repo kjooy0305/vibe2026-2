@@ -132,6 +132,39 @@ window.Pages.countries = {
         </div>`;
     };
 
+    // Relations HTML
+    const relItems = item.relationRefs || [];
+    const relSectionCollapsed = self._collapsedSections['relations'];
+    const TYPE_COLORS = { '동맹':'#10b981','우호':'#60a5fa','중립':'#9ca3af','교역':'#fbbf24','경쟁':'#f97316','적대':'#ef4444','종속':'#a78bfa','보호국':'#a78bfa','전쟁':'#dc2626' };
+    let relationsSectionHtml;
+    if (relItems.length > 0) {
+      const relBodyHtml = relItems.map(rel => {
+        const col = TYPE_COLORS[rel.type] || '#6b7280';
+        const linkedCountry = rel.countryId ? all.find(c => c.id === rel.countryId) : null;
+        return `<div style="border-left:3px solid ${col};border-radius:0 6px 6px 0;padding:10px 12px;margin-bottom:8px;background:${col}1a;">
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:${rel.desc ? '6px' : '0'};flex-wrap:wrap;">
+            <span style="font-size:14px;font-weight:700;">${Utils.escHtml(linkedCountry?.icon || '🌍')} ${Utils.escHtml(rel.countryName || '')}</span>
+            ${rel.type ? `<span style="background:${col}33;color:${col};border:1px solid ${col}66;padding:1px 7px;border-radius:4px;font-size:11px;font-weight:700;">${Utils.escHtml(rel.type)}</span>` : ''}
+            ${linkedCountry ? `<button class="btn btn-ghost btn-sm btn-rel-nav" data-cid="${Utils.escHtml(linkedCountry.id)}" style="font-size:11px;padding:2px 6px;">→ 이동</button>` : ''}
+          </div>
+          ${rel.desc ? `<div style="font-size:13px;color:var(--color-text);line-height:1.7;white-space:pre-wrap;">${Utils.escHtml(rel.desc)}</div>` : ''}
+        </div>`;
+      }).join('');
+      relationsSectionHtml = `
+        <div class="country-section" data-section="relations" style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
+          <button class="section-toggle" data-section="relations"
+            style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;cursor:pointer;padding:0;color:var(--color-text);">
+            <span style="font-weight:700;font-size:13px;color:var(--color-secondary);">🤝 국가 관계 (${relItems.length})</span>
+            <span class="section-chevron" style="font-size:12px;color:var(--color-text-muted);transition:transform .2s;">${relSectionCollapsed ? '▶' : '▼'}</span>
+          </button>
+          <div class="section-body" style="margin-top:${relSectionCollapsed ? '0' : '8px'};display:${relSectionCollapsed ? 'none' : 'block'};">
+            ${relBodyHtml}
+          </div>
+        </div>`;
+    } else {
+      relationsSectionHtml = makeSectionHtml('relations', '🤝', '국가 관계', item.relations);
+    }
+
     // Cities HTML
     const cities = item.cities || [];
     const citySectionCollapsed = self._collapsedSections['cities'];
@@ -207,7 +240,7 @@ window.Pages.countries = {
       ${makeSectionHtml('features', '📌', '주요 특징', item.features)}
 
       <!-- 국가 관계 -->
-      ${makeSectionHtml('relations', '🤝', '국가 관계', item.relations)}
+      ${relationsSectionHtml}
 
       <!-- 도시/하위 단위 관리 -->
       <div class="country-section" data-section="cities" style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
@@ -227,7 +260,7 @@ window.Pages.countries = {
       <!-- 메모 -->
       ${makeSectionHtml('notes', '📝', '메모', item.notes)}
 
-      ${!item.history && !item.laws && !item.culture && !item.features && !item.relations && !item.notes && cities.length === 0
+      ${!item.history && !item.laws && !item.culture && !item.features && !relItems.length && !item.relations && !item.notes && cities.length === 0
         ? `<div class="empty-state" style="padding:32px;text-align:center;">
              <div style="font-size:36px;margin-bottom:8px;">✏️</div>
              <div style="font-size:13px;color:var(--color-text-muted);">편집 버튼을 눌러 상세 내용을 작성하세요</div>
@@ -290,6 +323,16 @@ window.Pages.countries = {
         const updated = await DB.getAll('countries', wid);
         self._renderList(container, updated, wid);
         Utils.toast('삭제되었습니다.');
+      });
+    });
+
+    // ── Relation navigation ───────────────────────────────────────────────
+    container.querySelectorAll('.btn-rel-nav').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const cid = btn.dataset.cid;
+        self._currentId = cid;
+        const target = all.find(c => c.id === cid);
+        if (target) self._renderDetail(container, target, wid, all);
       });
     });
 
@@ -484,6 +527,11 @@ window.Pages.countries = {
     const self = this;
     const isEdit = !!item;
     const currentIcon = item?.icon || '🌍';
+    const REL_TYPES = ['동맹', '우호', '중립', '교역', '경쟁', '적대', '종속', '보호국', '전쟁', '기타'];
+    let formRelations = (item?.relationRefs || []).map(r => ({
+      id: r.id || DB.genId(), countryId: r.countryId || '',
+      countryName: r.countryName || '', type: r.type || '', desc: r.desc || '',
+    }));
 
     const [iconPool, C] = await Promise.all([
       DB.getSetting('iconList_country', null),
@@ -556,9 +604,15 @@ window.Pages.countries = {
           <label class="form-label">📌 주요 특징</label>
           <textarea class="textarea-field" id="fFeatures" rows="3" placeholder="국가의 주요 특징, 강점, 약점, 역사적 사건 등..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(item?.features||'')}</textarea>
         </div>
-        <div>
-          <label class="form-label">🤝 국가 관계</label>
-          <textarea class="textarea-field" id="fRelations" rows="2" placeholder="동맹국, 적대국, 중립국 관계 등..." style="width:100%;box-sizing:border-box;">${Utils.escHtml(item?.relations||'')}</textarea>
+        <div style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="display:block;margin-bottom:8px;">🤝 국가 관계</label>
+          <div id="relsList" style="display:flex;flex-direction:column;gap:8px;margin-bottom:8px;"></div>
+          <div style="position:relative;">
+            <input class="input-field" id="relsSearch" placeholder="국가 검색해서 추가..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="relsResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:160px;overflow-y:auto;"></div>
+          </div>
+          <div style="font-size:11px;color:var(--color-text-muted);margin-top:4px;">없는 국가명은 검색창에 입력 후 "직접 추가"</div>
         </div>
         <div>
           <label class="form-label">📝 메모</label>
@@ -566,11 +620,57 @@ window.Pages.countries = {
         </div>
       </div>`;
 
+    const saveRelsFromDOM = () => {
+      document.querySelectorAll('#globalModalBody .rel-row').forEach(row => {
+        const idx = parseInt(row.dataset.ridx, 10);
+        if (formRelations[idx] === undefined) return;
+        formRelations[idx].type = row.querySelector('.rel-type')?.value || '';
+        formRelations[idx].desc = row.querySelector('.rel-desc')?.value.trim() || '';
+      });
+    };
+
+    const renderRelsList = () => {
+      const el = document.getElementById('relsList');
+      if (!el) return;
+      el.innerHTML = formRelations.map((rel, idx) => {
+        const typeOpts = REL_TYPES.map(t => `<option value="${t}" ${rel.type === t ? 'selected' : ''}>${t}</option>`).join('');
+        const linkedCountry = rel.countryId ? all.find(c => c.id === rel.countryId) : null;
+        const icon = linkedCountry?.icon || '🌍';
+        return `
+          <div class="rel-row" data-ridx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <span style="font-weight:700;font-size:13px;">${icon} ${Utils.escHtml(rel.countryName)}</span>
+              <button class="btn btn-ghost btn-sm rel-del-btn" data-ridx="${idx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
+            </div>
+            <div style="display:flex;gap:8px;align-items:center;margin-bottom:6px;flex-wrap:wrap;">
+              <label style="font-size:12px;color:var(--color-text-muted);white-space:nowrap;flex-shrink:0;">관계 유형</label>
+              <select class="select-input rel-type" data-ridx="${idx}" style="flex:1;min-width:80px;font-size:12px;padding:4px 8px;">
+                <option value="">선택</option>${typeOpts}
+              </select>
+            </div>
+            <textarea class="input-field rel-desc" data-ridx="${idx}" rows="2" placeholder="관계 설명..."
+              style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(rel.desc || '')}</textarea>
+          </div>`;
+      }).join('');
+      el.querySelectorAll('.rel-del-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          saveRelsFromDOM();
+          formRelations.splice(parseInt(btn.dataset.ridx, 10), 1);
+          renderRelsList();
+        });
+      });
+    };
+
     Utils.openModal(isEdit ? '국가 편집' : '국가 추가', body, async () => {
       const name = document.getElementById('fName')?.value.trim();
       if (!name) { Utils.fieldError('fName'); return false; }
 
       const icon = document.querySelector('#iconDisplay')?.dataset.icon || item?.icon || '🌍';
+      saveRelsFromDOM();
+      const savedRelRefs = formRelations.map(r => ({
+        id: r.id, countryId: r.countryId || '', countryName: r.countryName || '',
+        type: r.type || '', desc: r.desc || '',
+      })).filter(r => r.countryName.trim());
       const payload = {
         id: item?.id,
         worldId: wid,
@@ -586,7 +686,7 @@ window.Pages.countries = {
         laws:          document.getElementById('fLaws')?.value.trim() || '',
         culture:       document.getElementById('fCulture')?.value.trim() || '',
         features:      document.getElementById('fFeatures')?.value.trim() || '',
-        relations:     document.getElementById('fRelations')?.value.trim() || '',
+        relationRefs:  savedRelRefs,
         notes:         document.getElementById('fNotes')?.value.trim() || '',
         cities:        item?.cities || [],
       };
@@ -602,7 +702,7 @@ window.Pages.countries = {
       else self._renderList(container, updated, wid);
     });
 
-    // Icon picker + auto-resize
+    // Icon picker + auto-resize + relations wiring
     setTimeout(() => {
       Utils.autoResizeTextareas(document.getElementById('globalModalBody'));
 
@@ -618,6 +718,49 @@ window.Pages.countries = {
           btn.style.borderColor = 'var(--color-primary)';
         });
       });
+
+      renderRelsList();
+      const relsIn = document.getElementById('relsSearch');
+      const relsRs = document.getElementById('relsResults');
+      if (relsIn && relsRs) {
+        const otherCountries = all.filter(c => c.id !== item?.id);
+        relsIn.addEventListener('input', () => {
+          const q = relsIn.value.trim();
+          if (!q) { relsRs.style.display = 'none'; return; }
+          const ql = q.toLowerCase();
+          const hits = otherCountries.filter(c =>
+            !formRelations.some(r => r.countryId === c.id) &&
+            (c.name || '').toLowerCase().includes(ql)
+          ).slice(0, 8);
+          relsRs.innerHTML = hits.map(c => `
+            <div class="rels-result" data-cid="${Utils.escHtml(c.id)}" data-cname="${Utils.escHtml(c.name || '')}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);display:flex;align-items:center;gap:6px;">
+              ${Utils.escHtml(c.icon || '🌍')} ${Utils.escHtml(c.name || '')}
+            </div>`).join('') +
+            `<div class="rels-result-custom" data-cname="${Utils.escHtml(q)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;color:var(--color-primary);">
+              + "${Utils.escHtml(q)}" 직접 추가
+            </div>`;
+          relsRs.style.display = 'block';
+          relsRs.querySelectorAll('.rels-result').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              saveRelsFromDOM();
+              formRelations.push({ id: DB.genId(), countryId: row.dataset.cid, countryName: row.dataset.cname, type: '', desc: '' });
+              relsIn.value = ''; relsRs.style.display = 'none';
+              renderRelsList();
+            });
+          });
+          relsRs.querySelector('.rels-result-custom')?.addEventListener('mousedown', e => {
+            e.preventDefault();
+            saveRelsFromDOM();
+            formRelations.push({ id: DB.genId(), countryId: '', countryName: q, type: '', desc: '' });
+            relsIn.value = ''; relsRs.style.display = 'none';
+            renderRelsList();
+          });
+        });
+        relsIn.addEventListener('blur', () => setTimeout(() => { relsRs.style.display = 'none'; }, 150));
+      }
     }, 50);
   },
 
