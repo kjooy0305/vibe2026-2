@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v59';
+const CACHE_VERSION = 'novel-wiki-v60';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
@@ -30,8 +30,10 @@ const PRECACHE_ASSETS = [
   './pages/achievements.js',
   './pages/constellations.js',
   './pages/gates.js',
+  './pages/gates-form.js',
   './pages/monsters.js',
   './pages/tower.js',
+  './pages/tower-floor-form.js',
   './pages/timeline.js',
   './pages/event-graph.js',
   './pages/family-tree.js',

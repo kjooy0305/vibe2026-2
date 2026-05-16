@@ -1,8 +1,8 @@
 'use strict';
 const DB = (function() {
   const DB_NAME = 'NovelWikiDB';
-  const DB_VERSION = 10;
-  const STORES = ['worlds','characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','templates','folders','settings','streak','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races'];
+  const DB_VERSION = 11;
+  const STORES = ['worlds','characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','templates','folders','settings','streak','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races','quests'];
 
   let db = null;
 
@@ -15,7 +15,7 @@ const DB = (function() {
         STORES.forEach(name => {
           if (!d.objectStoreNames.contains(name)) {
             const store = d.createObjectStore(name, { keyPath: 'id' });
-            if (['characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','folders','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races'].includes(name)) {
+            if (['characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','folders','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races','quests'].includes(name)) {
               store.createIndex('worldId', 'worldId', { unique: false });
             }
           }
