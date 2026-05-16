@@ -127,7 +127,7 @@ Object.assign(window.Pages.constellations, {
             <input class="input-field" id="fCsHierarchy" value="${Utils.escHtml(c.hierarchy !== undefined ? String(c.hierarchy) : '')}" placeholder="예: 1위" style="width:100%;box-sizing:border-box;" />
           </div>
           <div class="form-group">
-            <label class="form-label">담당 영역</label>
+            <label class="form-label">관할 영역</label>
             <input class="input-field" id="fCsDomain" value="${Utils.escHtml(c.domain || '')}" placeholder="예: 불, 마나" style="width:100%;box-sizing:border-box;" />
           </div>
         </div>

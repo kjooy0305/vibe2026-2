@@ -126,7 +126,7 @@ window.Pages.tower = {
         <div class="tower-name" style="font-weight:700;font-size:16px;margin-bottom:3px;">${Utils.escHtml(t.name || '이름 없음')}</div>
         ${t.country ? `<div style="font-size:12px;color:var(--color-text-muted);">국가: ${Utils.escHtml(t.country)}</div>` : ''}
         <div style="font-size:12px;color:var(--color-text-muted);">
-          ${floorCount > 0 ? `최고 ${maxFloor}층 · ${floorCount}개 층 등록` : '층 없음'}
+          ${floorCount > 0 ? `${maxFloor}층 · 총 ${floorCount}개` : '층 없음'}
           ${hiddenCount > 0 ? ` · 히든 ${hiddenCount}개` : ''}
         </div>
         ${t.description ? `<div style="font-size:12px;color:var(--color-text-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(t.description)}</div>` : ''}
@@ -162,32 +162,18 @@ window.Pages.tower = {
             style="width:100%;box-sizing:border-box;resize:vertical;font-family:inherit;">${Utils.escHtml(t.description || '')}</textarea>
           ${isEdit && t.description ? `<button type="button" class="btn btn-ghost btn-sm" id="btnCopyTowerDescForm" style="margin-top:6px;font-size:11px;">설명 복사</button>` : ''}
         </div>
-        ${!isEdit ? `
-        <div class="form-group">
-          <label class="form-label">사전 생성 층 수 (선택)</label>
-          <input type="number" class="input-field" id="fTowerPreFloors" value="0" min="0" max="999" placeholder="0"
-            style="width:100%;box-sizing:border-box;" />
-          <div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">입력한 숫자만큼 빈 층을 미리 만듭니다 (0 = 안 만들기)</div>
-        </div>` : ''}
       </div>`;
 
     Utils.openModal(isEdit ? '탑 편집' : '새 탑 추가', body, async () => {
       const name = document.getElementById('fTowerName')?.value.trim();
       if (!name) { Utils.fieldError('fTowerName'); return false; }
-      const preFloors = !isEdit ? (Number(document.getElementById('fTowerPreFloors')?.value) || 0) : 0;
-      const preFloorArr = preFloors > 0
-        ? Array.from({ length: preFloors }, (_, i) => ({
-            floorNum: i + 1, theme: '', enemies: '', featureEntries: [], quests: '',
-            hidden: false, image: null, subFloors: [], createdAt: Date.now(),
-          }))
-        : [];
       const data = {
         id: t.id || DB.genId(),
         worldId: wid,
         name,
         country: document.getElementById('fTowerCountry')?.value.trim() || '',
         description: document.getElementById('fTowerDesc')?.value.trim() || '',
-        floors: isEdit ? (t.floors || []) : preFloorArr,
+        floors: isEdit ? (t.floors || []) : [],
         createdAt: t.createdAt || Date.now(),
       };
       await DB.put('towers', data);

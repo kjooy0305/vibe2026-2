@@ -86,7 +86,7 @@ window.Pages.constellations = {
           ${Utils.escHtml(world?.name || '현재 세계')} · ${constellations.length}개
         </p>
         <div style="display:flex;gap:6px;align-items:center;margin-top:8px;">
-          <input class="input-field" id="constFilter" placeholder="이름, 계열, 등급, 성단, 은하, 담당 영역 검색..." style="flex:1;" />
+          <input class="input-field" id="constFilter" placeholder="이름, 계열, 등급, 성단, 은하, 관할 영역 검색..." style="flex:1;" />
           <button id="btnGroupView" class="btn btn-ghost btn-sm" style="font-size:11px;white-space:nowrap;">성단/은하</button>
         </div>
         <div style="display:flex;gap:4px;flex-wrap:wrap;margin-top:8px;" id="seriesFilters">
@@ -99,7 +99,7 @@ window.Pages.constellations = {
       </div>
 
       <div style="background:linear-gradient(135deg,rgba(0,188,212,0.06),rgba(124,58,237,0.08));border:1px solid rgba(100,150,255,0.18);border-radius:10px;padding:10px 14px;margin:0 0 12px;">
-        <div style="font-size:10px;color:var(--color-text-muted);font-weight:700;letter-spacing:0.5px;margin-bottom:6px;">9대 성좌 담당 영역</div>
+        <div style="font-size:10px;color:var(--color-text-muted);font-weight:700;letter-spacing:0.5px;margin-bottom:6px;">9대 성좌 관할 영역</div>
         <div style="display:flex;flex-wrap:wrap;gap:5px;">
           ${this.NINE_GREAT_DOMAINS.map((d, i) => `<span style="padding:2px 7px;border-radius:4px;background:rgba(100,150,255,0.1);border:1px solid rgba(100,150,255,0.2);font-size:11px;color:var(--color-text-muted);">${i + 1}. ${d}</span>`).join('')}
         </div>
@@ -280,7 +280,7 @@ window.Pages.constellations = {
           ${c.series ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${sc}22;color:${sc};border:1px solid ${sc}55;">${Utils.escHtml(c.series)}</span>` : ''}
           ${c.tier ? `<span style="font-size:10px;padding:1px 6px;border-radius:3px;background:${tc}22;color:${tc};border:1px solid ${tc}44;">${Utils.escHtml(c.tier)}</span>` : ''}
         </div>
-        ${c.domain ? `<div style="font-size:12px;color:var(--color-text-muted);">담당: ${Utils.escHtml(c.domain)}</div>` : ''}
+        ${c.domain ? `<div style="font-size:12px;color:var(--color-text-muted);">관할: ${Utils.escHtml(c.domain)}</div>` : ''}
         ${((c.cluster || c.nebula) || c.galaxy) ? `<div style="font-size:11px;color:var(--color-text-dim);">${c.galaxy ? '🌌 ' + Utils.escHtml(c.galaxy) : ''}${c.galaxy && (c.cluster || c.nebula) ? ' · ' : ''}${(c.cluster || c.nebula) ? '🌟 ' + Utils.escHtml(c.cluster || c.nebula) : ''}</div>` : ''}
         ${c.features ? `<div style="font-size:12px;color:var(--color-text-dim);margin-top:4px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(c.features)}</div>` : ''}
       </div>
@@ -352,7 +352,7 @@ window.Pages.constellations = {
         <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px;">
           ${c.series ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:${sc}22;color:${sc};border:1px solid ${sc}55;">계열: ${Utils.escHtml(c.series)}</span>` : ''}
           ${c.tier ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:${tc}22;color:${tc};border:1px solid ${tc}44;">등급: ${Utils.escHtml(c.tier)}</span>` : ''}
-          ${c.domain ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(124,58,237,0.12);color:#c4b5fd;border:1px solid rgba(124,58,237,0.25);">담당: ${Utils.escHtml(c.domain)}</span>` : ''}
+          ${c.domain ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(124,58,237,0.12);color:#c4b5fd;border:1px solid rgba(124,58,237,0.25);">관할: ${Utils.escHtml(c.domain)}</span>` : ''}
           ${c.galaxy ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(251,191,36,0.1);color:#fbbf24;border:1px solid rgba(251,191,36,0.3);">🌌 ${Utils.escHtml(c.galaxy)}</span>` : ''}
           ${(c.cluster || c.nebula) ? `<span style="padding:2px 10px;border-radius:4px;font-size:12px;background:rgba(139,92,246,0.1);color:#8b5cf6;border:1px solid rgba(139,92,246,0.3);">🌟 ${Utils.escHtml(c.cluster || c.nebula)}</span>` : ''}
         </div>

@@ -4,6 +4,7 @@ window.Pages.statDefs = {
   _container: null,
 
   CATEGORIES: ['기본스텟', '전투스텟', '마나계열', '정신계열', '저항', '기타'],
+  _catColors: { '기본스텟': '#60a5fa', '전투스텟': '#f87171', '마나계열': '#a78bfa', '정신계열': '#34d399', '저항': '#fbbf24', '기타': '#94a3b8' },
 
   DEFAULT_STATS: [
     { name: '근력',   shortName: 'STR', category: '전투스텟' },
@@ -31,6 +32,15 @@ window.Pages.statDefs = {
   init: async function(container, options) {
     options = options || {};
     this._container = container;
+
+    // Load stat categories from settings (falls back to hardcoded defaults)
+    const savedCats = await DB.getSetting('const_statCategories', null);
+    if (savedCats && savedCats.length) {
+      this.CATEGORIES = savedCats.map(c => c.name);
+      this._catColors = {};
+      savedCats.forEach(c => { this._catColors[c.name] = c.color; });
+    }
+
     const wid = AppStore.getCurrentWorldId();
 
     if (!wid) {
@@ -60,10 +70,10 @@ window.Pages.statDefs = {
       grouped[cat].push(d);
     });
 
-    const catColors = {
-      '기본스텟': '#60a5fa', '전투스텟': '#f87171', '마나계열': '#a78bfa',
-      '정신계열': '#34d399', '저항': '#fbbf24', '기타': '#94a3b8',
-    };
+    const catColors = this._catColors || {};
+    // Collect any extra categories from data not in the defined list
+    const extraCats = Object.keys(grouped).filter(c => !this.CATEGORIES.includes(c) && grouped[c].length > 0);
+    const allCatsToRender = [...this.CATEGORIES, ...extraCats];
 
     const renderGroup = (cat, items) => {
       if (!items.length) return '';
@@ -111,7 +121,7 @@ window.Pages.statDefs = {
                <div style="font-weight:700;font-size:15px;margin-bottom:4px;">정의된 스텟이 없습니다</div>
                <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">+ 추가 버튼 또는 기본 스텟 초기화 버튼으로 등록하세요</div>
              </div>`
-          : this.CATEGORIES.map(cat => renderGroup(cat, grouped[cat] || [])).join('')}
+          : allCatsToRender.map(cat => renderGroup(cat, grouped[cat] || [])).join('')}
       </div>
     </div>`;
 

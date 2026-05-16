@@ -148,7 +148,7 @@ window.Pages.gods = {
         </div>
         <div style="flex:1;min-width:0;">
           <div style="font-weight:800;font-size:14px;margin-bottom:2px;">${Utils.escHtml(org.name || '이름 없음')}</div>
-          ${org.domain ? `<div style="font-size:12px;color:var(--color-text-muted);">도메인: ${Utils.escHtml(org.domain)}</div>` : ''}
+          ${org.domain ? `<div style="font-size:12px;color:var(--color-text-muted);">관할 영역: ${Utils.escHtml(org.domain)}</div>` : ''}
           <div style="font-size:11px;color:var(--color-text-dim);margin-top:2px;">계급 ${(org.ranks || []).length}개 · 신 ${totalGods}명</div>
         </div>
         <div style="display:flex;flex-direction:column;gap:4px;flex-shrink:0;">
@@ -227,7 +227,7 @@ window.Pages.gods = {
           </div>
           <div>
             <div style="font-size:20px;font-weight:800;">${Utils.escHtml(org.name || '')}</div>
-            ${org.domain ? `<div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">도메인: ${Utils.escHtml(org.domain)}</div>` : ''}
+            ${org.domain ? `<div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">관할 영역: ${Utils.escHtml(org.domain)}</div>` : ''}
           </div>
         </div>
         ${org.description ? `<div style="font-size:13px;line-height:1.7;white-space:pre-wrap;color:var(--color-text-muted);">${Utils.nl2br(Utils.escHtml(org.description))}</div>` : ''}
@@ -325,8 +325,13 @@ window.Pages.gods = {
         <div class="rank-row" data-rank-idx="${i}" style="border:1px solid ${col}55;border-radius:8px;padding:10px;margin-bottom:8px;background:${col}08;">
           <div style="display:flex;gap:6px;align-items:center;margin-bottom:6px;">
             <input class="input-field rank-name" data-rank-idx="${i}" value="${Utils.escHtml(r.name)}" placeholder="계급명 (예: 최고신)" style="flex:1;box-sizing:border-box;font-size:13px;" />
-            <input type="color" class="rank-color-input" data-rank-idx="${i}" value="${col}" title="색상 선택" style="width:32px;height:32px;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;padding:2px;background:none;" />
             <button type="button" class="rank-del btn btn-ghost btn-sm" data-rank-idx="${i}" style="color:var(--color-danger);font-size:11px;flex-shrink:0;">✕</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:6px;">
+            <input type="color" class="rank-color-input" data-rank-idx="${i}" value="${col}" title="색상 선택" style="width:32px;height:32px;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;padding:2px;background:none;" />
+            <input class="input-field rank-color-hex" data-rank-idx="${i}" value="${col}" placeholder="#hex" maxlength="7" style="width:80px;font-family:monospace;font-size:12px;box-sizing:border-box;" />
+            <div class="rank-color-preview" style="width:28px;height:28px;border-radius:6px;background:${col};border:1px solid var(--color-border);flex-shrink:0;"></div>
+            ${['#ef4444','#f97316','#f59e0b','#84cc16','#22c55e','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899','#fbbf24','#94a3b8','#475569','#1e293b'].map(pc=>`<button type="button" class="rank-preset-dot" data-rank-idx="${i}" data-color="${pc}" style="width:20px;height:20px;border-radius:50%;background:${pc};border:2px solid ${pc===col?'#fff':'transparent'};cursor:pointer;flex-shrink:0;"></button>`).join('')}
           </div>
           <input class="input-field rank-desc" data-rank-idx="${i}" value="${Utils.escHtml(r.description)}" placeholder="계급 설명..." style="width:100%;box-sizing:border-box;font-size:12px;" />
           <div style="margin-top:5px;font-size:11px;color:var(--color-text-dim);">소속 신: ${r.gods.length}명 (신 추가/편집은 상세 화면에서 가능)</div>
@@ -350,7 +355,7 @@ window.Pages.gods = {
         </div>
 
         <div class="form-group">
-          <label class="form-label">도메인 (담당 영역)</label>
+          <label class="form-label">관할 영역</label>
           <input class="input-field" id="fGODomain" value="${Utils.escHtml(o.domain || '')}" placeholder="예: 창조/파괴, 빛/어둠" style="width:100%;box-sizing:border-box;" />
         </div>
 
@@ -428,11 +433,60 @@ window.Pages.gods = {
         document.querySelectorAll('#godRankRows .rank-color-input').forEach(input => {
           input.addEventListener('input', () => {
             const idx = parseInt(input.dataset.rankIdx);
-            if (formRanks[idx]) formRanks[idx].color = input.value;
+            const col = input.value;
+            if (formRanks[idx]) formRanks[idx].color = col;
             const row = input.closest('.rank-row');
             if (row) {
-              row.style.borderColor = input.value + '55';
-              row.style.background = input.value + '08';
+              row.style.borderColor = col + '55';
+              row.style.background = col + '08';
+              const hexInp = row.querySelector('.rank-color-hex');
+              const preview = row.querySelector('.rank-color-preview');
+              if (hexInp) hexInp.value = col;
+              if (preview) preview.style.background = col;
+              row.querySelectorAll('.rank-preset-dot').forEach(dot => {
+                dot.style.borderColor = dot.dataset.color === col ? '#fff' : 'transparent';
+              });
+            }
+          });
+        });
+        document.querySelectorAll('#godRankRows .rank-color-hex').forEach(inp => {
+          inp.addEventListener('input', () => {
+            const idx = parseInt(inp.dataset.rankIdx);
+            const val = inp.value.trim();
+            if (!/^#[0-9a-fA-F]{6}$/.test(val)) return;
+            if (formRanks[idx]) formRanks[idx].color = val;
+            const row = inp.closest('.rank-row');
+            if (row) {
+              row.style.borderColor = val + '55';
+              row.style.background = val + '08';
+              const nativeInp = row.querySelector('.rank-color-input');
+              const preview = row.querySelector('.rank-color-preview');
+              if (nativeInp) nativeInp.value = val;
+              if (preview) preview.style.background = val;
+              row.querySelectorAll('.rank-preset-dot').forEach(dot => {
+                dot.style.borderColor = dot.dataset.color === val ? '#fff' : 'transparent';
+              });
+            }
+          });
+        });
+        document.querySelectorAll('#godRankRows .rank-preset-dot').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.rankIdx);
+            const col = btn.dataset.color;
+            if (formRanks[idx]) formRanks[idx].color = col;
+            const row = btn.closest('.rank-row');
+            if (row) {
+              row.style.borderColor = col + '55';
+              row.style.background = col + '08';
+              const nativeInp = row.querySelector('.rank-color-input');
+              const hexInp = row.querySelector('.rank-color-hex');
+              const preview = row.querySelector('.rank-color-preview');
+              if (nativeInp) nativeInp.value = col;
+              if (hexInp) hexInp.value = col;
+              if (preview) preview.style.background = col;
+              row.querySelectorAll('.rank-preset-dot').forEach(dot => {
+                dot.style.borderColor = dot.dataset.color === col ? '#fff' : 'transparent';
+              });
             }
           });
         });

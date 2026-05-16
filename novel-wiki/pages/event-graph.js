@@ -665,9 +665,13 @@ window.Pages.eventGraph = {
             <option value="">사건 선택...</option>
             ${otherEvents.map(e=>`<option value="${Utils.escHtml(e.id)}">${Utils.escHtml(e.name)}</option>`).join('')}
           </select>
-          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;margin-top:4px;">
-            <input type="color" id="outcomeEdgeColor" value="#6b7280"
-              style="width:32px;height:32px;padding:2px;border-radius:6px;border:1px solid var(--color-border);cursor:pointer;flex-shrink:0;" title="연결선 색상"/>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;margin-bottom:6px;">
+            <input type="color" id="outcomeEdgeColor" value="#6b7280" style="width:32px;height:32px;padding:2px;border-radius:6px;border:1px solid var(--color-border);cursor:pointer;flex-shrink:0;" title="연결선 색상"/>
+            <input class="input-field" id="outcomeEdgeColorHex" value="#6b7280" placeholder="#hex" maxlength="7" style="width:80px;font-family:monospace;font-size:12px;box-sizing:border-box;" />
+            <div id="outEdgeColorPreview" style="width:32px;height:32px;border-radius:6px;background:#6b7280;border:1px solid var(--color-border);flex-shrink:0;"></div>
+            ${['#ef4444','#f97316','#f59e0b','#84cc16','#22c55e','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899','#6b7280','#94a3b8','#475569','#1e293b'].map(pc=>`<button type="button" class="out-edge-preset" data-color="${pc}" style="width:20px;height:20px;border-radius:50%;background:${pc};border:2px solid ${pc==='#6b7280'?'#fff':'transparent'};cursor:pointer;flex-shrink:0;"></button>`).join('')}
+          </div>
+          <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
             <input class="input-field" id="outcomeLabel" placeholder="설명 (선택)" style="flex:1;"/>
             <button type="button" id="btnAddOutcome" class="btn btn-primary btn-sm">+ 추가</button>
           </div>
@@ -764,6 +768,27 @@ window.Pages.eventGraph = {
         });
       };
       bindOutcomeRows();
+
+      // Outcome edge color picker
+      const updateOutEdgeUI = (col) => {
+        const native = document.getElementById('outcomeEdgeColor');
+        const hexInp = document.getElementById('outcomeEdgeColorHex');
+        const preview = document.getElementById('outEdgeColorPreview');
+        if (native) native.value = col;
+        if (hexInp) hexInp.value = col;
+        if (preview) preview.style.background = col;
+        document.querySelectorAll('#globalModalBody .out-edge-preset').forEach(dot => {
+          dot.style.borderColor = dot.dataset.color === col ? '#fff' : 'transparent';
+        });
+      };
+      document.getElementById('outcomeEdgeColor')?.addEventListener('input', e => { updateOutEdgeUI(e.target.value); });
+      document.getElementById('outcomeEdgeColorHex')?.addEventListener('input', e => {
+        const val = e.target.value.trim();
+        if (/^#[0-9a-fA-F]{6}$/.test(val)) updateOutEdgeUI(val);
+      });
+      document.querySelectorAll('#globalModalBody .out-edge-preset').forEach(dot => {
+        dot.addEventListener('click', () => updateOutEdgeUI(dot.dataset.color));
+      });
 
       // Outcome target filter
       document.getElementById('outcomeTargetFilter')?.addEventListener('input',e=>{

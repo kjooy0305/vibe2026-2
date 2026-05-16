@@ -137,7 +137,7 @@ window.Pages.templates = {
       { key: 'grade',       label: '등급',     type: 'select',   required: true,  novelHidden: false, options: ['하급','중급','상급','최상급','신급'] },
       { key: 'attribute',   label: '속성',     type: 'select',   required: false, novelHidden: false, options: ['없음','화염','물','땅','바람','뇨','성화','청화','백화','빙화','빙','흑뢰','적뢰','공간','이능','신성','타락'] },
       { key: 'hierarchy',   label: '위계',     type: 'text',     required: false, novelHidden: false },
-      { key: 'domain',      label: '담당영역', type: 'textarea', required: false, novelHidden: false },
+      { key: 'domain',      label: '관할영역', type: 'textarea', required: false, novelHidden: false },
       { key: 'appearance',  label: '외형',     type: 'textarea', required: false, novelHidden: false },
       { key: 'features',    label: '특징',     type: 'textarea', required: false, novelHidden: false },
       { key: 'abilities',   label: '능력',     type: 'textarea', required: false, novelHidden: false },
@@ -211,6 +211,7 @@ window.Pages.templates = {
         <button id="tabConstBtn"     style="${tabBtnStyle(this._activeTab === 'constants')}">⚙️ 선택지/목록 관리</button>
         <button id="tabGateBtn"      style="${tabBtnStyle(this._activeTab === 'gate')}">🌀 게이트 목록</button>
         <button id="tabWorldTypeBtn" style="${tabBtnStyle(this._activeTab === 'worldType')}">🌍 세계 타입</button>
+        <button id="tabStatCatBtn"   style="${tabBtnStyle(this._activeTab === 'statCat')}">📊 스텟 분류</button>
       </div>`;
 
     container.innerHTML = `<div class="page active"><div class="page-header"><h2 class="page-title">기본 설정 관리</h2></div>${tabHeader}<div id="tabContent"></div></div>`;
@@ -235,6 +236,11 @@ window.Pages.templates = {
       await DB.setSetting('template_lastTab', 'worldType');
       await self._render(container);
     });
+    container.querySelector('#tabStatCatBtn')?.addEventListener('click', async () => {
+      self._activeTab = 'statCat';
+      await DB.setSetting('template_lastTab', 'statCat');
+      await self._render(container);
+    });
 
     const tabContent = container.querySelector('#tabContent');
     if (this._activeTab === 'fields') {
@@ -243,6 +249,8 @@ window.Pages.templates = {
       await this._renderGateListTab(tabContent, container);
     } else if (this._activeTab === 'worldType') {
       await this._renderWorldTypeTab(tabContent, container);
+    } else if (this._activeTab === 'statCat') {
+      await this._renderStatCatTab(tabContent, container);
     } else {
       await this._renderConstantsTab(tabContent, container);
     }
@@ -861,6 +869,197 @@ window.Pages.templates = {
         renderList(worldTypes);
         Utils.toast('초기화됨', 'success');
       }, '초기화');
+    });
+  },
+
+  // ── Stat category tab ────────────────────────────────────────────────────────
+  _renderStatCatTab: async function(tabContent, container) {
+    const self = this;
+    const DEFAULT_CATS = [
+      { name: '기본스텟', color: '#60a5fa' }, { name: '전투스텟', color: '#f87171' },
+      { name: '마나계열', color: '#a78bfa' }, { name: '정신계열', color: '#34d399' },
+      { name: '저항',     color: '#fbbf24' }, { name: '기타',     color: '#94a3b8' },
+    ];
+    const PRESETS = ['#ef4444','#f97316','#f59e0b','#84cc16','#22c55e','#10b981','#06b6d4','#3b82f6','#6366f1','#8b5cf6','#a855f7','#ec4899','#ffffff','#94a3b8','#475569','#1e293b'];
+
+    let cats = (await DB.getSetting('const_statCategories', null)) || DEFAULT_CATS.map(c => ({ ...c }));
+
+    const syncCatsFromDOM = () => {
+      tabContent.querySelectorAll('.stat-cat-row').forEach(row => {
+        const i = Number(row.dataset.idx);
+        if (cats[i] !== undefined) {
+          const nameInp = row.querySelector('.cat-name-input');
+          const hexInp  = row.querySelector('.cat-color-hex');
+          if (nameInp) cats[i].name = nameInp.value;
+          if (hexInp && /^#[0-9a-fA-F]{6}$/.test(hexInp.value)) cats[i].color = hexInp.value;
+        }
+      });
+    };
+
+    const renderList = () => {
+      const listEl = tabContent.querySelector('#statCatList');
+      if (!listEl) return;
+      listEl.innerHTML = cats.map((cat, i) => {
+        const col = cat.color || '#94a3b8';
+        return `
+        <div class="stat-cat-row" data-idx="${i}"
+          style="background:var(--color-surface2);border-radius:10px;padding:12px;margin-bottom:8px;border-left:3px solid ${col};">
+          <div style="display:flex;align-items:center;gap:6px;margin-bottom:8px;">
+            <div style="display:flex;flex-direction:column;gap:2px;flex-shrink:0;">
+              <button class="btn btn-ghost cat-up" data-idx="${i}" style="padding:1px 5px;font-size:10px;line-height:1.4;" ${i===0?'disabled':''}>↑</button>
+              <button class="btn btn-ghost cat-down" data-idx="${i}" style="padding:1px 5px;font-size:10px;line-height:1.4;" ${i===cats.length-1?'disabled':''}>↓</button>
+            </div>
+            <input class="input-field cat-name-input" data-idx="${i}" value="${Utils.escHtml(cat.name)}"
+              placeholder="분류 이름" style="flex:1;box-sizing:border-box;" />
+            <button class="btn btn-ghost cat-del" data-idx="${i}" style="color:var(--color-danger);padding:4px 8px;font-size:14px;flex-shrink:0;">×</button>
+          </div>
+          <div style="display:flex;flex-wrap:wrap;gap:4px;align-items:center;">
+            <input type="color" class="cat-color-native" data-idx="${i}" value="${col}"
+              style="width:36px;height:36px;padding:2px;border:1px solid var(--color-border);border-radius:6px;cursor:pointer;flex-shrink:0;" />
+            <input class="input-field cat-color-hex" data-idx="${i}" value="${col}" maxlength="7"
+              placeholder="#hex" style="width:80px;font-family:monospace;font-size:12px;box-sizing:border-box;" />
+            <div class="cat-color-preview" data-idx="${i}"
+              style="width:32px;height:32px;border-radius:6px;background:${col};border:1px solid var(--color-border);flex-shrink:0;"></div>
+            ${PRESETS.map(pc => `<button type="button" class="cat-preset-dot" data-idx="${i}" data-color="${pc}"
+              style="width:22px;height:22px;border-radius:50%;background:${pc};border:2px solid ${pc===col?'#fff':'transparent'};cursor:pointer;flex-shrink:0;"></button>`).join('')}
+          </div>
+        </div>`;
+      }).join('');
+      bindListEvents();
+    };
+
+    const bindListEvents = () => {
+      tabContent.querySelectorAll('.cat-up').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.idx);
+          if (i === 0) return;
+          syncCatsFromDOM();
+          [cats[i-1], cats[i]] = [cats[i], cats[i-1]];
+          renderList();
+        });
+      });
+      tabContent.querySelectorAll('.cat-down').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.idx);
+          if (i >= cats.length - 1) return;
+          syncCatsFromDOM();
+          [cats[i], cats[i+1]] = [cats[i+1], cats[i]];
+          renderList();
+        });
+      });
+      tabContent.querySelectorAll('.cat-del').forEach(btn => {
+        btn.addEventListener('click', () => {
+          if (cats.length <= 1) { Utils.toast('최소 1개 필요', 'error'); return; }
+          syncCatsFromDOM();
+          cats.splice(Number(btn.dataset.idx), 1);
+          renderList();
+        });
+      });
+      tabContent.querySelectorAll('.cat-name-input').forEach(inp => {
+        inp.addEventListener('input', () => { cats[Number(inp.dataset.idx)].name = inp.value; });
+      });
+      tabContent.querySelectorAll('.cat-color-native').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const i = Number(inp.dataset.idx);
+          const col = inp.value;
+          cats[i].color = col;
+          const row = tabContent.querySelector(`.stat-cat-row[data-idx="${i}"]`);
+          if (row) {
+            const hexInp = row.querySelector('.cat-color-hex');
+            const preview = row.querySelector('.cat-color-preview');
+            if (hexInp) hexInp.value = col;
+            if (preview) preview.style.background = col;
+            row.style.borderLeftColor = col;
+            row.querySelectorAll('.cat-preset-dot').forEach(d => { d.style.borderColor = d.dataset.color === col ? '#fff' : 'transparent'; });
+          }
+        });
+      });
+      tabContent.querySelectorAll('.cat-color-hex').forEach(inp => {
+        inp.addEventListener('input', () => {
+          const i = Number(inp.dataset.idx);
+          const val = inp.value.trim();
+          if (!/^#[0-9a-fA-F]{6}$/.test(val)) return;
+          cats[i].color = val;
+          const row = tabContent.querySelector(`.stat-cat-row[data-idx="${i}"]`);
+          if (row) {
+            const nativeInp = row.querySelector('.cat-color-native');
+            const preview   = row.querySelector('.cat-color-preview');
+            if (nativeInp) nativeInp.value = val;
+            if (preview) preview.style.background = val;
+            row.style.borderLeftColor = val;
+            row.querySelectorAll('.cat-preset-dot').forEach(d => { d.style.borderColor = d.dataset.color === val ? '#fff' : 'transparent'; });
+          }
+        });
+      });
+      tabContent.querySelectorAll('.cat-preset-dot').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = Number(btn.dataset.idx);
+          const col = btn.dataset.color;
+          cats[i].color = col;
+          const row = tabContent.querySelector(`.stat-cat-row[data-idx="${i}"]`);
+          if (row) {
+            const nativeInp = row.querySelector('.cat-color-native');
+            const hexInp    = row.querySelector('.cat-color-hex');
+            const preview   = row.querySelector('.cat-color-preview');
+            if (nativeInp) nativeInp.value = col;
+            if (hexInp) hexInp.value = col;
+            if (preview) preview.style.background = col;
+            row.style.borderLeftColor = col;
+            row.querySelectorAll('.cat-preset-dot').forEach(d => { d.style.borderColor = d.dataset.color === col ? '#fff' : 'transparent'; });
+          }
+        });
+      });
+    };
+
+    tabContent.innerHTML = `
+      <div>
+        <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;flex-wrap:wrap;gap:8px;">
+          <div style="font-size:12px;color:var(--color-text-muted);">스텟 정의 페이지에서 사용하는 분류와 색상을 관리합니다.</div>
+          <div style="display:flex;gap:6px;">
+            <button class="btn btn-ghost btn-sm" id="btnResetStatCat" style="color:var(--color-warning);">기본값 복원</button>
+            <button class="btn btn-primary btn-sm" id="btnSaveStatCat">저장</button>
+          </div>
+        </div>
+
+        <div id="statCatList" style="margin-bottom:10px;"></div>
+
+        <button class="btn btn-ghost btn-sm" id="btnAddStatCat"
+          style="width:100%;box-sizing:border-box;border:1px dashed var(--color-border);padding:8px;border-radius:8px;margin-bottom:16px;">+ 분류 추가</button>
+
+        <div style="padding:12px 14px;background:rgba(59,130,246,0.08);border-left:3px solid var(--color-primary);border-radius:6px;font-size:12px;color:var(--color-text-muted);line-height:1.7;margin-bottom:80px;">
+          <strong style="color:var(--color-primary);">스텟 분류 안내</strong><br>
+          · 여기서 설정한 분류는 스텟 정의 페이지의 카테고리 선택에 사용됩니다.<br>
+          · 저장 후 스텟 정의 페이지를 재방문하면 새 분류가 적용됩니다.<br>
+          · 기존 스텟 데이터의 분류 값은 바뀌지 않습니다.
+        </div>
+      </div>`;
+
+    renderList();
+
+    tabContent.querySelector('#btnAddStatCat')?.addEventListener('click', () => {
+      syncCatsFromDOM();
+      cats.push({ name: '', color: '#94a3b8' });
+      renderList();
+    });
+
+    tabContent.querySelector('#btnSaveStatCat')?.addEventListener('click', async () => {
+      syncCatsFromDOM();
+      const valid = cats.filter(c => c.name.trim());
+      if (!valid.length) { Utils.toast('최소 1개 분류가 필요합니다', 'error'); return; }
+      await DB.setSetting('const_statCategories', valid);
+      cats.length = 0;
+      valid.forEach(c => cats.push(c));
+      Utils.toast('스텟 분류 저장됨 — 스텟 정의 페이지 재방문 시 적용됩니다', 'success');
+    });
+
+    tabContent.querySelector('#btnResetStatCat')?.addEventListener('click', () => {
+      Utils.confirm('기본값으로 복원', '스텟 분류를 기본값(전투스텟, 마나계열 등)으로 되돌립니다.', async () => {
+        await DB.setSetting('const_statCategories', null);
+        cats.length = 0;
+        DEFAULT_CATS.forEach(c => cats.push({ ...c }));
+        renderList();
+        Utils.toast('기본값으로 복원됨', 'info');
+      }, '복원');
     });
   },
 
