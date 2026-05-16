@@ -175,6 +175,7 @@ window.Pages.quests = {
             <h2 style="font-size:20px;font-weight:800;color:var(--color-text);margin:0;">${Utils.escHtml(item.name || '이름 없음')}</h2>
             <div style="margin-top:4px;">
               ${item.status ? `<span style="font-size:12px;padding:2px 10px;border-radius:10px;font-weight:700;background:${statusColor}22;color:${statusColor};border:1px solid ${statusColor}55;">${Utils.escHtml(item.status)}</span>` : ''}
+              ${item.difficulty ? `<span style="font-size:12px;margin-left:6px;padding:2px 8px;border-radius:8px;background:rgba(239,68,68,0.12);color:#ef4444;border:1px solid rgba(239,68,68,0.3);">난이도: ${Utils.escHtml(item.difficulty)}</span>` : ''}
               ${item.level ? `<span style="font-size:12px;margin-left:6px;color:var(--color-text-muted);">Lv. ${Utils.escHtml(item.level)}</span>` : ''}
             </div>
           </div>
@@ -189,6 +190,12 @@ window.Pages.quests = {
       <div style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
         <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:8px;letter-spacing:1px;">퀘스트 내용</div>
         <div style="font-size:13px;white-space:pre-wrap;line-height:1.8;">${Utils.escHtml(item.description)}</div>
+      </div>` : ''}
+
+      ${item.clearMethod ? `
+      <div style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
+        <div style="font-size:11px;color:#10b981;font-weight:700;margin-bottom:8px;letter-spacing:1px;">✅ 클리어 방법</div>
+        <div style="font-size:13px;white-space:pre-wrap;line-height:1.8;">${Utils.escHtml(item.clearMethod)}</div>
       </div>` : ''}
 
       ${(reqItems.length || reqChars.length || item.level || item.reqOthers) ? `
@@ -206,6 +213,22 @@ window.Pages.quests = {
         ${rewardItems.length ? `<div style="margin-bottom:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">보상 아이템</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${chipListHtml(rewardItems, '📦')}</div></div>` : ''}
         ${rewardSkills.length ? `<div style="margin-bottom:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">보상 스킬</div><div style="display:flex;flex-wrap:wrap;gap:5px;">${chipListHtml(rewardSkills, '✨')}</div></div>` : ''}
         ${field('기타 보상', item.rewardOthers, true)}
+      </div>` : ''}
+
+      ${item.failPenalty ? `
+      <div style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
+        <div style="font-size:11px;color:#ef4444;font-weight:700;margin-bottom:8px;letter-spacing:1px;">💀 실패 패널티</div>
+        <div style="font-size:13px;white-space:pre-wrap;line-height:1.8;">${Utils.escHtml(item.failPenalty)}</div>
+      </div>` : ''}
+
+      ${(item.linkedGates && item.linkedGates.length) ? `
+      <div style="background:var(--color-surface2);border-radius:10px;padding:14px 16px;margin-bottom:10px;border:1px solid var(--color-border);">
+        <div style="font-size:11px;color:#8b5cf6;font-weight:700;margin-bottom:8px;letter-spacing:1px;">🌀 연관 게이트</div>
+        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+          ${item.linkedGates.map(g2 => `<button class="detail-gate-link btn btn-ghost btn-sm" data-gid="${Utils.escHtml(g2.id)}"
+            style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:12px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);cursor:pointer;">
+            🌀 ${Utils.escHtml(g2.name||'?')}</button>`).join('')}
+        </div>
       </div>` : ''}
 
       ${item.constraints ? `
@@ -251,6 +274,13 @@ window.Pages.quests = {
         Utils.toast('삭제되었습니다.', 'info');
       });
     });
+    container.querySelectorAll('.detail-gate-link').forEach(btn => {
+      btn.addEventListener('click', () => {
+        if (btn.dataset.gid && window.AppRouter) {
+          AppRouter.navigate('gates', { highlightId: btn.dataset.gid });
+        }
+      });
+    });
   },
 
   // ── FORM ──────────────────────────────────────────────────────────────────
@@ -260,11 +290,12 @@ window.Pages.quests = {
     const q = item || {};
     const currentIcon = q.icon || '📋';
 
-    const [allItems, allChars, allSkills, allPlaces] = await Promise.all([
+    const [allItems, allChars, allSkills, allPlaces, allGates] = await Promise.all([
       DB.getAll('items', wid),
       DB.getAll('characters', wid),
       DB.getAll('skills', wid),
       DB.getAll('places', wid),
+      DB.getAll('gates', wid),
     ]);
 
     // Chip state
@@ -274,6 +305,7 @@ window.Pages.quests = {
     let rewardSkills = [...(q.rewardSkills || [])];
     let triggerItems = [...((q.triggerRefs?.items) || [])];
     let triggerChars = [...((q.triggerRefs?.chars) || [])];
+    let linkedGates = [...(q.linkedGates || [])];
 
     // Location state
     let locationRef = { type: q.location?.type || 'text', id: q.location?.id || '', name: q.location?.name || '', desc: q.location?.desc || '' };
@@ -296,6 +328,11 @@ window.Pages.quests = {
         <div>
           <label class="form-label">퀘스트명 (필수)</label>
           <input class="input-field" id="fQuestName" value="${Utils.escHtml(q.name || '')}" placeholder="퀘스트 이름" style="width:100%;box-sizing:border-box;" />
+        </div>
+        <div>
+          <label class="form-label">난이도 등급</label>
+          <input class="input-field" id="fQuestDifficulty" value="${Utils.escHtml(q.difficulty || '')}"
+            placeholder="예: F, E, D, C, B, A, S, SS, 보스급" style="width:100%;box-sizing:border-box;" />
         </div>
         <div>
           <label class="form-label">상태</label>
@@ -333,6 +370,14 @@ window.Pages.quests = {
           </div>
         </div>
 
+        <!-- 클리어 방법 -->
+        <div style="border-top:1px solid var(--color-border);padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:8px;">✅ 클리어 방법</div>
+          <textarea class="input-field" id="fQuestClearMethod" rows="3"
+            placeholder="퀘스트를 클리어하는 방법, 조건, 절차..."
+            style="width:100%;box-sizing:border-box;resize:vertical;">${Utils.escHtml(q.clearMethod || '')}</textarea>
+        </div>
+
         <!-- 보상 -->
         <div style="border-top:1px solid var(--color-border);padding-top:10px;">
           <div style="font-size:12px;font-weight:700;color:var(--color-primary);margin-bottom:8px;">🎁 보상</div>
@@ -356,6 +401,14 @@ window.Pages.quests = {
             <label class="form-label">기타 보상</label>
             <textarea class="input-field" id="fQuestRewardOthers" rows="2" placeholder="기타 보상 설명..." style="width:100%;box-sizing:border-box;resize:vertical;">${Utils.escHtml(q.rewardOthers || '')}</textarea>
           </div>
+        </div>
+
+        <!-- 실패 패널티 -->
+        <div style="border-top:1px solid var(--color-border);padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#ef4444;margin-bottom:8px;">💀 실패 패널티</div>
+          <textarea class="input-field" id="fQuestFailPenalty" rows="2"
+            placeholder="퀘스트 실패 시 결과, 패널티, 영향..."
+            style="width:100%;box-sizing:border-box;resize:vertical;">${Utils.escHtml(q.failPenalty || '')}</textarea>
         </div>
 
         <!-- 퀘스트 내용 -->
@@ -416,6 +469,23 @@ window.Pages.quests = {
           </div>
         </div>
 
+        <!-- 게이트 연동 -->
+        <div style="border-top:1px solid var(--color-border);padding-top:10px;">
+          <div style="font-size:12px;font-weight:700;color:#8b5cf6;margin-bottom:8px;">🌀 연관 게이트</div>
+          <div id="linkedGateChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">
+            ${linkedGates.map(g2 => `<span class="linked-gate-chip" data-gid="${Utils.escHtml(g2.id)}" data-gname="${Utils.escHtml(g2.name||'')}"
+              style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);">
+              🌀 ${Utils.escHtml(g2.name||'?')}
+              <button class="lg-chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+            </span>`).join('')}
+          </div>
+          <div style="position:relative;">
+            <input class="input-field" id="linkedGateSearch" placeholder="게이트 검색..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="linkedGateResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:30;max-height:140px;overflow-y:auto;"></div>
+          </div>
+        </div>
+
         <!-- 메모 -->
         <div>
           <label class="form-label">메모</label>
@@ -439,18 +509,22 @@ window.Pages.quests = {
         name,
         icon,
         status: document.getElementById('fQuestStatus')?.value || '',
+        difficulty: document.getElementById('fQuestDifficulty')?.value.trim() || '',
         level: document.getElementById('fQuestLevel')?.value.trim() || '',
         reqItems,
         reqChars,
         reqOthers: document.getElementById('fQuestReqOthers')?.value.trim() || '',
+        clearMethod: document.getElementById('fQuestClearMethod')?.value.trim() || '',
         rewardItems,
         rewardSkills,
         rewardOthers: document.getElementById('fQuestRewardOthers')?.value.trim() || '',
+        failPenalty: document.getElementById('fQuestFailPenalty')?.value.trim() || '',
         description: document.getElementById('fQuestDesc')?.value.trim() || '',
         constraints: document.getElementById('fQuestConstraints')?.value.trim() || '',
         location: savedLocation,
         trigger: document.getElementById('fQuestTrigger')?.value.trim() || '',
         triggerRefs: { items: triggerItems, chars: triggerChars },
+        linkedGates: [...document.querySelectorAll('#globalModalBody .linked-gate-chip')].map(el => ({id: el.dataset.gid, name: el.dataset.gname})),
         notes: document.getElementById('fQuestNotes')?.value.trim() || '',
         createdAt: q.createdAt || Date.now(),
       };
@@ -564,6 +638,46 @@ window.Pages.quests = {
       wireChipSearch('rewardSkillChips', 'rewardSkillSearch', 'rewardSkillResults', allSkills, '✨', rewardSkills, null);
       wireChipSearch('trigItemChips', 'trigItemSearch', 'trigItemResults', allItems, '📦', triggerItems, null);
       wireChipSearch('trigCharChips', 'trigCharSearch', 'trigCharResults', allChars, '👤', triggerChars, null);
+
+      // Gate linkage
+      let lgList = [...linkedGates];
+      const renderLinkedGateChips = () => {
+        const wrap = document.getElementById('linkedGateChips');
+        if (!wrap) return;
+        wrap.innerHTML = lgList.map((g2, i) => `<span class="linked-gate-chip" data-gid="${Utils.escHtml(g2.id)}" data-gname="${Utils.escHtml(g2.name||'')}"
+          style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;background:rgba(139,92,246,0.15);border:1px solid rgba(139,92,246,0.4);">
+          🌀 ${Utils.escHtml(g2.name||'?')}
+          <button class="lg-chip-del" data-idx="${i}" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+        </span>`).join('');
+        wrap.querySelectorAll('.lg-chip-del').forEach(btn => {
+          btn.addEventListener('click', () => { lgList.splice(parseInt(btn.dataset.idx, 10), 1); renderLinkedGateChips(); });
+        });
+      };
+      renderLinkedGateChips();
+      const lgInput = document.getElementById('linkedGateSearch');
+      const lgResults = document.getElementById('linkedGateResults');
+      if (lgInput && lgResults) {
+        lgInput.addEventListener('input', () => {
+          const q2 = lgInput.value.trim().toLowerCase();
+          if (!q2) { lgResults.style.display = 'none'; return; }
+          const hits = allGates.filter(gate => (gate.name||'').toLowerCase().includes(q2)).slice(0, 8);
+          lgResults.innerHTML = hits.map(gate => `<div class="lg-result" data-gid="${Utils.escHtml(gate.id)}" data-gname="${Utils.escHtml(gate.name||'')}"
+            style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">🌀 ${Utils.escHtml(gate.name||'?')}</div>`).join('');
+          lgResults.style.display = hits.length ? 'block' : 'none';
+          lgResults.querySelectorAll('.lg-result').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              if (!lgList.find(g2 => g2.id === row.dataset.gid)) {
+                lgList.push({ id: row.dataset.gid, name: row.dataset.gname });
+                renderLinkedGateChips();
+              }
+              lgInput.value = '';
+              lgResults.style.display = 'none';
+            });
+          });
+        });
+        lgInput.addEventListener('blur', () => setTimeout(() => { lgResults.style.display = 'none'; }, 150));
+      }
     }, 60);
   },
 };

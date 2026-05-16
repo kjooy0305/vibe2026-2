@@ -211,6 +211,7 @@ window.Pages.templates = {
       <div style="display:flex;gap:6px;margin-bottom:16px;position:sticky;top:0;z-index:20;background:var(--color-bg);padding:12px 0 4px;">
         <button id="tabFieldsBtn" style="${tabBtnStyle(this._activeTab === 'fields')}">📋 항목 입력 양식</button>
         <button id="tabConstBtn"  style="${tabBtnStyle(this._activeTab === 'constants')}">⚙️ 선택지/목록 관리</button>
+        <button id="tabGateBtn"   style="${tabBtnStyle(this._activeTab === 'gate')}">🌀 게이트 목록</button>
       </div>`;
 
     container.innerHTML = `<div class="page active"><div class="page-header"><h2 class="page-title">기본 설정 관리</h2></div>${tabHeader}<div id="tabContent"></div></div>`;
@@ -225,10 +226,17 @@ window.Pages.templates = {
       await DB.setSetting('template_lastTab', 'constants');
       await self._render(container);
     });
+    container.querySelector('#tabGateBtn')?.addEventListener('click', async () => {
+      self._activeTab = 'gate';
+      await DB.setSetting('template_lastTab', 'gate');
+      await self._render(container);
+    });
 
     const tabContent = container.querySelector('#tabContent');
     if (this._activeTab === 'fields') {
       await this._renderFieldsTab(tabContent, container);
+    } else if (this._activeTab === 'gate') {
+      await this._renderGateListTab(tabContent, container);
     } else {
       await this._renderConstantsTab(tabContent, container);
     }
@@ -610,6 +618,133 @@ window.Pages.templates = {
   getTemplate: async function(entityType) {
     const stored = await DB.getSetting('template_' + entityType, null);
     return stored || this.DEFAULT_TEMPLATES[entityType] || [];
+  },
+
+  // ── Gate list tab ─────────────────────────────────────────────────────────────
+  _renderGateListTab: async function(tabContent, container) {
+    const self = this;
+    const wid = AppStore.getCurrentWorldId();
+    if (!wid) {
+      tabContent.innerHTML = '<div style="padding:24px;text-align:center;color:var(--color-text-muted);">세계를 먼저 선택하세요</div>';
+      return;
+    }
+
+    // Base types from gates.js
+    const BASE_TYPES = ['섬멸형','토벌형','스토리형(개입)','스토리형(빙의)','타임어택형','퍼즐형','루프형','폐쇄형','보스형'];
+    const BASE_BREAK = ['방출형','침식형','자폭형','소멸형'];
+
+    const [savedCustomTypes, savedCustomBreak] = await Promise.all([
+      DB.getSetting('gateCustomTypes_' + wid).then(v => v || []),
+      DB.getSetting('gateCustomBreakTypes_' + wid).then(v => v || []),
+    ]);
+
+    // Merged lists (base + custom, base are read-only marked)
+    let customTypes = [...savedCustomTypes];
+    let customBreak = [...savedCustomBreak];
+
+    const renderSection = (containerId, baseList, customList, label, color) => {
+      const el = tabContent.querySelector('#' + containerId);
+      if (!el) return;
+      el.innerHTML = [
+        ...baseList.map(v => `
+          <div style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--color-bg);border-radius:6px;border:1px solid var(--color-border);margin-bottom:4px;">
+            <span style="flex:1;font-size:13px;">${Utils.escHtml(v)}</span>
+            <span style="font-size:10px;color:var(--color-text-dim);padding:1px 6px;border-radius:4px;background:var(--color-surface3);">기본</span>
+          </div>`),
+        ...customList.map((v, i) => `
+          <div class="gate-custom-row" data-list="${containerId}" data-idx="${i}" style="display:flex;align-items:center;gap:6px;padding:6px 10px;background:var(--color-bg);border-radius:6px;border:1px solid var(--color-border);margin-bottom:4px;">
+            <input class="input-field gate-custom-input" data-idx="${i}" data-list="${containerId}" value="${Utils.escHtml(v)}"
+              style="flex:1;font-size:13px;box-sizing:border-box;" />
+            <button class="btn-del-gate-custom btn btn-ghost btn-sm" data-idx="${i}" data-list="${containerId}"
+              style="color:var(--color-danger);font-size:13px;padding:2px 6px;flex-shrink:0;">✕</button>
+          </div>`),
+      ].join('');
+
+      el.querySelectorAll('.gate-custom-input').forEach(inp => {
+        inp.addEventListener('input', () => {
+          if (containerId === 'gateTypeList') customTypes[parseInt(inp.dataset.idx,10)] = inp.value;
+          else customBreak[parseInt(inp.dataset.idx,10)] = inp.value;
+        });
+      });
+      el.querySelectorAll('.btn-del-gate-custom').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const i = parseInt(btn.dataset.idx, 10);
+          if (containerId === 'gateTypeList') customTypes.splice(i, 1);
+          else customBreak.splice(i, 1);
+          renderSection('gateTypeList', BASE_TYPES, customTypes, '게이트 종류', '#8b5cf6');
+          renderSection('gateBreakList', BASE_BREAK, customBreak, '브레이크 유형', '#ef4444');
+        });
+      });
+    };
+
+    tabContent.innerHTML = `
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:12px;">
+        <div style="font-size:12px;color:var(--color-text-muted);">커스텀 종류는 현재 세계에만 적용됩니다.</div>
+        <button class="btn btn-primary btn-sm" id="btnSaveGateLists">저장</button>
+      </div>
+
+      <div style="background:var(--color-surface2);border-radius:12px;padding:14px 16px;margin-bottom:12px;">
+        <div style="font-weight:700;font-size:13px;color:#8b5cf6;margin-bottom:10px;">🌀 게이트 종류</div>
+        <div id="gateTypeList" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:6px;">
+          <input id="newGateType" class="input-field" placeholder="새 종류 입력..." style="flex:1;box-sizing:border-box;" />
+          <button class="btn btn-ghost btn-sm" id="btnAddGateType">+ 추가</button>
+        </div>
+      </div>
+
+      <div style="background:var(--color-surface2);border-radius:12px;padding:14px 16px;margin-bottom:80px;">
+        <div style="font-weight:700;font-size:13px;color:#ef4444;margin-bottom:10px;">💥 브레이크 유형</div>
+        <div id="gateBreakList" style="margin-bottom:8px;"></div>
+        <div style="display:flex;gap:6px;">
+          <input id="newGateBreak" class="input-field" placeholder="새 유형 입력..." style="flex:1;box-sizing:border-box;" />
+          <button class="btn btn-ghost btn-sm" id="btnAddGateBreak">+ 추가</button>
+        </div>
+      </div>`;
+
+    renderSection('gateTypeList', BASE_TYPES, customTypes, '게이트 종류', '#8b5cf6');
+    renderSection('gateBreakList', BASE_BREAK, customBreak, '브레이크 유형', '#ef4444');
+
+    tabContent.querySelector('#btnAddGateType')?.addEventListener('click', () => {
+      const inp = tabContent.querySelector('#newGateType');
+      const val = inp?.value.trim();
+      if (!val) return;
+      if ([...BASE_TYPES, ...customTypes].includes(val)) { Utils.toast('이미 존재합니다', 'error'); return; }
+      customTypes.push(val);
+      renderSection('gateTypeList', BASE_TYPES, customTypes, '게이트 종류', '#8b5cf6');
+      if (inp) inp.value = '';
+    });
+    tabContent.querySelector('#newGateType')?.addEventListener('keydown', e => { if (e.key === 'Enter') tabContent.querySelector('#btnAddGateType')?.click(); });
+
+    tabContent.querySelector('#btnAddGateBreak')?.addEventListener('click', () => {
+      const inp = tabContent.querySelector('#newGateBreak');
+      const val = inp?.value.trim();
+      if (!val) return;
+      if ([...BASE_BREAK, ...customBreak].includes(val)) { Utils.toast('이미 존재합니다', 'error'); return; }
+      customBreak.push(val);
+      renderSection('gateBreakList', BASE_BREAK, customBreak, '브레이크 유형', '#ef4444');
+      if (inp) inp.value = '';
+    });
+    tabContent.querySelector('#newGateBreak')?.addEventListener('keydown', e => { if (e.key === 'Enter') tabContent.querySelector('#btnAddGateBreak')?.click(); });
+
+    tabContent.querySelector('#btnSaveGateLists')?.addEventListener('click', async () => {
+      // Read current values from inputs
+      const typeInputs = tabContent.querySelectorAll('#gateTypeList .gate-custom-input');
+      const breakInputs = tabContent.querySelectorAll('#gateBreakList .gate-custom-input');
+      const finalTypes = [...typeInputs].map(inp => inp.value.trim()).filter(Boolean);
+      const finalBreak = [...breakInputs].map(inp => inp.value.trim()).filter(Boolean);
+      await Promise.all([
+        DB.setSetting('gateCustomTypes_' + wid, finalTypes),
+        DB.setSetting('gateCustomBreakTypes_' + wid, finalBreak),
+      ]);
+      customTypes = finalTypes;
+      customBreak = finalBreak;
+      // Reload gates page custom lists if active
+      if (window.Pages?.gates) {
+        window.Pages.gates._customTypes = finalTypes;
+        window.Pages.gates._customBreakTypes = finalBreak;
+      }
+      Utils.toast('게이트 목록 저장됨', 'success');
+    });
   },
 
   destroy: function() {

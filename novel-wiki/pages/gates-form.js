@@ -7,7 +7,7 @@ Object.assign(window.Pages.gates, {
     const g = gate || {};
     const self = this;
 
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefs] = await Promise.all([
+    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefs, allQuests] = await Promise.all([
       DB.getAll('monsters', wid),
       DB.getAll('characters', wid),
       DB.getAll('traps', wid),
@@ -15,6 +15,7 @@ Object.assign(window.Pages.gates, {
       DB.getAll('places', wid),
       DB.getAll('skills', wid),
       DB.getAll('statDefs', wid),
+      DB.getAll('quests', wid),
     ]);
 
     let formFeatureEntries = (() => {
@@ -53,6 +54,8 @@ Object.assign(window.Pages.gates, {
     // Survival state
     let svMonsters        = [...(g.survivalConfig?.monsters       || [])];
     let svStatReductions  = (g.survivalConfig?.statReductions || []).map(r => ({...r}));
+    // Quest linkage state
+    let linkedQuests = [...(g.linkedQuests || [])];
 
     const allTypes = [...this.TYPES, ...(this._customTypes || [])];
     const allBreakTypes = [...this.BREAK_TYPES, ...(this._customBreakTypes || [])];
@@ -134,16 +137,19 @@ Object.assign(window.Pages.gates, {
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
       const clearTypes = w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']);
-      const rs = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
       const clearCondHtml = [
-        ['enemies', '적 처치 완료'],
-        ['exploration', '탐험 클리어'],
-        ['decapitation', '참수 클리어'],
-        ['boss', '보스전 클리어'],
-        ['custom', '직접 입력'],
-      ].map(([val, label]) =>
-        `<label style="${rs}"><input type="checkbox" class="wave-clear-type" value="${val}" data-widx="${idx}" ${clearTypes.includes(val) ? 'checked' : ''} /> ${label}</label>`
-      ).join('');
+        ['enemies',     '⚔️ 적 처치'],
+        ['exploration', '🔍 탐험'],
+        ['decapitation','🗡️ 참수'],
+        ['boss',        '👑 보스전'],
+        ['custom',      '✏️ 직접 입력'],
+      ].map(([val, label]) => {
+        const active = clearTypes.includes(val);
+        return `<button type="button" class="wave-cond-chip" data-widx="${idx}" data-val="${val}" data-active="${active}"
+          style="padding:4px 10px;border-radius:6px;border:1px solid ${active ? 'rgba(96,165,250,0.6)' : 'var(--color-border)'};cursor:pointer;font-size:12px;
+            background:${active ? 'rgba(96,165,250,0.25)' : 'var(--color-surface3,#1e2030)'};color:var(--color-text);
+            transition:all .15s;">${label}</button>`;
+      }).join('');
       return `
       <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -171,7 +177,7 @@ Object.assign(window.Pages.gates, {
         </div>
         <div style="margin-bottom:6px;">
           <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택 가능)</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">${clearCondHtml}</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">${clearCondHtml}</div>
           <div id="waveClearCustomWrap${idx}" style="display:${clearTypes.includes('custom') ? 'block' : 'none'};margin-top:4px;">
             <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="직접 입력 조건 내용" style="width:100%;box-sizing:border-box;font-size:12px;" />
           </div>
@@ -521,14 +527,24 @@ Object.assign(window.Pages.gates, {
         </div>
         ${ta('fGateInternalStructure', '내부 구성', g.internalStructure, '내부 구성 설명', 3)}
         ${ta('fGateStrategy', '공략 방법', g.strategy, '공략 방법', 3)}
-        ${ta('fGateClearCondition', '클리어 조건', g.clearCondition, '클리어 조건', 2)}
-        ${ta('fGateRewards', '보상', g.rewards, '보상 내용 (아이템명 등)', 2)}
-        ${ta('fGateFailPenalty', '실패시 패널티', g.failPenalty, '패널티 설명', 2)}
         <div style="border-top:1px solid var(--color-border);padding-top:10px;">
           <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:8px;">히든 정보 (작가 전용)</div>
-          ${ta('fGateHiddenClearCondition', '히든 클리어 조건', g.hiddenClearCondition, '히든 클리어 조건', 2)}
-          ${ta('fGateHiddenRewards', '히든 보상', g.hiddenRewards, '히든 보상 내용', 2)}
           ${ta('fGateDetails', '세부사항', g.details, '추가 세부사항', 3)}
+          <div style="border-top:1px solid var(--color-border);padding-top:10px;">
+            <div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:8px;">📋 연관 퀘스트</div>
+            <div id="linkedQuestChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">
+              ${linkedQuests.map(q => `<span class="linked-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
+                style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+                📋 ${Utils.escHtml(q.name||'?')}
+                <button class="lq-chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+              </span>`).join('')}
+            </div>
+            <div style="position:relative;">
+              <input class="input-field" id="linkedQuestSearch" placeholder="퀘스트 검색..." autocomplete="off"
+                style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="linkedQuestResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:30;max-height:140px;overflow-y:auto;"></div>
+            </div>
+          </div>
           ${ta('fGateAuthorNotes', '작가 메모', g.authorNotes, '작가만 보는 메모', 3)}
         </div>
         <div style="border-top:1px solid var(--color-border);padding-top:10px;">
@@ -697,11 +713,15 @@ Object.assign(window.Pages.gates, {
           () => { const used = getUsedTrapIds(); return allTraps.filter(t => !used.has(t.id)); },
           entityRowTrap, (ds) => addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap')
         );
-        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(cb => {
-          cb.addEventListener('change', () => {
+        document.querySelectorAll(`.wave-cond-chip[data-widx="${idx}"]`).forEach(btn => {
+          btn.addEventListener('click', () => {
+            const isActive = btn.dataset.active === 'true';
+            btn.dataset.active = isActive ? 'false' : 'true';
+            btn.style.background = !isActive ? 'rgba(96,165,250,0.25)' : 'var(--color-surface3,#1e2030)';
+            btn.style.border = !isActive ? '1px solid rgba(96,165,250,0.6)' : '1px solid var(--color-border)';
             const customWrap = document.getElementById('waveClearCustomWrap' + idx);
             if (customWrap) {
-              const hasCustom = [...document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`)].some(c => c.value === 'custom' && c.checked);
+              const hasCustom = [...document.querySelectorAll(`.wave-cond-chip[data-widx="${idx}"]`)].some(c => c.dataset.val === 'custom' && c.dataset.active === 'true');
               customWrap.style.display = hasCustom ? 'block' : 'none';
             }
           });
@@ -717,8 +737,8 @@ Object.assign(window.Pages.gates, {
               if (!formWaves[wi]) return;
               formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-              const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
-              const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+              const checkedEls = [...row.querySelectorAll('.wave-cond-chip[data-active="true"]')];
+              const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.dataset.val) : (formWaves[wi].clearConditionTypes || ['enemies']);
               formWaves[wi].clearConditionTypes = clearTypes2;
               formWaves[wi].explorationLink = clearTypes2.includes('exploration');
               formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
@@ -807,8 +827,8 @@ Object.assign(window.Pages.gates, {
       // Collect wave data
       const savedWaves = formWaves.map((w, idx) => {
         const row = document.querySelector(`.wave-row[data-widx="${idx}"]`);
-        const checkedEls = row ? [...row.querySelectorAll('.wave-clear-type:checked')] : [];
-        const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']));
+        const checkedEls = row ? [...row.querySelectorAll('.wave-cond-chip[data-active="true"]')] : [];
+        const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.dataset.val) : (w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']));
         return {
           hasEvent: row ? (row.querySelector('.wave-event-cb')?.checked || false) : (w.hasEvent || false),
           eventDesc: row ? (row.querySelector('.wave-event-desc')?.value || '') : (w.eventDesc || ''),
@@ -847,12 +867,8 @@ Object.assign(window.Pages.gates, {
         featureEntries: (() => { saveFeatTextsFromDOM(); return formFeatureEntries.filter(e => e.text.trim() || e.refId); })(),
         internalStructure: document.getElementById('fGateInternalStructure')?.value.trim() || '',
         strategy: document.getElementById('fGateStrategy')?.value.trim() || '',
-        clearCondition: document.getElementById('fGateClearCondition')?.value.trim() || '',
-        rewards: document.getElementById('fGateRewards')?.value.trim() || '',
-        failPenalty: document.getElementById('fGateFailPenalty')?.value.trim() || '',
-        hiddenClearCondition: document.getElementById('fGateHiddenClearCondition')?.value.trim() || '',
-        hiddenRewards: document.getElementById('fGateHiddenRewards')?.value.trim() || '',
         details: document.getElementById('fGateDetails')?.value.trim() || '',
+        linkedQuests: [...document.querySelectorAll('#globalModalBody .linked-quest-chip')].map(el => ({id: el.dataset.qid, name: el.dataset.qname})),
         authorNotes: document.getElementById('fGateAuthorNotes')?.value.trim() || '',
         images,
         concepts: [...formConcepts],
@@ -1089,8 +1105,8 @@ Object.assign(window.Pages.gates, {
           if (!formWaves[wi]) return;
           formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-          const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
-          const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+          const checkedEls = [...row.querySelectorAll('.wave-cond-chip[data-active="true"]')];
+          const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.dataset.val) : (formWaves[wi].clearConditionTypes || ['enemies']);
           formWaves[wi].clearConditionTypes = clearTypes2;
           formWaves[wi].explorationLink = clearTypes2.includes('exploration');
           formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
@@ -1319,6 +1335,45 @@ Object.assign(window.Pages.gates, {
       wireSearch('svMonSearch', 'svMonResults', allMonCharsAll, entityRow, (ds) => {
         addChipToContainer('svMonChips', { id: ds.id, name: ds.name, grade: ds.grade }, ds._etype || 'monster');
       });
+
+      // Quest linkage
+      const renderLinkedQuestChips = () => {
+        const wrap = document.getElementById('linkedQuestChips');
+        if (!wrap) return;
+        wrap.innerHTML = linkedQuests.map(q => `<span class="linked-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
+          style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+          📋 ${Utils.escHtml(q.name||'?')}
+          <button class="lq-chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+        </span>`).join('');
+        wrap.querySelectorAll('.lq-chip-del').forEach((btn, i) => {
+          btn.addEventListener('click', () => { linkedQuests.splice(i, 1); renderLinkedQuestChips(); });
+        });
+      };
+      renderLinkedQuestChips();
+      const lqInput = document.getElementById('linkedQuestSearch');
+      const lqResults = document.getElementById('linkedQuestResults');
+      if (lqInput && lqResults) {
+        lqInput.addEventListener('input', () => {
+          const q = lqInput.value.trim().toLowerCase();
+          if (!q) { lqResults.style.display = 'none'; return; }
+          const hits = allQuests.filter(quest => (quest.name||'').toLowerCase().includes(q)).slice(0, 8);
+          lqResults.innerHTML = hits.map(quest => `<div class="lq-result" data-qid="${Utils.escHtml(quest.id)}" data-qname="${Utils.escHtml(quest.name||'')}"
+            style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">📋 ${Utils.escHtml(quest.name||'?')}</div>`).join('');
+          lqResults.style.display = hits.length ? 'block' : 'none';
+          lqResults.querySelectorAll('.lq-result').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              if (!linkedQuests.find(q => q.id === row.dataset.qid)) {
+                linkedQuests.push({ id: row.dataset.qid, name: row.dataset.qname });
+                renderLinkedQuestChips();
+              }
+              lqInput.value = '';
+              lqResults.style.display = 'none';
+            });
+          });
+        });
+        lqInput.addEventListener('blur', () => setTimeout(() => { lqResults.style.display = 'none'; }, 150));
+      }
 
     }, 50);
   },
