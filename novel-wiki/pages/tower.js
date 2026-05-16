@@ -648,7 +648,7 @@ window.Pages.tower = {
       const wavePlace = mkPlaceRef(w.place);
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
-      const clearCondType = w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies');
+      const clearCondType = w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
       const radioStyle = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
       return `
       <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;">
@@ -700,6 +700,12 @@ window.Pages.tower = {
             </label>
             <label style="${radioStyle}">
               <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="exploration" data-widx="${idx}" ${clearCondType === 'exploration' ? 'checked' : ''} /> 탐험 클리어
+            </label>
+            <label style="${radioStyle}">
+              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="decapitation" data-widx="${idx}" ${clearCondType === 'decapitation' ? 'checked' : ''} /> 참수 클리어
+            </label>
+            <label style="${radioStyle}">
+              <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="boss" data-widx="${idx}" ${clearCondType === 'boss' ? 'checked' : ''} /> 보스전 클리어
             </label>
             <label style="${radioStyle}">
               <input type="radio" name="waveClearType${idx}" class="wave-clear-type" value="custom" data-widx="${idx}" ${clearCondType === 'custom' ? 'checked' : ''} /> 직접 입력
@@ -1160,6 +1166,7 @@ window.Pages.tower = {
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
               const clearTypeEl = row.querySelector('.wave-clear-type:checked');
               const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
+              formWaves[wi].clearConditionType = clearType;
               formWaves[wi].explorationLink = clearType === 'exploration';
               formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
               formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
@@ -1268,8 +1275,9 @@ window.Pages.tower = {
           traps: readChipsFromContainer('waveTrapChips' + idx, 'trap'),
           ...(() => {
             const clearTypeEl = row ? row.querySelector('.wave-clear-type:checked') : null;
-            const clearType = clearTypeEl ? clearTypeEl.value : (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
+            const clearType = clearTypeEl ? clearTypeEl.value : (w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies')));
             return {
+              clearConditionType: clearType,
               explorationLink: clearType === 'exploration',
               clearCondition: clearType === 'custom' ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
             };
@@ -1424,6 +1432,7 @@ window.Pages.tower = {
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
           const clearTypeEl = row.querySelector('.wave-clear-type:checked');
           const clearType = clearTypeEl ? clearTypeEl.value : 'enemies';
+          formWaves[wi].clearConditionType = clearType;
           formWaves[wi].explorationLink = clearType === 'exploration';
           formWaves[wi].clearCondition = clearType === 'custom' ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
