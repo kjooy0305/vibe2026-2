@@ -417,7 +417,8 @@ window.Pages.tower = {
   _floorCard: function(floor, expanded) {
     const fn = floor.floorNum;
     const isZero = fn === 0;
-    const accentColor = isZero ? '#10b981' : floor.hidden ? '#fbbf24' : '#818cf8';
+    const accentColor = isZero ? '#10b981' : floor.hidden ? '#f43f5e'
+      : fn <= 30 ? '#60a5fa' : fn <= 60 ? '#a78bfa' : fn <= 90 ? '#f59e0b' : '#34d399';
     const bgGrad = `linear-gradient(135deg,${accentColor}18 0%,transparent 60%)`;
     const subFloorCount = (floor.subFloors || []).length;
     const subFloorsHtml = (floor.subFloors || []).map(sf => this._subFloorSection(floor, sf)).join('');

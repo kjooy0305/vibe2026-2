@@ -314,8 +314,11 @@ window.Pages.traps = {
         <div style="display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:end;">
           <div class="form-group" style="margin:0;">
             <label class="form-label">아이콘</label>
-            <input class="input-field" id="fTrIcon" value="${Utils.escHtml(tr.icon || '🪤')}"
-              placeholder="🪤" style="width:56px;text-align:center;font-size:22px;" maxlength="4" />
+            <div style="display:flex;flex-direction:column;gap:3px;">
+              <input class="input-field" id="fTrIcon" value="${Utils.escHtml(tr.icon || '🪤')}"
+                placeholder="🪤" style="width:56px;text-align:center;font-size:22px;" maxlength="4" />
+              <button type="button" id="btnOpenTrapIconPicker" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 4px;">목록</button>
+            </div>
           </div>
           <div class="form-group" style="margin:0;">
             <label class="form-label">함정 이름 *</label>
@@ -394,5 +397,32 @@ window.Pages.traps = {
       if (updated) self._renderDetail(container, updated, wid);
       return true;
     }, isEdit ? '저장' : '추가');
+
+    setTimeout(async () => {
+      const trapIcons = await DB.getSetting('iconList_trap', null) || ['🪤','⚙️','💣','🔩','🧨','⛏️','🗡️','☠️','🔥','❄️','⚡','💀','🕷️','🌀','🧲','🔮','🪝','🔒','⚰️','🧪'];
+      const pickerEl = document.createElement('div');
+      pickerEl.id = 'trapIconPickerPanel';
+      pickerEl.style.cssText = 'display:none;flex-wrap:wrap;gap:4px;margin-top:4px;padding:6px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;max-width:200px;position:absolute;z-index:100;';
+      pickerEl.innerHTML = trapIcons.map(ic =>
+        `<button type="button" class="trap-icon-pick" data-ic="${Utils.escHtml(ic)}"
+          style="font-size:18px;padding:3px 5px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);cursor:pointer;line-height:1.2;">${Utils.escHtml(ic)}</button>`
+      ).join('');
+      const iconInputEl = document.getElementById('fTrIcon');
+      iconInputEl?.parentElement?.parentElement?.style && (iconInputEl.parentElement.parentElement.style.position = 'relative');
+      iconInputEl?.parentElement?.appendChild(pickerEl);
+
+      document.getElementById('btnOpenTrapIconPicker')?.addEventListener('click', (e) => {
+        e.stopPropagation();
+        pickerEl.style.display = pickerEl.style.display === 'none' ? 'flex' : 'none';
+      });
+      pickerEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('.trap-icon-pick');
+        if (!btn) return;
+        const iconInput = document.getElementById('fTrIcon');
+        if (iconInput) iconInput.value = btn.dataset.ic;
+        pickerEl.style.display = 'none';
+      });
+      document.addEventListener('click', () => { pickerEl.style.display = 'none'; }, { once: false });
+    }, 50);
   },
 };

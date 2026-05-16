@@ -241,7 +241,7 @@ window.Pages.gates = {
           ${field('종류', gate.type)}
           ${field('브레이크 유형', gate.breakType)}
           ${field('모티브', gate.motif)}
-          ${field('레벨 제한', gate.levelLimit)}
+          ${field('입장 제한', gate.levelLimit)}
           ${field('최대 인원수', gate.maxPlayers)}
           ${field('규모', gate.scale)}
         </div>
@@ -373,7 +373,7 @@ window.Pages.gates = {
           ${gate.type ? `<div>ㅣ종류: ${Utils.escHtml(gate.type)}</div>` : ''}
           ${gate.breakType ? `<div>ㅣ브레이크 유형: ${Utils.escHtml(gate.breakType)}</div>` : ''}
           ${gate.motif ? `<div>ㅣ모티브: ${Utils.escHtml(gate.motif)}</div>` : ''}
-          ${gate.levelLimit ? `<div>ㅣ레벨 제한: ${Utils.escHtml(String(gate.levelLimit))}</div>` : ''}
+          ${gate.levelLimit ? `<div>ㅣ입장 제한: ${Utils.escHtml(String(gate.levelLimit))}</div>` : ''}
           ${gate.maxPlayers ? `<div>ㅣ최대 인원수: ${Utils.escHtml(String(gate.maxPlayers))}</div>` : ''}
           ${gate.scale ? `<div>ㅣ규모: ${Utils.escHtml(gate.scale)}</div>` : ''}
           ${gate.enemies ? `<div style="margin-top:8px;">ㅣ적<br><span style="white-space:pre-wrap;padding-left:12px;">${Utils.nl2br(Utils.escHtml(gate.enemies))}</span></div>` : ''}

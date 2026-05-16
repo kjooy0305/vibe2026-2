@@ -355,7 +355,8 @@ const AppStore = (function() {
 
     if (!hist.find(h => h.d === todayIso)) {
       hist.push({ d: todayIso, c: 0 });
-      if (hist.length > 366) hist.shift();
+      const maxHistLen = (await DB.getSetting('historyMaxLength', 366)) || 366;
+      while (hist.length > maxHistLen) hist.shift();
     }
     sd.history = hist;
 

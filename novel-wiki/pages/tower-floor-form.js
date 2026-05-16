@@ -13,7 +13,7 @@ Object.assign(window.Pages.tower, {
       : undefined;
 
     // Load all required data
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefsRaw] = await Promise.all([
+    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefsRaw, allQuests] = await Promise.all([
       DB.getAll('monsters', wid),
       DB.getAll('characters', wid),
       DB.getAll('traps', wid),
@@ -21,6 +21,7 @@ Object.assign(window.Pages.tower, {
       DB.getAll('places', wid),
       DB.getAll('skills', wid),
       DB.getAll('statDefs', wid),
+      DB.getAll('quests', wid),
     ]);
     let allStatDefs = allStatDefsRaw;
     if (allStatDefs.length === 0 && window.Pages?.statDefs?.DEFAULT_STATS) {
@@ -105,22 +106,31 @@ Object.assign(window.Pages.tower, {
         <div id="${resultId}" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
       </div>`;
 
-    const waveRowHtml = (w, idx) => {
+    const waveRowHtml = (w, idx, globalEventFixed) => {
       const locationFixed = w.locationFixed || 'move';
       const wavePlace = mkPlaceRef(w.place);
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
+      const waveQuestChips = (w.linkedQuests || []).map(q =>
+        `<span class="wave-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
+          style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+          📋 ${Utils.escHtml(q.name||'?')}
+          <button class="wave-quest-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+        </span>`).join('');
       const clearTypes = w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']);
-      const radioStyle = 'display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;';
       const clearCondHtml = [
-        ['enemies', '적 처치 완료'],
-        ['exploration', '탐험 클리어'],
-        ['decapitation', '참수 클리어'],
-        ['boss', '보스전 클리어'],
-        ['custom', '직접 입력'],
-      ].map(([val, label]) =>
-        `<label style="${radioStyle}"><input type="checkbox" class="wave-clear-type" value="${val}" data-widx="${idx}" ${clearTypes.includes(val) ? 'checked' : ''} /> ${label}</label>`
-      ).join('');
+        ['enemies',     '⚔️ 적 처치'],
+        ['exploration', '🔍 탐험'],
+        ['decapitation','🗡️ 참수'],
+        ['boss',        '👑 보스전'],
+        ['custom',      '✏️ 직접 입력'],
+      ].map(([val, label]) => {
+        const active = clearTypes.includes(val);
+        return `<button type="button" class="wave-cond-chip" data-widx="${idx}" data-val="${val}" data-active="${active}"
+          style="padding:4px 10px;border-radius:6px;border:1px solid ${active ? 'rgba(96,165,250,0.6)' : 'var(--color-border)'};cursor:pointer;font-size:12px;
+            background:${active ? 'rgba(96,165,250,0.25)' : 'var(--color-surface3,#1e2030)'};color:var(--color-text);
+            transition:all .15s;">${label}</button>`;
+      }).join('');
       return `
       <div class="wave-row" data-widx="${idx}" style="background:var(--color-surface3,#1e2030);border:1px solid var(--color-border);border-radius:8px;padding:10px;margin-bottom:8px;width:100%;box-sizing:border-box;">
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
@@ -144,7 +154,7 @@ Object.assign(window.Pages.tower, {
             ${placeRefHtml('waveP' + idx, wavePlace)}
           </div>
         </div>
-        <div style="margin-bottom:6px;">
+        <div class="wave-event-row" id="waveEventRow${idx}" style="margin-bottom:6px;display:${globalEventFixed ? 'none' : 'block'};">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:4px;">
             <input type="checkbox" class="wave-event-cb" data-widx="${idx}" ${w.hasEvent ? 'checked' : ''} /> 사건발생
           </label>
@@ -164,12 +174,21 @@ Object.assign(window.Pages.tower, {
           ${entitySearchHtml('waveTrapSearch' + idx, 'waveTrapResults' + idx, '트랩 검색...')}
         </div>
         <div style="margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택 가능)</div>
-          <div style="display:flex;gap:12px;flex-wrap:wrap;">${clearCondHtml}</div>
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택)</div>
+          <div style="display:flex;gap:6px;flex-wrap:wrap;">${clearCondHtml}</div>
           <div id="waveClearCustomWrap${idx}" style="display:${clearTypes.includes('custom') ? 'block' : 'none'};margin-top:4px;">
             <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="직접 입력 조건 내용" style="width:100%;box-sizing:border-box;font-size:12px;" />
           </div>
           <textarea class="input-field wave-clear-comment" data-widx="${idx}" rows="2" placeholder="클리어 조건 코멘트..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;margin-top:6px;">${Utils.escHtml(w.clearConditionComment || '')}</textarea>
+        </div>
+        <div style="margin-bottom:6px;">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">연관 퀘스트</div>
+          <div class="wave-quest-chips" id="waveQuestChips${idx}" style="display:flex;flex-wrap:wrap;gap:3px;min-height:20px;margin-bottom:4px;">${waveQuestChips}</div>
+          <div style="position:relative;">
+            <input class="input-field wave-quest-search" data-widx="${idx}" placeholder="퀘스트 검색..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div class="wave-quest-results" id="waveQuestResults${idx}" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
         </div>
         <div style="margin-bottom:4px;">
           <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">기타 메모</div>
@@ -268,7 +287,20 @@ Object.assign(window.Pages.tower, {
           <div id="fCompositeWrap" style="display:${f.isComposite ? 'block' : 'none'};margin-top:8px;">
             <input class="input-field" id="fCompositeRange" value="${Utils.escHtml(f.compositeRange || '')}"
               placeholder="층 범위 (예: 45~60층)" style="width:100%;box-sizing:border-box;margin-bottom:4px;" />
-            <div style="font-size:11px;color:var(--color-text-muted);">통합 층은 여러 층이 하나의 공간/퀘스트 그룹으로 묶인 층입니다</div>
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">통합 층은 여러 층이 하나의 공간/퀘스트 그룹으로 묶인 층입니다</div>
+            <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">통합 연관 퀘스트</div>
+            <div id="compositeQuestChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:20px;margin-bottom:4px;">
+              ${(f.compositeQuests || []).map(q => `<span class="composite-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
+                style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+                📋 ${Utils.escHtml(q.name||'?')}
+                <button class="comp-quest-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+              </span>`).join('')}
+            </div>
+            <div style="position:relative;">
+              <input class="input-field" id="compositeQuestSearch" placeholder="퀘스트 검색..." autocomplete="off"
+                style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="compositeQuestResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
+            </div>
           </div>
         </div>
         <div class="form-group">
@@ -332,7 +364,7 @@ Object.assign(window.Pages.tower, {
             <textarea class="input-field" id="waveGlobalEventDesc" rows="2" placeholder="전체 사건 설명"
               style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(f.waveConfig?.fixedEventDesc || '')}</textarea>
           </div>
-          <div id="waveList">${formWaves.map((w, i) => waveRowHtml(w, i)).join('')}</div>
+          <div id="waveList">${formWaves.map((w, i) => waveRowHtml(w, i, f.waveConfig?.hasEventFixed || false)).join('')}</div>
           <button class="btn btn-ghost btn-sm" id="btnAddWave" style="width:100%;border:1px dashed #60a5fa55;font-size:12px;color:#60a5fa;margin-top:4px;">+ 웨이브 추가</button>
         </div>
 
@@ -539,7 +571,8 @@ Object.assign(window.Pages.tower, {
     const reRenderWaveList = () => {
       const wl = document.getElementById('waveList');
       if (wl) {
-        wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i)).join('');
+        const gef = document.getElementById('waveGlobalEventFixed')?.checked || false;
+        wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i, gef)).join('');
         wireWaveSection();
         applyGlobalLocFixed(document.getElementById('waveGlobalLocFixed')?.checked || false);
       }
@@ -584,38 +617,31 @@ Object.assign(window.Pages.tower, {
         wireChipDeletes('waveEnemyChips' + idx);
         wireChipDeletes('waveTrapChips' + idx);
         wireSearch('waveEnemySearch' + idx, 'waveEnemyResults' + idx,
-          () => {
-            const used = getUsedEnemyIds();
-            return allMonChars.filter(m => !used.has(m.id));
-          },
-          entityRow, (ds) => {
-            addChipToContainer('waveEnemyChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype);
-          }
+          () => { const used = getUsedEnemyIds(); return allMonChars.filter(m => !used.has(m.id)); },
+          entityRow, (ds) => addChipToContainer('waveEnemyChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype)
         );
         wireSearch('waveTrapSearch' + idx, 'waveTrapResults' + idx,
-          () => {
-            const used = getUsedTrapIds();
-            return allTraps.filter(t => !used.has(t.id));
-          },
-          entityRowTrap, (ds) => {
-            addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap');
-          }
+          () => { const used = getUsedTrapIds(); return allTraps.filter(t => !used.has(t.id)); },
+          entityRowTrap, (ds) => addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap')
         );
         // Location radio toggle
-        const locRadios = document.querySelectorAll(`.wave-loc-radio[data-widx="${idx}"]`);
-        locRadios.forEach(r => {
+        document.querySelectorAll(`.wave-loc-radio[data-widx="${idx}"]`).forEach(r => {
           r.addEventListener('change', () => {
             const placeWrap = document.getElementById('wavePlaceRef' + idx);
             if (placeWrap) placeWrap.style.display = r.value === 'fixed' ? 'block' : 'none';
           });
         });
         wirePlaceRef('waveP' + idx, w.place ? mkPlaceRef(w.place) : { type: 'text', id: '', name: '', desc: '' });
-        // Clear condition checkbox toggle
-        document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(cb => {
-          cb.addEventListener('change', () => {
+        // Clear condition chip toggle
+        document.querySelectorAll(`.wave-cond-chip[data-widx="${idx}"]`).forEach(btn => {
+          btn.addEventListener('click', () => {
+            const isActive = btn.dataset.active === 'true';
+            btn.dataset.active = isActive ? 'false' : 'true';
+            btn.style.background = !isActive ? 'rgba(96,165,250,0.25)' : 'var(--color-surface3,#1e2030)';
+            btn.style.border = !isActive ? '1px solid rgba(96,165,250,0.6)' : '1px solid var(--color-border)';
             const customWrap = document.getElementById('waveClearCustomWrap' + idx);
             if (customWrap) {
-              const hasCustom = [...document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`)].some(c => c.value === 'custom' && c.checked);
+              const hasCustom = [...document.querySelectorAll(`.wave-cond-chip[data-widx="${idx}"]`)].some(c => c.dataset.val === 'custom' && c.dataset.active === 'true');
               customWrap.style.display = hasCustom ? 'block' : 'none';
             }
           });
@@ -623,16 +649,45 @@ Object.assign(window.Pages.tower, {
         // Event checkbox
         const evCb = document.querySelector(`.wave-event-cb[data-widx="${idx}"]`);
         const evWrap = document.getElementById('waveEventWrap' + idx);
-        if (evCb && evWrap) {
-          evCb.addEventListener('change', () => {
-            evWrap.style.display = evCb.checked ? 'block' : 'none';
+        if (evCb && evWrap) evCb.addEventListener('change', () => { evWrap.style.display = evCb.checked ? 'block' : 'none'; });
+        // Wave quest search
+        const wqInp = document.querySelector(`.wave-quest-search[data-widx="${idx}"]`);
+        const wqRes = document.getElementById('waveQuestResults' + idx);
+        const wqChips = document.getElementById('waveQuestChips' + idx);
+        if (wqInp && wqRes && wqChips) {
+          wqInp.addEventListener('input', () => {
+            const q = wqInp.value.trim().toLowerCase();
+            if (!q) { wqRes.style.display = 'none'; return; }
+            const hits = allQuests.filter(qs => (qs.name||'').toLowerCase().includes(q)).slice(0, 8);
+            wqRes.innerHTML = hits.map(qs => `<div class="wave-quest-result" data-qid="${Utils.escHtml(qs.id)}" data-qname="${Utils.escHtml(qs.name||'')}"
+              style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">📋 ${Utils.escHtml(qs.name||'?')}</div>`).join('');
+            wqRes.style.display = hits.length ? 'block' : 'none';
+            wqRes.querySelectorAll('.wave-quest-result').forEach(row => {
+              row.addEventListener('mousedown', e => {
+                e.preventDefault();
+                const already = [...wqChips.querySelectorAll('.wave-quest-chip')].some(c => c.dataset.qid === row.dataset.qid);
+                if (!already) {
+                  const sp = document.createElement('span');
+                  sp.innerHTML = `<span class="wave-quest-chip" data-qid="${Utils.escHtml(row.dataset.qid)}" data-qname="${Utils.escHtml(row.dataset.qname)}"
+                    style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+                    📋 ${Utils.escHtml(row.dataset.qname)}
+                    <button class="wave-quest-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+                  </span>`;
+                  const chip = sp.firstElementChild;
+                  chip.querySelector('.wave-quest-del').addEventListener('click', () => chip.remove());
+                  wqChips.appendChild(chip);
+                }
+                wqInp.value = ''; wqRes.style.display = 'none';
+              });
+            });
           });
+          wqInp.addEventListener('blur', () => setTimeout(() => { wqRes.style.display = 'none'; }, 200));
+          wqChips.querySelectorAll('.wave-quest-del').forEach(btn => btn.addEventListener('click', () => btn.closest('.wave-quest-chip').remove()));
         }
         // Delete wave
         const delBtn = document.querySelector(`.wave-del-btn[data-widx="${idx}"]`);
         if (delBtn) {
           delBtn.addEventListener('click', () => {
-            // Save current state from DOM before removing
             document.querySelectorAll('#globalModalBody .wave-row').forEach(row => {
               const wi = parseInt(row.dataset.widx, 10);
               if (!formWaves[wi]) return;
@@ -640,8 +695,8 @@ Object.assign(window.Pages.tower, {
               formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
               formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-              const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
-              const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+              const checkedEls = [...row.querySelectorAll('.wave-cond-chip[data-active="true"]')];
+              const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.dataset.val) : (formWaves[wi].clearConditionTypes || ['enemies']);
               formWaves[wi].clearConditionTypes = clearTypes2;
               formWaves[wi].explorationLink = clearTypes2.includes('exploration');
               formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
@@ -649,6 +704,7 @@ Object.assign(window.Pages.tower, {
               formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
               formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
               formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
+              formWaves[wi].linkedQuests = [...(document.getElementById('waveQuestChips' + wi)?.querySelectorAll('.wave-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname }));
             });
             formWaves.splice(idx, 1);
             reRenderWaveList();
@@ -752,8 +808,8 @@ Object.assign(window.Pages.tower, {
         const row = document.querySelector(`.wave-row[data-widx="${idx}"]`);
         const locRadioEl = row ? row.querySelector('.wave-loc-radio:checked') : null;
         const locType = locRadioEl ? locRadioEl.value : (w.locationFixed || 'move');
-        const checkedEls = row ? [...row.querySelectorAll('.wave-clear-type:checked')] : [];
-        const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']));
+        const checkedEls = row ? [...row.querySelectorAll('.wave-cond-chip[data-active="true"]')] : [];
+        const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.dataset.val) : (w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']));
         return {
           locationFixed: locType,
           place: locType === 'fixed' ? readPlaceRef('waveP' + idx) : null,
@@ -766,6 +822,7 @@ Object.assign(window.Pages.tower, {
           clearCondition: clearTypes2.includes('custom') ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
           clearConditionComment: row ? (row.querySelector('.wave-clear-comment')?.value || '') : (w.clearConditionComment || ''),
           waveNotes: row ? (row.querySelector('.wave-notes')?.value || '') : (w.waveNotes || ''),
+          linkedQuests: [...(document.getElementById('waveQuestChips' + idx)?.querySelectorAll('.wave-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname })),
         };
       });
 
@@ -793,6 +850,7 @@ Object.assign(window.Pages.tower, {
         floorNum,
         isComposite,
         compositeRange: isComposite ? (document.getElementById('fCompositeRange')?.value.trim() || '') : '',
+        compositeQuests: isComposite ? [...(document.getElementById('compositeQuestChips')?.querySelectorAll('.composite-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname })) : [],
         theme:    document.getElementById('fFloorTheme')?.value.trim()    || '',
         featureEntries: formFeatureEntries.filter(e => e.text.trim() || e.refId),
         quests:   document.getElementById('fFloorQuests')?.value.trim()   || '',
@@ -846,6 +904,40 @@ Object.assign(window.Pages.tower, {
         const wrap = document.getElementById('fCompositeWrap');
         if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
       });
+      // compositeQuests search
+      const cqInp = document.getElementById('compositeQuestSearch');
+      const cqRes = document.getElementById('compositeQuestResults');
+      const cqChips = document.getElementById('compositeQuestChips');
+      if (cqInp && cqRes && cqChips) {
+        cqInp.addEventListener('input', () => {
+          const q = cqInp.value.trim().toLowerCase();
+          if (!q) { cqRes.style.display = 'none'; return; }
+          const hits = allQuests.filter(qs => (qs.name||'').toLowerCase().includes(q)).slice(0, 8);
+          cqRes.innerHTML = hits.map(qs => `<div class="cq-result" data-qid="${Utils.escHtml(qs.id)}" data-qname="${Utils.escHtml(qs.name||'')}"
+            style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">📋 ${Utils.escHtml(qs.name||'?')}</div>`).join('');
+          cqRes.style.display = hits.length ? 'block' : 'none';
+          cqRes.querySelectorAll('.cq-result').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              const already = [...cqChips.querySelectorAll('.composite-quest-chip')].some(c => c.dataset.qid === row.dataset.qid);
+              if (!already) {
+                const sp = document.createElement('span');
+                sp.innerHTML = `<span class="composite-quest-chip" data-qid="${Utils.escHtml(row.dataset.qid)}" data-qname="${Utils.escHtml(row.dataset.qname)}"
+                  style="display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+                  📋 ${Utils.escHtml(row.dataset.qname)}
+                  <button class="comp-quest-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+                </span>`;
+                const chip = sp.firstElementChild;
+                chip.querySelector('.comp-quest-del').addEventListener('click', () => chip.remove());
+                cqChips.appendChild(chip);
+              }
+              cqInp.value = ''; cqRes.style.display = 'none';
+            });
+          });
+        });
+        cqInp.addEventListener('blur', () => setTimeout(() => { cqRes.style.display = 'none'; }, 200));
+        cqChips.querySelectorAll('.comp-quest-del').forEach(btn => btn.addEventListener('click', () => btn.closest('.composite-quest-chip').remove()));
+      }
 
       // Duplicate floor number detection
       const floorNumInput = document.getElementById('fFloorNum');
@@ -965,6 +1057,9 @@ Object.assign(window.Pages.tower, {
       document.getElementById('waveGlobalEventFixed')?.addEventListener('change', e => {
         const wrap = document.getElementById('waveGlobalEventWrap');
         if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+        document.querySelectorAll('#globalModalBody .wave-event-row').forEach(row => {
+          row.style.display = e.target.checked ? 'none' : 'block';
+        });
       });
 
       // Wire global place ref
@@ -984,8 +1079,8 @@ Object.assign(window.Pages.tower, {
           formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
           formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
-          const checkedEls = [...row.querySelectorAll('.wave-clear-type:checked')];
-          const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.value) : (formWaves[wi].clearConditionTypes || ['enemies']);
+          const checkedEls = [...row.querySelectorAll('.wave-cond-chip[data-active="true"]')];
+          const clearTypes2 = checkedEls.length > 0 ? checkedEls.map(el => el.dataset.val) : (formWaves[wi].clearConditionTypes || ['enemies']);
           formWaves[wi].clearConditionTypes = clearTypes2;
           formWaves[wi].explorationLink = clearTypes2.includes('exploration');
           formWaves[wi].clearCondition = clearTypes2.includes('custom') ? (row.querySelector('.wave-clear-cond')?.value || '') : '';
@@ -993,8 +1088,9 @@ Object.assign(window.Pages.tower, {
           formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
           formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
+          formWaves[wi].linkedQuests = [...(document.getElementById('waveQuestChips' + wi)?.querySelectorAll('.wave-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname }));
         });
-        formWaves.push({ locationFixed: 'move', hasEvent: false, eventDesc: '', enemies: [], traps: [], clearConditionTypes: ['enemies'], clearCondition: '', clearConditionComment: '', waveNotes: '', explorationLink: false });
+        formWaves.push({ locationFixed: 'move', hasEvent: false, eventDesc: '', enemies: [], traps: [], clearConditionTypes: ['enemies'], clearCondition: '', clearConditionComment: '', waveNotes: '', explorationLink: false, linkedQuests: [] });
         reRenderWaveList();
       });
 

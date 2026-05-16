@@ -141,9 +141,15 @@ Object.assign(window.Pages.gates, {
         <div id="${resultId}" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:140px;overflow-y:auto;top:100%;left:0;"></div>
       </div>`;
 
-    const waveRowHtml = (w, idx) => {
+    const waveRowHtml = (w, idx, globalEventFixed) => {
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
+      const waveQuestChips = (w.linkedQuests || []).map(q =>
+        `<span class="wave-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
+          style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+          📋 ${Utils.escHtml(q.name||'?')}
+          <button class="wave-quest-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+        </span>`).join('');
       const clearTypes = w.clearConditionTypes || (w.clearConditionType ? [w.clearConditionType] : ['enemies']);
       const clearCondHtml = [
         ['enemies',     '⚔️ 적 처치'],
@@ -164,7 +170,7 @@ Object.assign(window.Pages.gates, {
           <div style="font-weight:700;font-size:13px;color:#60a5fa;">${idx + 1}웨이브</div>
           <button class="btn btn-ghost btn-sm wave-del-btn" data-widx="${idx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
         </div>
-        <div style="margin-bottom:6px;">
+        <div class="wave-event-row" id="waveEventRow${idx}" style="margin-bottom:6px;display:${globalEventFixed ? 'none' : 'block'};">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:4px;">
             <input type="checkbox" class="wave-event-cb" data-widx="${idx}" ${w.hasEvent ? 'checked' : ''} /> 사건발생
           </label>
@@ -184,12 +190,21 @@ Object.assign(window.Pages.gates, {
           ${entitySearchHtml('waveTrapSearch' + idx, 'waveTrapResults' + idx, '트랩 검색...')}
         </div>
         <div style="margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택 가능)</div>
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">클리어 조건 (중복 선택)</div>
           <div style="display:flex;gap:6px;flex-wrap:wrap;">${clearCondHtml}</div>
           <div id="waveClearCustomWrap${idx}" style="display:${clearTypes.includes('custom') ? 'block' : 'none'};margin-top:4px;">
             <input class="input-field wave-clear-cond" data-widx="${idx}" value="${Utils.escHtml(w.clearCondition || '')}" placeholder="직접 입력 조건 내용" style="width:100%;box-sizing:border-box;font-size:12px;" />
           </div>
           <textarea class="input-field wave-clear-comment" data-widx="${idx}" rows="2" placeholder="클리어 조건 코멘트..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;margin-top:6px;">${Utils.escHtml(w.clearConditionComment || '')}</textarea>
+        </div>
+        <div style="margin-bottom:6px;">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">연관 퀘스트</div>
+          <div class="wave-quest-chips" id="waveQuestChips${idx}" style="display:flex;flex-wrap:wrap;gap:3px;min-height:20px;margin-bottom:4px;">${waveQuestChips}</div>
+          <div style="position:relative;">
+            <input class="input-field wave-quest-search" data-widx="${idx}" placeholder="퀘스트 검색..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div class="wave-quest-results" id="waveQuestResults${idx}" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:120px;overflow-y:auto;top:100%;left:0;"></div>
+          </div>
         </div>
         <div style="margin-bottom:4px;">
           <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">기타 메모</div>
@@ -300,10 +315,27 @@ Object.assign(window.Pages.gates, {
         </div>
         ${tf('fGateMotif', '모티브', g.motif, '모티브 설명')}
         <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-          ${tf('fGateLevelLimit', '레벨 제한', g.levelLimit, '예: 50')}
+          ${tf('fGateLevelLimit', '입장 제한', g.levelLimit, '예: 레벨 50+, 길드원')}
           ${tf('fGateMaxPlayers', '최대 인원수', g.maxPlayers, '예: 10')}
         </div>
         ${tf('fGateScale', '규모', g.scale, '예: 중규모')}
+
+        <!-- 연관 퀘스트 (상단) -->
+        <div style="border:1px solid rgba(16,185,129,0.35);border-radius:8px;padding:10px 12px;">
+          <div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:6px;">📋 연관 퀘스트</div>
+          <div id="linkedQuestChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">
+            ${linkedQuests.map(q => `<span class="linked-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
+              style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+              📋 ${Utils.escHtml(q.name||'?')}
+              <button class="lq-chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+            </span>`).join('')}
+          </div>
+          <div style="position:relative;">
+            <input class="input-field" id="linkedQuestSearch" placeholder="퀘스트 검색..." autocomplete="off"
+              style="width:100%;box-sizing:border-box;font-size:12px;" />
+            <div id="linkedQuestResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:30;max-height:140px;overflow-y:auto;"></div>
+          </div>
+        </div>
 
         <!-- Concept system -->
         <div style="border-top:1px solid var(--color-border);padding-top:10px;">
@@ -323,7 +355,7 @@ Object.assign(window.Pages.gates, {
             <textarea class="input-field" id="waveGlobalEventDesc" rows="2" placeholder="전체 사건 설명"
               style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;">${Utils.escHtml(g.waveConfig?.fixedEventDesc || '')}</textarea>
           </div>
-          <div id="waveList">${formWaves.map((w, i) => waveRowHtml(w, i)).join('')}</div>
+          <div id="waveList">${formWaves.map((w, i) => waveRowHtml(w, i, g.waveConfig?.hasEventFixed || false)).join('')}</div>
           <button class="btn btn-ghost btn-sm" id="btnAddWave" style="width:100%;border:1px dashed #60a5fa55;font-size:12px;color:#60a5fa;margin-top:4px;">+ 웨이브 추가</button>
         </div>
 
@@ -545,21 +577,6 @@ Object.assign(window.Pages.gates, {
         <div style="border-top:1px solid var(--color-border);padding-top:10px;">
           <div style="font-size:12px;color:#fbbf24;font-weight:700;margin-bottom:8px;">히든 정보 (작가 전용)</div>
           ${ta('fGateDetails', '세부사항', g.details, '추가 세부사항', 3)}
-          <div style="border-top:1px solid var(--color-border);padding-top:10px;">
-            <div style="font-size:12px;font-weight:700;color:#10b981;margin-bottom:8px;">📋 연관 퀘스트</div>
-            <div id="linkedQuestChips" style="display:flex;flex-wrap:wrap;gap:4px;min-height:24px;margin-bottom:6px;">
-              ${linkedQuests.map(q => `<span class="linked-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}"
-                style="display:inline-flex;align-items:center;gap:4px;padding:2px 10px;border-radius:12px;font-size:12px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
-                📋 ${Utils.escHtml(q.name||'?')}
-                <button class="lq-chip-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
-              </span>`).join('')}
-            </div>
-            <div style="position:relative;">
-              <input class="input-field" id="linkedQuestSearch" placeholder="퀘스트 검색..." autocomplete="off"
-                style="width:100%;box-sizing:border-box;font-size:12px;" />
-              <div id="linkedQuestResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:30;max-height:140px;overflow-y:auto;"></div>
-            </div>
-          </div>
           ${ta('fGateAuthorNotes', '작가 메모', g.authorNotes, '작가만 보는 메모', 3)}
         </div>
         <div style="border-top:1px solid var(--color-border);padding-top:10px;">
@@ -689,7 +706,8 @@ Object.assign(window.Pages.gates, {
     const reRenderWaveList = () => {
       const wl = document.getElementById('waveList');
       if (wl) {
-        wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i)).join('');
+        const gef = document.getElementById('waveGlobalEventFixed')?.checked || false;
+        wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i, gef)).join('');
         wireWaveSection();
       }
     };
@@ -744,6 +762,40 @@ Object.assign(window.Pages.gates, {
         const evCb = document.querySelector(`.wave-event-cb[data-widx="${idx}"]`);
         const evWrap = document.getElementById('waveEventWrap' + idx);
         if (evCb && evWrap) evCb.addEventListener('change', () => { evWrap.style.display = evCb.checked ? 'block' : 'none'; });
+        // Wave quest search
+        const wqInp = document.querySelector(`.wave-quest-search[data-widx="${idx}"]`);
+        const wqRes = document.getElementById('waveQuestResults' + idx);
+        const wqChips = document.getElementById('waveQuestChips' + idx);
+        if (wqInp && wqRes && wqChips) {
+          wqInp.addEventListener('input', () => {
+            const q = wqInp.value.trim().toLowerCase();
+            if (!q) { wqRes.style.display = 'none'; return; }
+            const hits = allQuests.filter(qs => (qs.name||'').toLowerCase().includes(q)).slice(0, 8);
+            wqRes.innerHTML = hits.map(qs => `<div class="wave-quest-result" data-qid="${Utils.escHtml(qs.id)}" data-qname="${Utils.escHtml(qs.name||'')}"
+              style="padding:6px 10px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">📋 ${Utils.escHtml(qs.name||'?')}</div>`).join('');
+            wqRes.style.display = hits.length ? 'block' : 'none';
+            wqRes.querySelectorAll('.wave-quest-result').forEach(row => {
+              row.addEventListener('mousedown', e => {
+                e.preventDefault();
+                const already = [...wqChips.querySelectorAll('.wave-quest-chip')].some(c => c.dataset.qid === row.dataset.qid);
+                if (!already) {
+                  const sp = document.createElement('span');
+                  sp.innerHTML = `<span class="wave-quest-chip" data-qid="${Utils.escHtml(row.dataset.qid)}" data-qname="${Utils.escHtml(row.dataset.qname)}"
+                    style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
+                    📋 ${Utils.escHtml(row.dataset.qname)}
+                    <button class="wave-quest-del" style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:10px;padding:0 2px;">✕</button>
+                  </span>`;
+                  const chip = sp.firstElementChild;
+                  chip.querySelector('.wave-quest-del').addEventListener('click', () => chip.remove());
+                  wqChips.appendChild(chip);
+                }
+                wqInp.value = ''; wqRes.style.display = 'none';
+              });
+            });
+          });
+          wqInp.addEventListener('blur', () => setTimeout(() => { wqRes.style.display = 'none'; }, 200));
+          wqChips.querySelectorAll('.wave-quest-del').forEach(btn => btn.addEventListener('click', () => btn.closest('.wave-quest-chip').remove()));
+        }
         const delBtn = document.querySelector(`.wave-del-btn[data-widx="${idx}"]`);
         if (delBtn) {
           delBtn.addEventListener('click', () => {
@@ -761,6 +813,7 @@ Object.assign(window.Pages.gates, {
               formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
               formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
               formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
+              formWaves[wi].linkedQuests = [...(document.getElementById('waveQuestChips' + wi)?.querySelectorAll('.wave-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname }));
             });
             formWaves.splice(idx, 1);
             reRenderWaveList();
@@ -854,6 +907,7 @@ Object.assign(window.Pages.gates, {
           clearCondition: clearTypes2.includes('custom') ? (row ? (row.querySelector('.wave-clear-cond')?.value || '') : (w.clearCondition || '')) : '',
           clearConditionComment: row ? (row.querySelector('.wave-clear-comment')?.value || '') : (w.clearConditionComment || ''),
           waveNotes: row ? (row.querySelector('.wave-notes')?.value || '') : (w.waveNotes || ''),
+          linkedQuests: [...(document.getElementById('waveQuestChips' + idx)?.querySelectorAll('.wave-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname })),
         };
       });
 
@@ -949,6 +1003,19 @@ Object.assign(window.Pages.gates, {
         updatedAt: Date.now(),
       };
       await DB.put('gates', data);
+      // 양방향 연동: 퀘스트의 linkedGates 자동 반영
+      const allQuestsSync = await DB.getAll('quests', wid);
+      const newLinkedQuestIds = new Set((data.linkedQuests || []).map(lq => lq.id));
+      for (const quest of allQuestsSync) {
+        const wasLinked = (quest.linkedGates || []).some(lg => lg.id === data.id);
+        const shouldBeLinked = newLinkedQuestIds.has(quest.id);
+        if (wasLinked !== shouldBeLinked) {
+          quest.linkedGates = shouldBeLinked
+            ? [...(quest.linkedGates || []).filter(lg => lg.id !== data.id), { id: data.id, name: data.name }]
+            : (quest.linkedGates || []).filter(lg => lg.id !== data.id);
+          await DB.put('quests', quest);
+        }
+      }
       Utils.toast(isEdit ? '저장됨' : '추가됨', 'success');
       this._currentId = data.id;
       const all = await DB.getAll('gates', wid);
@@ -1116,6 +1183,9 @@ Object.assign(window.Pages.gates, {
       document.getElementById('waveGlobalEventFixed')?.addEventListener('change', e => {
         const wrap = document.getElementById('waveGlobalEventWrap');
         if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+        document.querySelectorAll('#globalModalBody .wave-event-row').forEach(row => {
+          row.style.display = e.target.checked ? 'none' : 'block';
+        });
       });
 
       wireWaveSection();
@@ -1135,8 +1205,9 @@ Object.assign(window.Pages.gates, {
           formWaves[wi].waveNotes = row.querySelector('.wave-notes')?.value || '';
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
           formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
+          formWaves[wi].linkedQuests = [...(document.getElementById('waveQuestChips' + wi)?.querySelectorAll('.wave-quest-chip') || [])].map(c => ({ id: c.dataset.qid, name: c.dataset.qname }));
         });
-        formWaves.push({ hasEvent: false, eventDesc: '', enemies: [], traps: [], clearConditionTypes: ['enemies'], clearCondition: '', clearConditionComment: '', waveNotes: '', explorationLink: false });
+        formWaves.push({ hasEvent: false, eventDesc: '', enemies: [], traps: [], clearConditionTypes: ['enemies'], clearCondition: '', clearConditionComment: '', waveNotes: '', explorationLink: false, linkedQuests: [] });
         reRenderWaveList();
       });
 
@@ -1408,7 +1479,7 @@ Object.assign(window.Pages.gates, {
       { key: 'type',               label: '종류',            val: g.type },
       { key: 'breakType',          label: '브레이크 유형',   val: g.breakType },
       { key: 'motif',              label: '모티브',          val: g.motif },
-      { key: 'levelLimit',         label: '레벨 제한',       val: g.levelLimit },
+      { key: 'levelLimit',         label: '입장 제한',       val: g.levelLimit },
       { key: 'maxPlayers',         label: '최대 인원수',     val: g.maxPlayers },
       { key: 'scale',              label: '규모',            val: g.scale },
       { key: 'enemies',            label: '적',              val: g.enemies },
@@ -1477,7 +1548,7 @@ Object.assign(window.Pages.gates, {
     add('종류', g.type);
     add('브레이크 유형', g.breakType);
     add('모티브', g.motif);
-    add('레벨 제한', g.levelLimit);
+    add('입장 제한', g.levelLimit);
     add('최대 인원수', g.maxPlayers);
     add('규모', g.scale);
     if (g.enemies) lines.push(`적:\n${g.enemies}`);

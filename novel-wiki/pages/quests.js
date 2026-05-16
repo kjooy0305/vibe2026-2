@@ -530,6 +530,26 @@ window.Pages.quests = {
       };
 
       const saved = await DB.put('quests', payload);
+      // 양방향 연동: 게이트의 linkedQuests 자동 반영
+      const allGates = await DB.getAll('gates', wid);
+      const newLinkedGateIds = new Set(payload.linkedGates.map(g2 => g2.id));
+      for (const gate of allGates) {
+        const wasLinked = (gate.linkedQuests || []).some(lq => lq.id === saved.id);
+        const shouldBeLinked = newLinkedGateIds.has(gate.id);
+        if (wasLinked !== shouldBeLinked) {
+          gate.linkedQuests = shouldBeLinked
+            ? [...(gate.linkedQuests || []).filter(lq => lq.id !== saved.id), { id: saved.id, name: payload.name }]
+            : (gate.linkedQuests || []).filter(lq => lq.id !== saved.id);
+          await DB.put('gates', gate);
+        } else if (shouldBeLinked) {
+          // 이름 동기화
+          const lq = (gate.linkedQuests || []).find(lq => lq.id === saved.id);
+          if (lq && lq.name !== payload.name) {
+            lq.name = payload.name;
+            await DB.put('gates', gate);
+          }
+        }
+      }
       await AppStore.updateStreak();
       await AppStore.recordActivity('quests', !isEdit);
       self._currentId = saved.id;

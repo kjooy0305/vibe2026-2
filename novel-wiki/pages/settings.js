@@ -138,6 +138,12 @@ window.Pages.settings = {
     const storedQs = await DB.getSetting('novelQuestions', null);
     let questions = (storedQs && storedQs.length > 0) ? storedQs : [...this.THEMATIC_QUESTIONS];
 
+    const historyMaxLen = await DB.getSetting('historyMaxLength', 366);
+    const streakData = await DB.get('streak', 'main') || {};
+    const currentHistoryLen = (streakData.history || []).length;
+
+    const defaultClearCondTypes = await DB.getSetting('defaultClearCondTypes', ['enemies']);
+
     const DEFAULT_WORLD_TYPES = ['천국', '지옥', '현재 세계', '커스텀'];
     let worldTypes = (await DB.getSetting('worldTypes', null)) || [...DEFAULT_WORLD_TYPES];
 
@@ -263,6 +269,35 @@ window.Pages.settings = {
                 ${toggleHtml(f.key, flagValues[f.key])}
               </div>`).join('')}
           </div>`).join('')}
+      </div>
+
+      <!-- ③-b 기본 클리어 조건 -->
+      <div style="${secStyle}">
+        <div style="${secLabel}">🎯 웨이브 기본 클리어 조건</div>
+        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:10px;">새 웨이브 추가 시 기본으로 선택되는 클리어 조건입니다.</div>
+        <div style="display:flex;gap:6px;flex-wrap:wrap;" id="defaultClearCondChips">
+          ${[['enemies','⚔️ 적 처치'],['exploration','🔍 탐험'],['decapitation','🗡️ 참수'],['boss','👑 보스전'],['custom','✏️ 직접 입력']].map(([val, label]) => {
+            const active = defaultClearCondTypes.includes(val);
+            return `<button type="button" class="dcc-chip" data-val="${val}" data-active="${active}"
+              style="padding:5px 12px;border-radius:7px;border:1px solid ${active ? 'rgba(99,102,241,0.7)' : 'var(--color-border)'};cursor:pointer;font-size:12px;font-weight:600;
+                background:${active ? 'rgba(99,102,241,0.25)' : 'var(--color-surface3,#1e2030)'};color:${active ? '#a5b4fc' : 'var(--color-text-muted)'};transition:all .15s;">
+              ${label}
+            </button>`;
+          }).join('')}
+        </div>
+        <button id="btnSaveDCC" class="btn btn-ghost btn-sm" style="margin-top:8px;font-size:12px;">저장</button>
+      </div>
+
+      <!-- ③-c 히스토리 길이 -->
+      <div style="${secStyle}">
+        <div style="${secLabel}">📅 히스토리 길이</div>
+        <div style="display:flex;align-items:center;gap:10px;margin-bottom:8px;">
+          <span style="font-size:13px;flex:1;">스트릭 히스토리 최대 보관 일수</span>
+          <input type="number" id="historyMaxLenInput" value="${historyMaxLen}" min="30" max="9999"
+            style="width:72px;padding:5px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface);color:var(--color-text);font-size:13px;text-align:center;" />
+          <button id="btnSaveHistLen" class="btn btn-ghost btn-sm" style="font-size:12px;">저장</button>
+        </div>
+        <div style="font-size:11px;color:var(--color-text-muted);">현재 기록: ${currentHistoryLen}일 분량</div>
       </div>
 
       <!-- ④ 검색 범위 -->
@@ -481,6 +516,30 @@ window.Pages.settings = {
         await DB.setSetting('flag_' + key, newVal);
         Utils.toast(`'${Utils.escHtml(flagDef?.label || key)}' ${newVal ? '활성화' : '비활성화'}`, 'info', 1500);
       });
+    });
+
+    // ── Default clear condition chips ──────────────────────────────────────
+    container.querySelectorAll('#defaultClearCondChips .dcc-chip').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const isActive = btn.dataset.active === 'true';
+        btn.dataset.active = isActive ? 'false' : 'true';
+        btn.style.background = !isActive ? 'rgba(99,102,241,0.25)' : 'var(--color-surface3,#1e2030)';
+        btn.style.border = !isActive ? '1px solid rgba(99,102,241,0.7)' : '1px solid var(--color-border)';
+        btn.style.color = !isActive ? '#a5b4fc' : 'var(--color-text-muted)';
+      });
+    });
+    container.querySelector('#btnSaveDCC')?.addEventListener('click', async () => {
+      const types = [...container.querySelectorAll('#defaultClearCondChips .dcc-chip[data-active="true"]')].map(b => b.dataset.val);
+      await DB.setSetting('defaultClearCondTypes', types.length ? types : ['enemies']);
+      Utils.toast('기본 클리어 조건 저장됨', 'success');
+    });
+
+    // ── History length ──────────────────────────────────────────────────────
+    container.querySelector('#btnSaveHistLen')?.addEventListener('click', async () => {
+      const val = parseInt(container.querySelector('#historyMaxLenInput')?.value || '366', 10);
+      if (isNaN(val) || val < 30) { Utils.toast('최소 30 이상이어야 합니다', 'error'); return; }
+      await DB.setSetting('historyMaxLength', val);
+      Utils.toast('히스토리 길이 저장됨', 'success');
     });
 
     // ── Search scope ───────────────────────────────────────────────────────
