@@ -1,5 +1,38 @@
 'use strict';
 window.Pages = window.Pages || {};
+
+const HOME_ALL_PAGES = [
+  { page: 'novel-view',     icon: '✍️',  name: '소설 작성' },
+  { page: 'characters',     icon: '👤',  name: '캐릭터' },
+  { page: 'skills',         icon: '⚡',  name: '스킬' },
+  { page: 'achievements',   icon: '🏆',  name: '업적' },
+  { page: 'constellations', icon: '⭐',  name: '성좌' },
+  { page: 'gates',          icon: '🌀',  name: '게이트' },
+  { page: 'tower',          icon: '🏰',  name: '탑' },
+  { page: 'monsters',       icon: '👾',  name: '몬스터' },
+  { page: 'races',          icon: '🧬',  name: '종족' },
+  { page: 'gods',           icon: '✨',  name: '신' },
+  { page: 'timeline',       icon: '📅',  name: '타임라인' },
+  { page: 'event-graph',    icon: '🕸️', name: '사건 그래프' },
+  { page: 'family-tree',    icon: '🌳',  name: '가족 관계도' },
+  { page: 'world-rules',    icon: '📜',  name: '세계관 규칙' },
+  { page: 'organizations',  icon: '🏛️', name: '조직' },
+  { page: 'countries',      icon: '🌍',  name: '국가' },
+  { page: 'companies',      icon: '🏢',  name: '기업' },
+  { page: 'places',         icon: '📍',  name: '장소' },
+  { page: 'items',          icon: '📦',  name: '아이템' },
+  { page: 'jobs',           icon: '🏷️', name: '직업' },
+  { page: 'stat-defs',      icon: '📊',  name: '스텟 정의' },
+  { page: 'traps',          icon: '⚙️', name: '함정 종류' },
+  { page: 'quests',         icon: '📋',  name: '퀘스트' },
+  { page: 'reminders',      icon: '🔔',  name: '리마인더' },
+  { page: 'keywords',       icon: '🔑',  name: '키워드' },
+  { page: 'status-viewer',  icon: '📖',  name: '상태창 뷰어' },
+  { page: 'templates',      icon: '📝',  name: '기본 설정 관리' },
+  { page: 'world',          icon: '🌐',  name: '세계 관리' },
+  { page: 'settings',       icon: '⚙️', name: '설정' },
+];
+
 window.Pages.home = {
   _unsub: null,
   _missionTimer: null,
@@ -51,13 +84,15 @@ window.Pages.home = {
     const wid = AppStore.getCurrentWorldId();
 
     const [chars, skills, items, events, monsters, orgs, constellations, gates,
-           streak, missionState] = await Promise.all([
+           streak, missionState, bookmarks, editHistAll] = await Promise.all([
       DB.getAll('characters', wid), DB.getAll('skills', wid),
       DB.getAll('items', wid), DB.getAll('events', wid),
       DB.getAll('monsters', wid), DB.getAll('organizations', wid),
       DB.getAll('constellations', wid), DB.getAll('gates', wid),
       DB.get('streak', 'main').then(s => s || { id: 'main', count: 0, lastDate: null, history: [], totalCleared: 0, longestStreak: 0, shields: 0, points: 0 }),
       AppStore.getMissionState(),
+      DB.getSetting('homeBookmarks').then(v => v || ['novel-view','characters','gates','tower','timeline']),
+      DB.getAll('editHistory').catch(() => []),
     ]);
 
     const today = new Date();
@@ -259,34 +294,46 @@ window.Pages.home = {
         `).join('')}
       </div>
 
-      <!-- ── 빠른 접근 ── -->
-      <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);margin-bottom:8px;">빠른 접근</div>
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:14px;">
-        ${[
-          ['novel-view', '✍️', '소설 작성'],
-          ['characters', '👤', '캐릭터'],
-          ['skills', '⚡', '스킬'],
-          ['gates', '🌀', '게이트'],
-          ['tower', '🏰', '탑 관리'],
-          ['timeline', '📅', '타임라인'],
-          ['event-graph', '🕸️', '사건 그래프'],
-          ['constellations', '⭐', '성좌'],
-          ['world-rules', '📜', '세계관 규칙'],
-          ['organizations', '🏛️', '조직'],
-          ['items', '📦', '아이템'],
-          ['world', '🌍', '세계 관리'],
-        ].map(([page, icon, name]) => `
+      <!-- ── 바로가기 ── -->
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+        <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);">바로가기</div>
+        <button id="btnEditBookmarks" style="background:none;border:none;cursor:pointer;font-size:11px;color:var(--color-primary);padding:2px 6px;">편집</button>
+      </div>
+      <!-- 북마크 슬롯 5개 -->
+      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:6px;margin-bottom:10px;" id="bookmarkSlots">
+        ${Array.from({length:5}, (_,i) => {
+          const bm = bookmarks[i] ? HOME_ALL_PAGES.find(p => p.page === bookmarks[i]) : null;
+          return `<button class="bookmark-slot" data-slot="${i}" data-page="${bm ? bm.page : ''}"
+            onclick="${bm ? `AppRouter.navigate('${bm.page}')` : 'document.getElementById(\'btnEditBookmarks\').click()'}"
+            style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;
+              background:${bm ? 'var(--color-surface2)' : 'rgba(99,102,241,0.06)'};
+              border:${bm ? '1px solid var(--color-border)' : '1px dashed rgba(99,102,241,0.3)'};
+              border-radius:10px;padding:10px 4px;cursor:pointer;min-height:60px;">
+            <div style="font-size:20px;">${bm ? bm.icon : '＋'}</div>
+            <div style="font-size:10px;font-weight:600;color:${bm ? 'var(--color-text)' : 'var(--color-text-muted)'};text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${bm ? bm.name : '빈 슬롯'}</div>
+          </button>`;
+        }).join('')}
+      </div>
+      <!-- 전체 페이지 그리드 -->
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:14px;">
+        ${HOME_ALL_PAGES.map(({page, icon, name}) => `
           <button onclick="AppRouter.navigate('${page}')"
-            style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:12px;padding:12px 6px;cursor:pointer;transition:background 0.15s;min-height:70px;">
-            <div style="font-size:22px;">${icon}</div>
-            <div style="font-size:11px;font-weight:700;color:var(--color-text);">${name}</div>
+            style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:10px;padding:10px 4px;cursor:pointer;min-height:60px;">
+            <div style="font-size:18px;">${icon}</div>
+            <div style="font-size:10px;font-weight:600;color:var(--color-text);text-align:center;line-height:1.2;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;width:100%;">${name}</div>
           </button>
         `).join('')}
       </div>
 
-      <!-- ── 최근 수정 ── -->
-      <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);margin-bottom:8px;">최근 수정</div>
-      <div id="recentItemsList"></div>
+      <!-- ── 최근 수정 (아이콘 버튼) ── -->
+      <button id="btnShowHistory" style="width:100%;display:flex;align-items:center;gap:12px;padding:12px 14px;background:var(--color-surface2);border-radius:10px;border:1px solid var(--color-border);margin-bottom:14px;cursor:pointer;text-align:left;">
+        <span style="font-size:22px;">🕐</span>
+        <div style="flex:1;">
+          <div style="font-weight:700;font-size:13px;">수정 기록</div>
+          <div style="font-size:11px;color:var(--color-text-muted);">총 ${editHistAll.length}개 기록</div>
+        </div>
+        <span style="font-size:16px;color:var(--color-text-muted);">›</span>
+      </button>
     </div>`;
 
     // World selector
@@ -314,7 +361,106 @@ window.Pages.home = {
       }
     });
 
-    this._loadRecent(chars, skills, items, events);
+    // 바로가기 편집 버튼
+    document.getElementById('btnEditBookmarks')?.addEventListener('click', () => {
+      const curBm = [...bookmarks];
+      const bmBody = `
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:4px;">5개 슬롯에 넣을 페이지를 선택하세요 (순서대로)</div>
+          <div id="bmSelected" style="display:flex;flex-wrap:wrap;gap:6px;min-height:32px;padding:8px;background:var(--color-surface3,#1e2030);border-radius:8px;margin-bottom:4px;">
+            ${curBm.map((pg,i) => {
+              const p = HOME_ALL_PAGES.find(x => x.page === pg);
+              return p ? `<span class="bm-sel-chip" data-pg="${p.page}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:12px;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);">${p.icon} ${p.name}<button class="bm-chip-del" data-pg="${p.page}" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--color-danger);padding:0 2px;">✕</button></span>` : '';
+            }).join('')}
+          </div>
+          <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:4px;">
+            ${HOME_ALL_PAGES.map(p => `<button class="bm-pick-btn" data-pg="${p.page}"
+              style="display:flex;flex-direction:column;align-items:center;gap:2px;padding:8px 4px;border-radius:8px;border:1px solid var(--color-border);background:${curBm.includes(p.page) ? 'rgba(99,102,241,0.2)' : 'var(--color-surface2)'};cursor:pointer;">
+              <div style="font-size:18px;">${p.icon}</div>
+              <div style="font-size:10px;font-weight:600;text-align:center;line-height:1.2;">${p.name}</div>
+            </button>`).join('')}
+          </div>
+        </div>`;
+      Utils.openModal('바로가기 편집', bmBody, async () => {
+        const chips = [...document.querySelectorAll('#globalModalBody .bm-sel-chip')];
+        const newBm = chips.map(c => c.dataset.pg);
+        while (newBm.length < 5) newBm.push('');
+        await DB.setSetting('homeBookmarks', newBm.slice(0,5));
+        return true;
+      }, '저장');
+      setTimeout(() => {
+        let sel = [...curBm];
+        const renderChips = () => {
+          const wrap = document.getElementById('bmSelected');
+          if (!wrap) return;
+          wrap.innerHTML = sel.map((pg,i) => {
+            const p = HOME_ALL_PAGES.find(x => x.page === pg);
+            return p ? `<span class="bm-sel-chip" data-pg="${p.page}" style="display:inline-flex;align-items:center;gap:4px;padding:3px 10px;border-radius:12px;font-size:12px;background:rgba(99,102,241,0.2);border:1px solid rgba(99,102,241,0.4);">${p.icon} ${p.name}<button class="bm-chip-del" data-pg="${p.page}" style="background:none;border:none;cursor:pointer;font-size:10px;color:var(--color-danger);padding:0 2px;">✕</button></span>` : '';
+          }).join('');
+          wrap.querySelectorAll('.bm-chip-del').forEach(btn => {
+            btn.addEventListener('click', () => {
+              sel = sel.filter(p => p !== btn.dataset.pg);
+              renderChips();
+              document.querySelectorAll('#globalModalBody .bm-pick-btn').forEach(b => {
+                b.style.background = sel.includes(b.dataset.pg) ? 'rgba(99,102,241,0.2)' : 'var(--color-surface2)';
+              });
+            });
+          });
+        };
+        document.querySelectorAll('#globalModalBody .bm-pick-btn').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const pg = btn.dataset.pg;
+            if (sel.includes(pg)) {
+              sel = sel.filter(p => p !== pg);
+              btn.style.background = 'var(--color-surface2)';
+            } else if (sel.length < 5) {
+              sel.push(pg);
+              btn.style.background = 'rgba(99,102,241,0.2)';
+            } else {
+              Utils.toast('최대 5개까지 선택 가능합니다', 'error');
+            }
+            renderChips();
+          });
+        });
+      }, 50);
+    });
+
+    // 수정 기록 버튼
+    document.getElementById('btnShowHistory')?.addEventListener('click', () => {
+      const sorted = [...editHistAll].sort((a,b) => b.timestamp - a.timestamp).slice(0, 100);
+      if (!sorted.length) { Utils.toast('수정 기록이 없습니다', 'error'); return; }
+      const STORE_LABELS = { characters:'캐릭터', skills:'스킬', items:'아이템', monsters:'몬스터', organizations:'조직', gates:'게이트', towers:'탑', countries:'국가', companies:'기업', places:'장소', races:'종족', gods:'신', quests:'퀘스트', constellations:'성좌', events:'사건', worldRules:'세계관 규칙', traps:'함정', jobs:'직업', statDefs:'스텟', keywords:'키워드', achievements:'업적' };
+      const body = `
+        <div style="display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;">
+          ${sorted.map(h => `
+            <button class="hist-entry" data-hid="${Utils.escHtml(h.id)}"
+              style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;cursor:pointer;text-align:left;width:100%;">
+              <div style="flex:1;min-width:0;">
+                <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(h.itemName || '?')}</div>
+                <div style="font-size:11px;color:var(--color-text-muted);">${STORE_LABELS[h.storeName] || h.storeName} · ${Utils.formatDate(h.timestamp)}</div>
+              </div>
+              <span style="font-size:13px;color:var(--color-text-muted);">›</span>
+            </button>`).join('')}
+        </div>`;
+      Utils.openModal('수정 기록', body, null, null);
+      setTimeout(() => {
+        document.querySelectorAll('#globalModalBody .hist-entry').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const hid = btn.dataset.hid;
+            const entry = sorted.find(h => h.id === hid);
+            if (!entry) return;
+            const snap = entry.snapshot;
+            const fields = Object.entries(snap).filter(([k]) => !['id','worldId','createdAt','updatedAt'].includes(k));
+            const preview = fields.map(([k, v]) => {
+              if (typeof v === 'object' && v !== null) return `<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--color-text-muted);font-weight:700;margin-bottom:2px;">${Utils.escHtml(k)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-all;">${Utils.escHtml(JSON.stringify(v, null, 2))}</div></div>`;
+              if (!v && v !== 0) return '';
+              return `<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--color-text-muted);font-weight:700;margin-bottom:2px;">${Utils.escHtml(k)}</div><div style="font-size:12px;white-space:pre-wrap;">${Utils.escHtml(String(v))}</div></div>`;
+            }).filter(Boolean).join('');
+            Utils.openModal(`이전 버전: ${Utils.escHtml(entry.itemName)}`, `<div style="max-height:60vh;overflow-y:auto;">${preview || '내용 없음'}</div>`, null, null);
+          });
+        });
+      }, 50);
+    });
 
     await AppStore.updateStreak();
 
@@ -327,40 +473,6 @@ window.Pages.home = {
       timerEls.forEach(t => { t.textContent = this._fmtCountdown(remaining); });
       if (remaining === 0) { clearInterval(this._missionTimer); this.init(container); }
     }, 30000);
-  },
-
-  _loadRecent: function(chars, skills, items, events) {
-    const all = [
-      ...chars.map(x => ({ ...x, _type: '캐릭터', _page: 'characters', _icon: '👤' })),
-      ...skills.map(x => ({ ...x, _type: '스킬', _page: 'skills', _icon: '⚡' })),
-      ...items.map(x => ({ ...x, _type: '아이템', _page: 'items', _icon: '📦' })),
-      ...events.map(x => ({ ...x, _type: '사건', _page: 'event-graph', _icon: '📌' })),
-    ].sort((a, b) => (b.updatedAt || 0) - (a.updatedAt || 0)).slice(0, 10);
-
-    const el = document.getElementById('recentItemsList');
-    if (!el) return;
-
-    if (!all.length) {
-      el.innerHTML = `
-        <div class="empty-state" style="padding:24px;text-align:center;">
-          <div style="font-size:32px;margin-bottom:8px;">📝</div>
-          <div style="font-weight:700;margin-bottom:4px;">아직 항목이 없습니다</div>
-          <div style="font-size:12px;color:var(--color-text-muted);">캐릭터, 스킬, 아이템 등을 추가하면 표시됩니다</div>
-        </div>`;
-      return;
-    }
-
-    el.innerHTML = all.map(item => `
-      <button onclick="AppRouter.navigate('${item._page}', {highlightId:'${Utils.escHtml(item.id)}'})"
-        style="width:100%;display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--color-surface2);border-radius:10px;border:1px solid var(--color-border);margin-bottom:6px;cursor:pointer;text-align:left;">
-        <span style="font-size:18px;">${item._icon}</span>
-        <div style="flex:1;min-width:0;">
-          <div style="font-weight:600;font-size:13px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(item.name || '(이름 없음)')}</div>
-          <div style="font-size:11px;color:var(--color-text-muted);">${item._type} · ${Utils.formatDate(item.updatedAt)}</div>
-        </div>
-        <span style="font-size:16px;color:var(--color-text-muted);">›</span>
-      </button>
-    `).join('');
   },
 
   destroy: function() {

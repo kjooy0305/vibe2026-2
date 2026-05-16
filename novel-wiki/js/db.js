@@ -1,8 +1,8 @@
 'use strict';
 const DB = (function() {
   const DB_NAME = 'NovelWikiDB';
-  const DB_VERSION = 11;
-  const STORES = ['worlds','characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','templates','folders','settings','streak','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races','quests'];
+  const DB_VERSION = 12;
+  const STORES = ['worlds','characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','templates','folders','settings','streak','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races','quests','editHistory'];
 
   let db = null;
 
@@ -18,6 +18,7 @@ const DB = (function() {
             if (['characters','skills','achievements','organizations','constellations','gates','monsters','towers','items','jobs','events','worldRules','folders','countries','companies','keywordFolders','keywords','statDefs','traps','places','gods','races','quests'].includes(name)) {
               store.createIndex('worldId', 'worldId', { unique: false });
             }
+            // editHistory: no worldId index
           }
         });
       };
@@ -57,15 +58,43 @@ const DB = (function() {
     }));
   }
 
-  function put(storeName, item) {
-    return open().then(() => new Promise((resolve, reject) => {
-      if (!item.id) item.id = genId();
-      item.updatedAt = Date.now();
-      if (!item.createdAt) item.createdAt = Date.now();
-      const req = tx(storeName, 'readwrite').put(item);
-      req.onsuccess = () => resolve(item);
-      req.onerror = e => reject(e.target.error);
-    }));
+  function put(storeName, data) {
+    const HISTORY_STORES = ['characters','skills','items','monsters','organizations','gates','towers','countries','companies','places','races','gods','quests','constellations','events','worldRules','traps','jobs','statDefs','keywords','achievements'];
+    return open().then(() => {
+      if (HISTORY_STORES.includes(storeName) && data.id) {
+        try {
+          const oldReq = db.transaction(storeName,'readonly').objectStore(storeName).get(data.id);
+          oldReq.onsuccess = () => {
+            const old = oldReq.result;
+            if (!old) return;
+            getSetting('historyLimit').then(lim => {
+              const maxE = (typeof lim === 'number' && lim > 0) ? lim : 50;
+              const histEntry = { id: genId(), storeName, itemId: old.id, itemName: old.name || old.id, timestamp: Date.now(), snapshot: JSON.parse(JSON.stringify(old)) };
+              const hTx = db.transaction('editHistory','readwrite');
+              hTx.objectStore('editHistory').put(histEntry);
+              const allR = db.transaction('editHistory','readonly').objectStore('editHistory').getAll();
+              allR.onsuccess = () => {
+                const all = allR.result || [];
+                if (all.length > maxE) {
+                  const toDelete = [...all].sort((a,b) => a.timestamp - b.timestamp).slice(0, all.length - maxE);
+                  const dTx = db.transaction('editHistory','readwrite');
+                  toDelete.forEach(e => dTx.objectStore('editHistory').delete(e.id));
+                }
+              };
+            });
+          };
+        } catch(e) {}
+      }
+      return new Promise((resolve, reject) => {
+        if (!data.id) data.id = genId();
+        data.updatedAt = Date.now();
+        if (!data.createdAt) data.createdAt = Date.now();
+        const store = tx(storeName, 'readwrite');
+        const req = store.put(data);
+        req.onsuccess = () => resolve(data);
+        req.onerror = e => reject(e.target.error);
+      });
+    });
   }
 
   function del(storeName, id) {

@@ -23,7 +23,7 @@
     overlay?.addEventListener('click', closeDrawer);
 
     document.querySelectorAll('.drawer__item[data-page]').forEach(btn => {
-      btn.addEventListener('click', () => AppRouter.navigate(btn.dataset.page));
+      btn.addEventListener('click', () => { closeDrawer(); AppRouter.navigate(btn.dataset.page); });
     });
     document.querySelectorAll('.bottom-nav__item[data-page]').forEach(btn => {
       btn.addEventListener('click', () => AppRouter.navigate(btn.dataset.page));
@@ -39,7 +39,6 @@
     const btn = document.getElementById('btnHeaderMore');
     if (!btn) return;
 
-    // Build dropdown menu
     const menu = document.createElement('div');
     menu.id = 'headerMoreMenu';
     menu.style.cssText = `
@@ -51,8 +50,7 @@
     const items = [
       { icon: '🌍', label: '세계/차원 관리', page: 'world' },
       { icon: '⚙️', label: '설정', page: 'settings' },
-      { icon: '📋', label: '퀘스트', page: 'quests' },
-      { icon: '📋', label: '기본 설정 관리', page: 'templates' },
+      { icon: '📝', label: '기본 설정 관리', page: 'templates' },
       { icon: '📖', label: '상태창 뷰어', page: 'status-viewer' },
     ];
     menu.innerHTML = `
@@ -85,9 +83,28 @@
   }
 
   async function boot() {
+    // Mobile: show reload button if loading hangs > 12s
+    const loaderTimeout = setTimeout(() => {
+      const loader = document.getElementById('initialLoader');
+      if (loader) {
+        loader.innerHTML = `
+          <div style="text-align:center;padding:32px 24px;">
+            <div style="font-size:40px;margin-bottom:12px;">⏱️</div>
+            <div style="font-size:15px;font-weight:700;margin-bottom:8px;">로딩이 지연되고 있습니다</div>
+            <div style="font-size:12px;color:#aaa;margin-bottom:20px;">캐시 문제일 수 있습니다</div>
+            <button onclick="location.reload(true)"
+              style="padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">
+              🔄 새로고침
+            </button>
+          </div>`;
+      }
+    }, 12000);
+
     try {
       await DB.open();
       await AppStore.init();
+
+      clearTimeout(loaderTimeout);
 
       // Register all pages
       const pageModules = [
@@ -132,16 +149,11 @@
       setupHeaderMore();
       SearchEngine.init();
 
-      // Start reminder engine (fires notifications while app is open)
       if (window.ReminderEngine) ReminderEngine.init();
 
-      // Remove loader
       document.getElementById('initialLoader')?.remove();
-
-      // Navigate to home
       AppRouter.navigate('home');
 
-      // Show streak notification
       const { streak } = AppStore.getState();
       if (streak && streak.count > 0) {
         const today = new Date().toDateString();
@@ -155,8 +167,19 @@
       }
 
     } catch(e) {
+      clearTimeout(loaderTimeout);
       console.error('[App] Boot error:', e);
-      document.getElementById('initialLoader').innerHTML = `<div style="color:#ef4444;padding:24px;text-align:center;">앱 초기화 오류<br><small>${e.message}</small></div>`;
+      const loader = document.getElementById('initialLoader');
+      if (loader) loader.innerHTML = `
+        <div style="text-align:center;padding:32px 24px;">
+          <div style="font-size:40px;margin-bottom:12px;">❌</div>
+          <div style="font-size:14px;font-weight:700;color:#ef4444;margin-bottom:8px;">앱 초기화 오류</div>
+          <div style="font-size:12px;color:#aaa;margin-bottom:20px;">${e.message}</div>
+          <button onclick="location.reload(true)"
+            style="padding:10px 24px;background:#6366f1;color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:700;cursor:pointer;">
+            🔄 새로고침
+          </button>
+        </div>`;
     }
   }
 

@@ -191,8 +191,28 @@ window.Pages.countries = {
             <div class="city-detail-body" style="display:${cityCollapsed ? 'none' : 'block'};">
               ${city.finance ? `<div style="margin-top:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">💰 재정 상태</div><div style="font-size:13px;white-space:pre-wrap;line-height:1.7;">${Utils.escHtml(city.finance)}</div></div>` : ''}
               ${city.buildings ? `<div style="margin-top:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">🏛️ 주요 건축물</div><div style="font-size:13px;white-space:pre-wrap;line-height:1.7;">${Utils.escHtml(city.buildings)}</div></div>` : ''}
-              ${chars.length ? `<div style="margin-top:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">👤 주요 인물</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${chars.map(c => `<button class="btn btn-ghost btn-sm city-link-char" data-id="${Utils.escHtml(c.id)}" style="font-size:12px;">👤 ${Utils.escHtml(c.name || '')}</button>`).join('')}</div></div>` : ''}
-              ${comps.length ? `<div style="margin-top:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:4px;">🏢 주요 기업</div><div style="display:flex;flex-wrap:wrap;gap:6px;">${comps.map(co => `<button class="btn btn-ghost btn-sm city-link-comp" data-id="${Utils.escHtml(co.id)}" style="font-size:12px;">🏢 ${Utils.escHtml(co.name || '')}</button>`).join('')}</div></div>` : ''}
+              ${chars.length ? (() => {
+                const key = 'city_chars_' + city.id;
+                const col = self._collapsedSections[key];
+                return `<div style="margin-top:8px;">
+                  <button class="section-toggle" data-section="${key}" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;cursor:pointer;padding:0 0 4px 0;color:var(--color-text);">
+                    <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">👤 주요 인물 (${chars.length})</div>
+                    <span class="section-chevron" style="font-size:11px;color:var(--color-text-muted);">${col ? '▶' : '▼'}</span>
+                  </button>
+                  <div class="section-body" style="display:${col ? 'none' : 'flex'};flex-wrap:wrap;gap:6px;">${chars.map(c => `<button class="btn btn-ghost btn-sm city-link-char" data-id="${Utils.escHtml(c.id)}" style="font-size:12px;">👤 ${Utils.escHtml(c.name || '')}</button>`).join('')}</div>
+                </div>`;
+              })() : ''}
+              ${comps.length ? (() => {
+                const key = 'city_comps_' + city.id;
+                const col = self._collapsedSections[key];
+                return `<div style="margin-top:8px;">
+                  <button class="section-toggle" data-section="${key}" style="width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;cursor:pointer;padding:0 0 4px 0;color:var(--color-text);">
+                    <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">🏢 주요 기업 (${comps.length})</div>
+                    <span class="section-chevron" style="font-size:11px;color:var(--color-text-muted);">${col ? '▶' : '▼'}</span>
+                  </button>
+                  <div class="section-body" style="display:${col ? 'none' : 'flex'};flex-wrap:wrap;gap:6px;">${comps.map(co => `<button class="btn btn-ghost btn-sm city-link-comp" data-id="${Utils.escHtml(co.id)}" style="font-size:12px;">🏢 ${Utils.escHtml(co.name || '')}</button>`).join('')}</div>
+                </div>`;
+              })() : ''}
               ${city.notes ? `<div style="margin-top:8px;"><div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">📝 메모</div><div style="font-size:13px;white-space:pre-wrap;line-height:1.7;">${Utils.escHtml(city.notes)}</div></div>` : ''}
             </div>
           </div>`;
@@ -274,17 +294,28 @@ window.Pages.countries = {
       btn.addEventListener('click', () => {
         const key = btn.dataset.section;
         self._collapsedSections[key] = !self._collapsedSections[key];
-        const section = container.querySelector(`.country-section[data-section="${key}"]`);
-        if (!section) return;
-        const body = section.querySelector('.section-body');
-        const chevron = section.querySelector('.section-chevron');
+        // city_chars_xxx, city_comps_xxx 키는 btn의 closest div에서 body 찾기
+        let body, chevron;
+        if (key.startsWith('city_chars_') || key.startsWith('city_comps_')) {
+          const wrap = btn.closest('div');
+          body = wrap?.querySelector('.section-body');
+          chevron = btn.querySelector('.section-chevron');
+        } else {
+          const section = container.querySelector(`.country-section[data-section="${key}"]`);
+          if (!section) return;
+          body = section.querySelector('.section-body');
+          chevron = section.querySelector('.section-chevron');
+        }
         const collapsed = self._collapsedSections[key];
-        if (body) body.style.display = collapsed ? 'none' : 'block';
+        if (body) body.style.display = collapsed ? 'none' : (key.startsWith('city_chars_') || key.startsWith('city_comps_') ? 'flex' : 'block');
         if (chevron) chevron.textContent = collapsed ? '▶' : '▼';
         // For city section, also adjust bottom margin
-        const cityAddBtn = section.querySelector('#btnAddCity');
-        if (cityAddBtn) {
-          section.querySelector('.section-toggle')?.closest('div')?.style && (section.firstElementChild.style.marginBottom = collapsed ? '0' : '10px');
+        if (!key.startsWith('city_chars_') && !key.startsWith('city_comps_')) {
+          const section = container.querySelector(`.country-section[data-section="${key}"]`);
+          const cityAddBtn = section?.querySelector('#btnAddCity');
+          if (cityAddBtn) {
+            section.querySelector('.section-toggle')?.closest('div')?.style && (section.firstElementChild.style.marginBottom = collapsed ? '0' : '10px');
+          }
         }
       });
     });
