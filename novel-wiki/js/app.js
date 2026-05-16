@@ -138,6 +138,7 @@
         ['gods', window.Pages?.gods],
         ['races', window.Pages?.races],
         ['quests', window.Pages?.quests],
+        ['shortcuts', window.Pages?.shortcuts],
       ];
 
       pageModules.forEach(([id, mod]) => {

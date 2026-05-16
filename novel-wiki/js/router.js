@@ -21,6 +21,7 @@ const AppRouter = (function() {
     places: '장소',
     gods: '신',
     races: '종족',
+    shortcuts: '바로가기',
   };
 
   function register(pageId, module) {

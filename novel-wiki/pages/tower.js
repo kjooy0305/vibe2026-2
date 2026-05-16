@@ -523,6 +523,7 @@ window.Pages.tower = {
           <div style="font-size:11px;color:var(--color-text-muted);display:flex;gap:6px;flex-wrap:wrap;align-items:center;">
             ${conceptBadgesHtml}
             ${(!concepts.length && floor.enemies) ? `<span>${Utils.escHtml(floor.enemies.split('\n')[0]).substring(0, 30)}${floor.enemies.split('\n')[0].length > 30 ? '…' : ''}</span>` : ''}
+            ${floor.isComposite ? `<span style="background:rgba(16,185,129,0.12);color:#10b981;padding:1px 5px;border-radius:4px;font-size:10px;font-weight:700;">🔀 통합${floor.compositeRange ? ' ' + Utils.escHtml(floor.compositeRange) : ''}</span>` : ''}
             ${subFloorCount > 0 ? `<span style="background:rgba(139,92,246,0.15);color:#a78bfa;padding:1px 5px;border-radius:4px;font-size:10px;">서브 ${subFloorCount}개</span>` : ''}
             ${floor.hidden ? `<span style="background:rgba(251,191,36,0.12);color:#fbbf24;padding:1px 5px;border-radius:4px;font-size:10px;">히든</span>` : ''}
           </div>

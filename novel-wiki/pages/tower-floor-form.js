@@ -251,6 +251,18 @@ Object.assign(window.Pages.tower, {
             style="width:100%;box-sizing:border-box;" ${isEdit ? 'readonly' : ''} />
           ${isEdit ? '<div style="font-size:11px;color:var(--color-text-muted);margin-top:2px;">층 번호는 수정할 수 없습니다</div>' : '<div id="fFloorNumHint" style="font-size:11px;color:var(--color-text-dim);margin-top:2px;"></div>'}
         </div>
+        <!-- 통합 층 -->
+        <div class="form-group">
+          <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
+            <input type="checkbox" id="fIsComposite" ${f.isComposite ? 'checked' : ''} />
+            통합 층 (여러 층이 하나로 묶인 구간)
+          </label>
+          <div id="fCompositeWrap" style="display:${f.isComposite ? 'block' : 'none'};margin-top:8px;">
+            <input class="input-field" id="fCompositeRange" value="${Utils.escHtml(f.compositeRange || '')}"
+              placeholder="층 범위 (예: 45~60층)" style="width:100%;box-sizing:border-box;margin-bottom:4px;" />
+            <div style="font-size:11px;color:var(--color-text-muted);">통합 층은 여러 층이 하나의 공간/퀘스트 그룹으로 묶인 층입니다</div>
+          </div>
+        </div>
         <div class="form-group">
           <label class="form-label">테마</label>
           <input class="input-field" id="fFloorTheme" value="${Utils.escHtml(f.theme || '')}"
@@ -768,8 +780,11 @@ Object.assign(window.Pages.tower, {
       }
 
       saveFeatTextsFromDOM();
+      const isComposite = document.getElementById('fIsComposite')?.checked || false;
       const floorData = {
         floorNum,
+        isComposite,
+        compositeRange: isComposite ? (document.getElementById('fCompositeRange')?.value.trim() || '') : '',
         theme:    document.getElementById('fFloorTheme')?.value.trim()    || '',
         featureEntries: formFeatureEntries.filter(e => e.text.trim() || e.refId),
         quests:   document.getElementById('fFloorQuests')?.value.trim()   || '',
@@ -818,6 +833,12 @@ Object.assign(window.Pages.tower, {
 
     // ── Wire all interactions after modal renders ──
     setTimeout(() => {
+      // 통합 층 checkbox toggle
+      document.getElementById('fIsComposite')?.addEventListener('change', e => {
+        const wrap = document.getElementById('fCompositeWrap');
+        if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
+      });
+
       // Duplicate floor number detection
       const floorNumInput = document.getElementById('fFloorNum');
       if (floorNumInput && !isEdit) {
