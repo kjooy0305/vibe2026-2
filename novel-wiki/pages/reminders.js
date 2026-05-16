@@ -220,7 +220,7 @@ window.ReminderEngine = window.ReminderEngine || (function() {
             reg.showNotification('소설 창작위키', {
               body: msg,
               icon: './icons/icon-192.png',
-              badge: './icons/icon-192.png',
+              badge: './icons/badge.png',
               tag: 'reminder-' + reminder.id,
               renotify: true,
               vibrate: [200, 100, 200],
@@ -244,13 +244,14 @@ window.ReminderEngine = window.ReminderEngine || (function() {
             reg.showNotification('소설 창작위키', {
               body: msg,
               icon: './icons/icon-192.png',
+              badge: './icons/badge.png',
               tag: 'writing-reminder',
               renotify: true,
               vibrate: [200, 100, 200],
             });
           });
         } else {
-          new Notification('소설 창작위키', { body: msg });
+          new Notification('소설 창작위키', { body: msg, icon: './icons/icon-192.png' });
         }
       } catch(e) {}
     }

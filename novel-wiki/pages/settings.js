@@ -155,11 +155,11 @@ window.Pages.settings = {
 
     const toggleHtml = (key, val) => `
       <button class="feat-toggle" data-key="${Utils.escHtml(key)}" aria-label="토글" style="
-        position:relative;width:44px;height:26px;border-radius:13px;border:none;cursor:pointer;
+        position:relative;width:52px;height:28px;border-radius:14px;border:none;cursor:pointer;
         padding:0;flex-shrink:0;transition:background .2s;outline:none;
         background:${val ? 'var(--color-primary)' : '#4b5563'};">
-        <div style="position:absolute;top:3px;left:${val ? '21px' : '3px'};
-          width:20px;height:20px;border-radius:10px;background:#fff;
+        <div style="position:absolute;top:4px;left:${val ? '28px' : '4px'};
+          width:20px;height:20px;border-radius:50%;background:#fff;
           transition:left .2s;box-shadow:0 1px 3px rgba(0,0,0,.3);"></div>
       </button>`;
 
@@ -261,7 +261,7 @@ window.Pages.settings = {
           <div style="margin-bottom:14px;">
             <div style="font-size:10px;color:var(--color-text-dim);letter-spacing:0.6px;text-transform:uppercase;margin-bottom:8px;">${Utils.escHtml(groupName)}</div>
             ${flags.map((f, fi) => `
-              <div style="display:flex;align-items:flex-start;gap:12px;padding:10px 0;${fi < flags.length - 1 ? rowDivider : ''}">
+              <div style="display:flex;align-items:center;gap:12px;padding:10px 0;${fi < flags.length - 1 ? rowDivider : ''}">
                 <div style="flex:1;min-width:0;">
                   <div style="font-size:13px;font-weight:600;margin-bottom:2px;">${Utils.escHtml(f.label)}</div>
                   <div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;">${Utils.escHtml(f.desc)}</div>

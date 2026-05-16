@@ -73,6 +73,8 @@ window.Pages.keywords = {
 
     // Count keywords per folder
     const allKws = await DB.getAll('keywords');
+    const allFolders = await DB.getAll('keywordFolders');
+    const folderMap = Object.fromEntries(allFolders.map(f => [f.id, f]));
     const countMap = {};
     allKws.forEach(k => { countMap[k.folderId] = (countMap[k.folderId] || 0) + 1; });
     const totalKws = allKws.length;
@@ -98,8 +100,10 @@ window.Pages.keywords = {
           폴더 ${folders.length}개 · 키워드 ${totalKws}개
         </p>
         <input class="input-field" id="folderSearch" placeholder="폴더 이름 검색..." style="margin-top:8px;width:100%;box-sizing:border-box;" />
+        <input class="input-field" id="kwGlobalSearch" placeholder="🔍 전체 키워드 검색 (이름·정의·태그)..." style="margin-top:6px;width:100%;box-sizing:border-box;" />
       </div>
 
+      <div id="kwGlobalSearchResults" style="display:none;padding:4px 0;"></div>
       <div id="folderGrid" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;padding:4px 0;">
         ${folders.length === 0
           ? `<div style="grid-column:1/-1;padding:48px;text-align:center;">
@@ -130,6 +134,56 @@ window.Pages.keywords = {
       const q = e.target.value.toLowerCase();
       container.querySelectorAll('.kw-folder-card').forEach(card => {
         card.style.display = card.dataset.name.toLowerCase().includes(q) ? '' : 'none';
+      });
+    });
+
+    document.getElementById('kwGlobalSearch')?.addEventListener('input', e => {
+      const q = e.target.value.trim().toLowerCase();
+      const resultDiv = document.getElementById('kwGlobalSearchResults');
+      const folderGrid = document.getElementById('folderGrid');
+      if (!resultDiv || !folderGrid) return;
+      if (!q) {
+        resultDiv.style.display = 'none';
+        folderGrid.style.display = '';
+        return;
+      }
+      folderGrid.style.display = 'none';
+      const results = allKws.filter(k => {
+        const text = [k.name, k.definition, k.notes, ...(k.tags || [])].filter(Boolean).join(' ').toLowerCase();
+        return text.includes(q);
+      });
+      if (results.length === 0) {
+        resultDiv.style.display = 'block';
+        resultDiv.innerHTML = '<div style="padding:32px;text-align:center;color:var(--color-text-muted);font-size:13px;">검색 결과 없음</div>';
+        return;
+      }
+      resultDiv.style.display = 'block';
+      resultDiv.innerHTML = `
+        <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:8px;">${results.length}개 결과</div>
+        ${results.map(k => {
+          const f = folderMap[k.folderId];
+          const defPreview = k.definition ? Utils.escHtml(k.definition.replace(/\n/g,' ').substring(0, 60)) + (k.definition.length > 60 ? '…' : '') : '';
+          return `<div class="kw-global-result" data-id="${Utils.escHtml(k.id)}" data-fid="${Utils.escHtml(k.folderId)}"
+            style="background:var(--color-surface2);border:1px solid var(--color-border);border-radius:10px;padding:10px 12px;margin-bottom:6px;cursor:pointer;transition:border-color .15s;"
+            onmouseover="this.style.borderColor='var(--color-primary)'" onmouseout="this.style.borderColor='var(--color-border)'">
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
+              <span style="font-size:13px;font-weight:700;">${Utils.escHtml(k.name || '이름 없음')}</span>
+              ${f ? `<span style="font-size:10px;padding:1px 7px;border-radius:8px;background:rgba(99,102,241,0.15);color:#a5b4fc;border:1px solid rgba(99,102,241,0.3);">${Utils.escHtml(f.icon || '📁')} ${Utils.escHtml(f.name)}</span>` : ''}
+              ${(k.tags || []).slice(0, 3).map(t => `<span style="font-size:10px;padding:1px 6px;border-radius:8px;background:var(--color-border);color:var(--color-text-muted);">#${Utils.escHtml(t)}</span>`).join('')}
+            </div>
+            ${defPreview ? `<div style="font-size:11px;color:var(--color-text-muted);line-height:1.5;">${defPreview}</div>` : ''}
+          </div>`;
+        }).join('')}`;
+      resultDiv.querySelectorAll('.kw-global-result').forEach(el => {
+        el.addEventListener('click', async () => {
+          const kw = await DB.get('keywords', el.dataset.id);
+          if (kw) {
+            this._currentKeywordId = kw.id;
+            const f = folderMap[kw.folderId];
+            if (f) this._currentFolderId = f.id;
+            this._renderKeywordDetail(container, kw);
+          }
+        });
       });
     });
 
