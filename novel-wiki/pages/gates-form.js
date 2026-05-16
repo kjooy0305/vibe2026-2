@@ -7,7 +7,7 @@ Object.assign(window.Pages.gates, {
     const g = gate || {};
     const self = this;
 
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefs, allQuests] = await Promise.all([
+    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefsRaw, allQuests] = await Promise.all([
       DB.getAll('monsters', wid),
       DB.getAll('characters', wid),
       DB.getAll('traps', wid),
@@ -17,6 +17,14 @@ Object.assign(window.Pages.gates, {
       DB.getAll('statDefs', wid),
       DB.getAll('quests', wid),
     ]);
+    let allStatDefs = allStatDefsRaw;
+    if (allStatDefs.length === 0 && window.Pages?.statDefs?.DEFAULT_STATS) {
+      for (const s of window.Pages.statDefs.DEFAULT_STATS) {
+        const rec = { id: DB.genId(), worldId: wid, name: s.name, shortName: s.shortName || '', category: s.category, description: '', createdAt: Date.now() };
+        allStatDefs.push(rec);
+        DB.put('statDefs', rec);
+      }
+    }
 
     let formFeatureEntries = (() => {
       if (Array.isArray(g.featureEntries)) {
@@ -223,17 +231,24 @@ Object.assign(window.Pages.gates, {
     const exPlaceRef = mkPlaceRef(g.explorationConfig?.target?.type === 'place' ? g.explorationConfig.target : null);
 
     const conceptChipsHtml = [
-      { id: 'wave',        label: '웨이브(wave)' },
-      { id: 'exploration', label: '탐험(exploration)' },
-      { id: 'decapitation',label: '참수작전(decapitation)' },
-      { id: 'boss',        label: '보스전(boss)' },
+      { id: 'wave',        label: '🌊 웨이브' },
+      { id: 'exploration', label: '🔍 탐험' },
+      { id: 'decapitation',label: '🗡️ 참수' },
+      { id: 'boss',        label: '👑 보스전' },
       { id: 'defense',     label: '🛡️ 방어전' },
       { id: 'siege',       label: '⚔️ 공성전' },
       { id: 'speedrun',    label: '🏃 스피드런' },
       { id: 'survival',    label: '⏳ 생존' },
-    ].map(c => `<label style="display:inline-flex;align-items:center;gap:4px;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-surface3,#1e2030);cursor:pointer;font-size:12px;">
-      <input type="checkbox" class="concept-cb" value="${c.id}" ${formConcepts.has(c.id) ? 'checked' : ''} /> ${c.label}
-    </label>`).join('');
+    ].map(c => {
+      const active = formConcepts.has(c.id);
+      return `<button type="button" class="concept-chip" data-cid="${Utils.escHtml(c.id)}" data-active="${active}"
+        style="padding:5px 11px;border-radius:8px;cursor:pointer;font-size:12px;font-weight:600;transition:all .15s;
+          border:1px solid ${active ? 'rgba(99,102,241,0.7)' : 'var(--color-border)'};
+          background:${active ? 'rgba(99,102,241,0.25)' : 'var(--color-surface3,#1e2030)'};
+          color:${active ? '#a5b4fc' : 'var(--color-text-muted)'};">
+        ${c.label}
+      </button>`;
+    }).join('');
 
     const body = `
       <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;overflow-x:hidden;min-width:0;">
@@ -1021,12 +1036,18 @@ Object.assign(window.Pages.gates, {
       });
 
       // Concept chip toggles
-      document.querySelectorAll('.concept-cb').forEach(cb => {
-        cb.addEventListener('change', () => {
-          if (cb.checked) formConcepts.add(cb.value); else formConcepts.delete(cb.value);
-          const sectionId = 'section' + cb.value.charAt(0).toUpperCase() + cb.value.slice(1);
+      document.querySelectorAll('.concept-chip').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const isActive = btn.dataset.active === 'true';
+          btn.dataset.active = isActive ? 'false' : 'true';
+          btn.style.background = !isActive ? 'rgba(99,102,241,0.25)' : 'var(--color-surface3,#1e2030)';
+          btn.style.border = !isActive ? '1px solid rgba(99,102,241,0.7)' : '1px solid var(--color-border)';
+          btn.style.color = !isActive ? '#a5b4fc' : 'var(--color-text-muted)';
+          const cid = btn.dataset.cid;
+          if (!isActive) formConcepts.add(cid); else formConcepts.delete(cid);
+          const sectionId = 'section' + cid.charAt(0).toUpperCase() + cid.slice(1);
           const sec = document.getElementById(sectionId);
-          if (sec) sec.style.display = cb.checked ? 'block' : 'none';
+          if (sec) sec.style.display = !isActive ? 'block' : 'none';
         });
       });
 

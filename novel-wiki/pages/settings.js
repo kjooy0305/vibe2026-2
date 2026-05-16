@@ -81,6 +81,12 @@ window.Pages.settings = {
       legacyKey: 'companyCustomIcons',
       defaults: ['🏢','💼','🏭','⚔️','🛡️','💊','🔬','🏦','🚀','🌐','💎','🔮','⚙️','🗡️','🌿','🔱','🏰','🎯','📡','💰'],
     },
+    {
+      key: 'trap',    label: '함정',   emoji: '🪤',
+      dbKey: 'iconList_trap',
+      legacyKey: 'trapCustomIcons',
+      defaults: ['🪤','⚙️','💣','🔩','🧨','⛏️','🗡️','☠️','🔥','❄️','⚡','💀','🕷️','🌀','🧲','🔮','🪝','🔒','⚰️','🧪'],
+    },
   ],
 
   init: async function(container, options) {
@@ -103,11 +109,23 @@ window.Pages.settings = {
     return merged;
   },
 
+  _getSwVersion: async function() {
+    if (!('serviceWorker' in navigator) || !navigator.serviceWorker.controller) return this.APP_VERSION;
+    try {
+      const ch = new MessageChannel();
+      return await Promise.race([
+        new Promise(res => { ch.port1.onmessage = e => res(e.data.version || this.APP_VERSION); navigator.serviceWorker.controller.postMessage({ type: 'GET_VERSION' }, [ch.port2]); }),
+        new Promise(res => setTimeout(() => res(this.APP_VERSION), 400)),
+      ]);
+    } catch(e) { return this.APP_VERSION; }
+  },
+
   _renderPage: async function(container) {
     const self = this;
     const state = AppStore.getState();
     const streak = state.streak || { count: 0 };
     const currentWorld = state.currentWorld;
+    const swVersion = await this._getSwVersion();
 
     const flagValues = {};
     await Promise.all(this.FEATURE_FLAGS.map(async f => {
@@ -203,7 +221,7 @@ window.Pages.settings = {
         <div style="${secLabel}">앱 정보</div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;${rowDivider}">
           <span style="font-size:13px;">버전</span>
-          <span style="font-size:13px;color:var(--color-text-muted);">${Utils.escHtml(this.APP_VERSION)}</span>
+          <span style="font-size:13px;color:var(--color-text-muted);">${Utils.escHtml(swVersion)}</span>
         </div>
         <div style="display:flex;justify-content:space-between;align-items:center;padding:7px 0;${rowDivider}">
           <span style="font-size:13px;">현재 세계</span>

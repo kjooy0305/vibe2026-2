@@ -48,8 +48,6 @@ window.Pages.templates = {
       desc: '아이템 분류 (무기·방어구·소비 등)' },
     { key: 'jobSeries',           label: '직업 계열',        icon: '⚔️',
       desc: '직업 분류 (근접·원거리·서포트 등)' },
-    { key: 'baseStats',           label: '기본 스텟',        icon: '💪',
-      desc: '캐릭터 기본 스텟 목록 (힘·민첩·체력 등)' },
     { key: 'constellationSeries', label: '성좌 계열',        icon: '✨',
       desc: '성좌 계열 분류 (멸망성좌·타락성좌 등)' },
     { key: 'constellationTiers',  label: '성좌 티어',        icon: '👑',

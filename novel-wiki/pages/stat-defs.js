@@ -5,6 +5,18 @@ window.Pages.statDefs = {
 
   CATEGORIES: ['기본스텟', '전투스텟', '마나계열', '정신계열', '저항', '기타'],
 
+  DEFAULT_STATS: [
+    { name: '근력',   shortName: 'STR', category: '전투스텟' },
+    { name: '민첩',   shortName: 'AGI', category: '전투스텟' },
+    { name: '체력',   shortName: 'VIT', category: '전투스텟' },
+    { name: '지능',   shortName: 'INT', category: '마나계열' },
+    { name: '마나',   shortName: 'MP',  category: '마나계열' },
+    { name: '정신력', shortName: 'MEN', category: '정신계열' },
+    { name: '행운',   shortName: 'LUK', category: '기타' },
+    { name: '재능',   shortName: '',    category: '기타' },
+    { name: '감각',   shortName: '',    category: '기타' },
+  ],
+
   // ── Utility: load all stat names for a world (used by other pages) ────────
   loadNames: async function(wid) {
     const defs = await DB.getAll('statDefs', wid);
@@ -37,6 +49,7 @@ window.Pages.statDefs = {
   _renderList: async function(container, wid) {
     const world = AppStore.getState().currentWorld;
     const defs = await DB.getAll('statDefs', wid);
+    const self = this;
 
     // Group by category
     const grouped = {};
@@ -47,21 +60,28 @@ window.Pages.statDefs = {
       grouped[cat].push(d);
     });
 
+    const catColors = {
+      '기본스텟': '#60a5fa', '전투스텟': '#f87171', '마나계열': '#a78bfa',
+      '정신계열': '#34d399', '저항': '#fbbf24', '기타': '#94a3b8',
+    };
+
     const renderGroup = (cat, items) => {
       if (!items.length) return '';
+      const color = catColors[cat] || '#94a3b8';
       return `
-        <div style="margin-bottom:16px;">
-          <div style="font-size:11px;font-weight:700;color:var(--color-text-muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;">${Utils.escHtml(cat)}</div>
-          <div style="display:flex;flex-wrap:wrap;gap:6px;">
-            ${items.map(d => `
-              <div class="stat-def-chip" data-id="${Utils.escHtml(d.id)}"
-                style="display:inline-flex;align-items:center;gap:6px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;padding:6px 10px;cursor:pointer;min-width:80px;">
+        <div style="margin-bottom:12px;">
+          <div style="font-size:11px;font-weight:700;color:${color};text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;padding-left:2px;">${Utils.escHtml(cat)}</div>
+          ${items.map(d => `
+            <div class="stat-def-row" data-id="${Utils.escHtml(d.id)}"
+              style="display:flex;align-items:center;gap:10px;padding:9px 12px;background:var(--color-surface2);border:1px solid var(--color-border);border-left:3px solid ${color};border-radius:8px;cursor:pointer;margin-bottom:5px;">
+              <div style="flex:1;min-width:0;">
                 <span style="font-size:13px;font-weight:700;">${Utils.escHtml(d.name)}</span>
-                ${d.shortName ? `<span style="font-size:10px;color:var(--color-text-muted);">(${Utils.escHtml(d.shortName)})</span>` : ''}
-                <button class="btn-del-stat-def" data-id="${Utils.escHtml(d.id)}"
-                  style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:11px;padding:0 2px;line-height:1;flex-shrink:0;" title="삭제">✕</button>
-              </div>`).join('')}
-          </div>
+                ${d.shortName ? `<span style="font-size:11px;color:var(--color-text-muted);margin-left:6px;">(${Utils.escHtml(d.shortName)})</span>` : ''}
+                ${d.description ? `<div style="font-size:11px;color:var(--color-text-dim);margin-top:2px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(d.description)}</div>` : ''}
+              </div>
+              <button class="btn-del-stat-def" data-id="${Utils.escHtml(d.id)}"
+                style="background:none;border:none;cursor:pointer;color:var(--color-danger);font-size:12px;padding:2px 6px;flex-shrink:0;border-radius:4px;">삭제</button>
+            </div>`).join('')}
         </div>`;
     };
 
@@ -69,15 +89,18 @@ window.Pages.statDefs = {
     container.innerHTML = `
     <div class="page active">
       <div class="page-header">
-        <div style="display:flex;align-items:center;justify-content:space-between;">
+        <div style="display:flex;align-items:center;justify-content:space-between;gap:8px;flex-wrap:wrap;">
           <h2 class="page-title">스텟 정의</h2>
-          <button class="btn btn-primary btn-sm" id="btnAddStatDef">+ 스텟 추가</button>
+          <div style="display:flex;gap:6px;">
+            ${!hasAny ? `<button class="btn btn-ghost btn-sm" id="btnInitDefaultStats" style="font-size:11px;color:var(--color-primary);">기본 스텟 초기화</button>` : ''}
+            <button class="btn btn-primary btn-sm" id="btnAddStatDef">+ 추가</button>
+          </div>
         </div>
         <p style="margin-top:4px;font-size:12px;color:var(--color-text-muted);">
           ${Utils.escHtml(world?.name || '현재 세계')} · ${defs.length}개 정의됨
         </p>
         <p style="font-size:11px;color:var(--color-text-dim);margin-top:4px;line-height:1.5;">
-          여기서 정의한 스텟은 캐릭터·업적·스킬 등 모든 곳의 스텟 입력에서 자동완성으로 사용됩니다.
+          캐릭터·스킬·게이트 등 모든 스텟 입력에서 자동완성으로 사용됩니다.
         </p>
       </div>
 
@@ -86,7 +109,7 @@ window.Pages.statDefs = {
           ? `<div style="padding:48px;text-align:center;">
                <div style="font-size:48px;margin-bottom:12px;">📊</div>
                <div style="font-weight:700;font-size:15px;margin-bottom:4px;">정의된 스텟이 없습니다</div>
-               <div style="font-size:13px;color:var(--color-text-muted);">+ 스텟 추가 버튼으로 스텟을 등록하세요</div>
+               <div style="font-size:13px;color:var(--color-text-muted);margin-bottom:16px;">+ 추가 버튼 또는 기본 스텟 초기화 버튼으로 등록하세요</div>
              </div>`
           : this.CATEGORIES.map(cat => renderGroup(cat, grouped[cat] || [])).join('')}
       </div>
@@ -96,12 +119,20 @@ window.Pages.statDefs = {
       this._openForm(null, wid, container);
     });
 
-    container.querySelectorAll('.stat-def-chip').forEach(chip => {
-      chip.addEventListener('click', e => {
+    document.getElementById('btnInitDefaultStats')?.addEventListener('click', async () => {
+      for (const s of self.DEFAULT_STATS) {
+        await DB.put('statDefs', { id: DB.genId(), worldId: wid, name: s.name, shortName: s.shortName || '', category: s.category, description: '', createdAt: Date.now() });
+      }
+      Utils.toast('기본 스텟이 추가되었습니다', 'success');
+      self._renderList(container, wid);
+    });
+
+    container.querySelectorAll('.stat-def-row').forEach(row => {
+      row.addEventListener('click', e => {
         if (e.target.closest('.btn-del-stat-def')) return;
-        const id = chip.dataset.id;
+        const id = row.dataset.id;
         DB.get('statDefs', id).then(d => {
-          if (d) this._openForm(d, wid, container);
+          if (d) self._openForm(d, wid, container);
         });
       });
     });
@@ -114,7 +145,7 @@ window.Pages.statDefs = {
         Utils.confirm('스텟 삭제', `"${def?.name || '스텟'}"을 삭제합니다.`, async () => {
           await DB.del('statDefs', id);
           Utils.toast('삭제됨', 'info');
-          this._renderList(container, wid);
+          self._renderList(container, wid);
         }, '삭제');
       });
     });

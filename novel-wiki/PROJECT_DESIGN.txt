@@ -1,0 +1,221 @@
+================================================================================
+  소설 창작 위키 (Novel Writing Wiki) — 프로젝트 설계 문서
+  최종 수정: 2026-05-17
+================================================================================
+
+【 이 문서 사용법 】
+  - Claude는 모든 작업 시작 전 이 파일을 읽어 전체 구조를 파악한 뒤 수정 시작.
+  - 작업 완료 후 변경 사항을 이 파일에 반영.
+  - 미완성 기능 또는 사용자가 추가로 요청했으나 미반영된 기능을 파악하여 알려줄 것.
+
+================================================================================
+1. 앱 개요
+================================================================================
+
+  목적: 웹소설(게임 판타지 탑 등반물) 세계관 창작 관리 앱
+  기술: 완전 오프라인 SPA (Vanilla JS + IndexedDB + Service Worker)
+  배포: GitHub Pages → https://kjooy0305.github.io/vibe2026-2/novel-wiki/
+  저장소: github.com/kjooy0305/vibe2026-2 (master 브랜치 → GitHub Pages)
+
+  커밋/배포 원칙:
+    - 항상 master:master 로 push (git push origin master:master)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v65)
+    - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
+
+================================================================================
+2. 파일 구조 및 역할
+================================================================================
+
+  [ 루트 파일 ]
+    index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
+    manifest.json   — PWA 매니페스트
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v65)
+
+  [ js/ — 핵심 모듈 ]
+    js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
+                      DB.getSetting, DB.setSetting, DB.genId)
+                      DB_VERSION=12, editHistory 스토어 포함
+                      DB.put() 에서 주요 스토어 변경 시 자동 히스토리 스냅샷 저장
+    js/store.js     — AppStore (세계 선택, 스트릭, 활동 기록, 기능 플래그)
+    js/router.js    — AppRouter (해시 기반 SPA 라우터, 뒤로가기 스택)
+    js/app.js       — 앱 부트스트랩, 서랍 메뉴, 헤더, 페이지 등록, 12초 로딩 타임아웃
+    js/utils.js     — Utils (toast, confirm, openModal, escHtml, gradeColor 등)
+    js/constants.js — AppConstants (기본값, 등급 목록 등)
+    js/search.js    — SearchEngine (전체 검색)
+
+  [ css/ ]
+    css/main.css        — 기본 변수, 레이아웃, 타이포그래피
+    css/components.css  — 버튼, 카드, 배지, 모달, 서랍 등 컴포넌트
+    css/mobile.css      — 하단 내비게이션, 반응형
+    css/novel-view.css  — 소설 뷰어 전용
+
+  [ pages/ — 페이지 모듈 (window.Pages.xxx) ]
+
+    ── 홈 & 탐색 ──
+    home.js           — 홈 화면 (스트릭, 미션, 바로가기 북마크 5슬롯, 전체페이지 그리드,
+                        편집 이력 아이콘버튼 → 이전 버전 모달)
+    shortcuts.js      — 바로가기 전용 페이지 (하단탭 마지막 칸, 북마크+전체페이지 그리드)
+    timeline.js       — 타임라인
+    event-graph.js    — 사건 그래프
+    family-tree.js    — 가족 관계도
+    world-rules.js    — 세계관 규칙
+
+    ── 세계 & 시스템 ──
+    world.js          — 세계/차원 관리
+    settings.js       — 설정 (아이콘 관리, 기능 플래그, 데이터 내보내기/가져오기,
+                        세계 타입 관리, 질문 관리, 앱 버전 표시 [SW 버전 자동 연동],
+                        함정 아이콘 목록 관리 포함)
+    templates.js      — 기본 설정 관리
+                        · 탭1: 필드 템플릿 (스킬/아이템/직업/업적 등)
+                        · 탭2: 전역 상수 (등급/속성/계열 등, baseStats 제거됨)
+                        · 탭3: 게이트 목록 (종류/브레이크 유형 커스텀 CRUD)
+    status-viewer.js  — 상태창 뷰어 (소설 뷰 포함)
+    novel-view.js     — 소설 쓰기 뷰
+
+    ── 캐릭터 & 생물 ──
+    characters.js     — 캐릭터 목록/상세
+                        HIDDEN_STATS: 힘특화/민첩특화/체력특화/마나계열/정신계열/기타
+    characters-form.js— 캐릭터 편집 폼 (statDefs 없을 시 기본 스텟 자동 생성)
+    races.js          — 종족
+    gods.js           — 신
+
+    ── 전투 & 던전 ──
+    gates.js          — 게이트 목록/상세 (개념별 상세 표시: 방어전/공성전/스피드런/생존 포함)
+    gates-form.js     — 게이트 편집 폼
+                        · 개념 선택: 토글 칩 버튼 (data-active 방식, 클릭으로 활성화)
+                        · 컨셉: 웨이브/탐험/참수/보스/방어전/공성전/스피드런/생존
+                        · 웨이브 클리어 조건: 토글 칩 (wave-cond-chip)
+                        · 퀘스트 연동 (linkedQuests)
+                        · statDefs 없을 시 기본 스텟 자동 생성
+    monsters.js       — 몬스터
+    monsters-form.js  — 몬스터 편집 폼
+    tower.js          — 탑 관리 (통합 층 배지 표시: 🔀 통합)
+    tower-floor-form.js — 탑 층 편집 폼
+                        · 통합 층 (isComposite) 기능: 층 범위(compositeRange) 입력
+                        · statDefs 없을 시 기본 스텟 자동 생성
+    tower-subfloor-form.js — 서브플로어 편집 폼
+    traps.js          — 함정 종류
+                        · 아이콘 필드 (icon, 기본: 🪤)
+                        · 제작 조건 (craftCondition, 구 craftLevel 대체)
+                        · 사용되는 탑/게이트 섹션 접기 기능
+
+    ── 스킬 & 능력 ──
+    skills.js         — 스킬
+    skills-form.js    — 스킬 편집 폼
+    achievements.js   — 업적
+    stat-defs.js      — 스텟 정의 (목록 형식 UI, 기본 스텟 초기화 버튼,
+                        DEFAULT_STATS: 근력/민첩/체력/지능/마나/정신력/행운/재능/감각)
+                        window.StatDefs = window.Pages.statDefs 로 전역 참조
+
+    ── 세계 요소 ──
+    organizations.js  — 조직
+    organizations-form.js
+    constellations.js — 성좌
+    constellations-form.js
+    countries.js      — 국가 (관계창 접기, 도시 주요인물/기업 접기)
+    countries-form.js
+    companies.js      — 기업
+    places.js         — 장소
+    places-form.js
+    quests.js         — 퀘스트 (난이도/클리어방법/실패패널티/게이트 연동)
+    items.js          — 아이템
+    items-form.js
+    jobs.js           — 직업
+    jobs-form.js
+
+    ── 유틸리티 ──
+    reminders.js      — 리마인더
+    keywords.js       — 키워드
+    world-rules.js    — 세계관 규칙
+
+================================================================================
+3. IndexedDB 스키마 (DB_VERSION=12)
+================================================================================
+
+  스토어 (모든 스토어는 keyPath:'id'):
+    worlds, characters, skills, achievements, constellations, gates, towers,
+    monsters, timeline (=events), organizations, countries, companies,
+    places, traps, items, jobs, reminders, keywords, statDefs, races, gods, quests
+    editHistory (히스토리 스냅샷, worldId 인덱스 없음)
+
+  설정 (DB.getSetting / DB.setSetting — key-value):
+    homeBookmarks           — 홈 북마크 5슬롯 배열
+    historyLimit            — 편집 히스토리 최대 저장 수 (기본 50)
+    gateCustomTypes_{wid}   — 게이트 커스텀 종류 목록
+    gateCustomBreakTypes_{wid} — 게이트 커스텀 브레이크 유형
+    flag_{key}              — 기능 플래그
+    iconList_{cat}          — 카테고리별 아이콘 목록 (world/const/org/country/company/trap)
+    novelQuestions          — 테마 질문 목록
+    worldTypes              — 세계 타입 목록
+    const_{key}             — 전역 상수 (grades, attributes, etc.)
+    searchScope             — 검색 범위 ('world' | 'all')
+
+================================================================================
+4. 주요 패턴 & 규칙
+================================================================================
+
+  페이지 등록: window.Pages.pageName = { init(container, opts), destroy() }
+  파일 분리:   Object.assign(window.Pages.pageName, { methods }) — 분리된 form 파일
+
+  모달:       Utils.openModal(title, bodyHTML, onConfirm, label)
+              → onConfirm 에서 false 반환 시 모달 유지 (필드 검증용)
+              → Utils.fieldError(id) 로 빨간 테두리 표시
+
+  토글 칩:    data-active="true|false" 방식 (wave-cond-chip, concept-chip 등)
+              체크박스 사용 금지 (시각 피드백 없어 혼란 유발)
+
+  접기/펼치기: section-toggle 버튼 + section-body div
+               _collapsedSections 객체로 상태 추적
+
+  등급 색상:  Utils.gradeColor(grade) / Utils.gradeBadge(grade)
+
+  이미지:     Utils.imageToBase64(file) → base64 저장 (IndexedDB)
+
+  히스토리:   DB.put() 내부에서 HISTORY_STORES 대상 자동 스냅샷
+              editHistory 스토어 → { id, storeName, itemId, itemName, timestamp, snapshot }
+
+  세계 선택:  AppStore.getCurrentWorldId() → wid (null 이면 세계 선택 화면 표시)
+
+================================================================================
+5. UI/UX 일관성 규칙
+================================================================================
+
+  하단 탭 (5개):
+    홈(home) | 세계(world) | 캐릭터(characters) | 스킬(skills) | 바로가기(shortcuts)
+
+  서랍 메뉴 (≡):
+    스토리 그룹: 소설 작성, 타임라인, 사건 그래프, 가족 관계도, 퀘스트
+    세계 요소: 게이트, 탑, 몬스터, 성좌, 조직, 국가, 기업, 장소, 종족, 신
+    캐릭터 관련: 스킬, 업적, 직업
+    시스템: 아이템, 함정, 스텟 정의, 키워드, 리마인더, 세계관 규칙
+    (settings, templates, status-viewer, novel-view, world 는 ⋯ 헤더 메뉴 또는 바로가기에서)
+
+  헤더 ⋯ 메뉴:
+    세계/차원 관리 | 설정 | 기본 설정 관리 | 상태창 뷰어
+
+================================================================================
+6. 미완성 / 추가 예정 기능 (알려야 할 것)
+================================================================================
+
+  ☐ 바로가기 페이지(shortcuts.js) 에서 편집 시 북마크 변경 후 재렌더링 확인 필요
+  ☐ 게이트 컨셉 칩 → 이전 체크박스 UI 데이터(checked) 를 가진 기존 데이터 마이그레이션
+     (formConcepts Set은 g.concepts 배열에서 복원되므로 저장된 데이터는 무관)
+  ☐ 함정 아이콘 — 설정의 iconList_trap 목록을 함정 폼의 아이콘 피커로 연동 필요
+     (현재는 직접 이모지 입력만 가능)
+  ☐ 통합 층(isComposite) — 퀘스트 연동 필드가 미추가 (compositeQuests)
+  ☐ 퀘스트 ↔ 게이트 양방향 연동 — 저장 시 상대 쪽에도 자동 반영 미구현
+  ☐ 히스토리 길이 설정 UI — settings.js에 표시 및 조정 UI 미추가
+  ☐ 서브플로어 폼(tower-subfloor-form.js) — 통합 층 기능 미반영
+
+================================================================================
+7. 버전 이력 (최근)
+================================================================================
+
+  v65 (2026-05-17): 바로가기 하단탭/전용페이지, 앱버전 SW 연동, 컨셉칩 토글버튼화,
+                    통합 층, 기본 스텟 자동초기화, 스텟 정의 목록UI,
+                    함정 아이콘/제작조건/접기, 템플릿 baseStats 제거, 함정 아이콘 설정 추가
+  v64 (2026-05-17): 게이트-퀘스트 연동, 웨이브 조건 칩UI, 퀘스트 필드 추가, 템플릿 게이트 목록
+  v63 (이전): 캐릭터 스텟 검색 피커, 히든 스텟 섹션 제거
+  v62 (이전): 다수 form 파일 분리, 국가 접기, 바로가기 홈 개편, 히스토리 모달
+
+================================================================================

@@ -13,7 +13,7 @@ Object.assign(window.Pages.tower, {
       : undefined;
 
     // Load all required data
-    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefs] = await Promise.all([
+    const [allMonsters, allChars, allTraps, allItems, allPlaces, allSkills, allStatDefsRaw] = await Promise.all([
       DB.getAll('monsters', wid),
       DB.getAll('characters', wid),
       DB.getAll('traps', wid),
@@ -22,6 +22,14 @@ Object.assign(window.Pages.tower, {
       DB.getAll('skills', wid),
       DB.getAll('statDefs', wid),
     ]);
+    let allStatDefs = allStatDefsRaw;
+    if (allStatDefs.length === 0 && window.Pages?.statDefs?.DEFAULT_STATS) {
+      for (const s of window.Pages.statDefs.DEFAULT_STATS) {
+        const rec = { id: DB.genId(), worldId: wid, name: s.name, shortName: s.shortName || '', category: s.category, description: '', createdAt: Date.now() };
+        allStatDefs.push(rec);
+        DB.put('statDefs', rec);
+      }
+    }
 
     let formFeatureEntries = (() => {
       if (Array.isArray(f.featureEntries)) {

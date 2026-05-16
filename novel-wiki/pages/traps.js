@@ -158,7 +158,7 @@ window.Pages.traps = {
     }).filter(Boolean).join('');
 
     const searchText = [
-      trap.name, trap.craftLevel, trap.trigger, trap.effect, trap.disarmMethod, trap.craftProcess,
+      trap.name, trap.craftCondition, trap.trigger, trap.effect, trap.disarmMethod, trap.craftProcess,
       ...origins.map(o => (o.type === 'tower' ? towerMap[o.id] : gateMap[o.id]) || ''),
     ].filter(Boolean).join(' ').toLowerCase();
 
@@ -168,11 +168,11 @@ window.Pages.traps = {
       data-origin-ids="${Utils.escHtml(originIds)}"
       data-search-text="${Utils.escHtml(searchText)}"
       style="cursor:pointer;display:flex;align-items:flex-start;gap:10px;padding:12px 14px;background:var(--color-surface2);border-radius:10px;border:1px solid var(--color-border);border-left:3px solid var(--color-warning);margin-bottom:8px;">
-      <div style="width:44px;height:44px;border-radius:8px;background:rgba(245,158,11,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;">🪤</div>
+      <div style="width:44px;height:44px;border-radius:8px;background:rgba(245,158,11,0.12);display:flex;align-items:center;justify-content:center;flex-shrink:0;font-size:22px;">${Utils.escHtml(trap.icon || '🪤')}</div>
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:4px;">
           <span style="font-weight:700;font-size:14px;">${Utils.escHtml(trap.name || '이름 없음')}</span>
-          ${trap.craftLevel ? `<span style="font-size:11px;padding:1px 6px;background:var(--color-surface3);border-radius:3px;color:var(--color-text-muted);">Lv.${Utils.escHtml(trap.craftLevel)}</span>` : ''}
+          ${trap.craftCondition ? `<span style="font-size:11px;padding:1px 6px;background:var(--color-surface3);border-radius:3px;color:var(--color-text-muted);">${Utils.escHtml(trap.craftCondition)}</span>` : ''}
           ${originBadges}
         </div>
         ${trap.trigger ? `<div style="font-size:12px;color:var(--color-text-dim);margin-bottom:2px;">트리거: ${Utils.escHtml(trap.trigger.substring(0, 60))}${trap.trigger.length > 60 ? '…' : ''}</div>` : ''}
@@ -198,8 +198,11 @@ window.Pages.traps = {
     const origins = this._getOrigins(trap);
     const originsHtml = origins.length > 0 ? `
       <div style="padding:10px 0;border-bottom:1px solid var(--color-border);">
-        <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:6px;">사용되는 탑 / 게이트</div>
-        <div style="display:flex;flex-wrap:wrap;gap:6px;">
+        <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer;" id="originsToggle">
+          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;">사용되는 탑 / 게이트 (${origins.length})</div>
+          <span id="originsChevron" style="font-size:12px;color:var(--color-text-muted);transition:transform .2s;">▼</span>
+        </div>
+        <div id="originsBody" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:6px;">
           ${origins.map(o => {
             const name = o.type === 'tower' ? towerMap[o.id] : gateMap[o.id];
             if (!name) return '';
@@ -221,8 +224,8 @@ window.Pages.traps = {
       <div class="page-header" style="border-left:4px solid var(--color-warning);padding-left:12px;">
         <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" id="btnBackTraps">← 목록</button>
-          <h2 class="page-title" style="margin:0;font-size:18px;">🪤 ${Utils.escHtml(trap.name || '이름 없음')}</h2>
-          ${trap.craftLevel ? `<span style="font-size:12px;padding:2px 8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:5px;color:#fbbf24;">제작 Lv.${Utils.escHtml(trap.craftLevel)}</span>` : ''}
+          <h2 class="page-title" style="margin:0;font-size:18px;">${Utils.escHtml(trap.icon || '🪤')} ${Utils.escHtml(trap.name || '이름 없음')}</h2>
+          ${trap.craftCondition ? `<span style="font-size:12px;padding:2px 8px;background:rgba(245,158,11,0.12);border:1px solid rgba(245,158,11,0.3);border-radius:5px;color:#fbbf24;">${Utils.escHtml(trap.craftCondition)}</span>` : ''}
         </div>
         <div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap;">
           <button class="btn btn-ghost btn-sm" id="btnEditTrap">편집</button>
@@ -249,6 +252,18 @@ window.Pages.traps = {
 
     document.getElementById('btnBackTraps')?.addEventListener('click', () => { this._currentId = null; this.init(container); });
     document.getElementById('btnEditTrap')?.addEventListener('click', () => this._openForm(trap, wid, container));
+
+    const originsToggle = document.getElementById('originsToggle');
+    if (originsToggle) {
+      originsToggle.addEventListener('click', () => {
+        const body = document.getElementById('originsBody');
+        const chevron = document.getElementById('originsChevron');
+        if (!body) return;
+        const isOpen = body.style.display !== 'none';
+        body.style.display = isOpen ? 'none' : 'flex';
+        if (chevron) chevron.style.transform = isOpen ? 'rotate(-90deg)' : '';
+      });
+    }
     document.getElementById('btnDelTrap')?.addEventListener('click', () => {
       Utils.confirmWithInput('함정 삭제', '삭제하면 되돌릴 수 없습니다.', trap.name, async () => {
         await DB.del('traps', trap.id);
@@ -296,15 +311,22 @@ window.Pages.traps = {
 
     const body = `
       <div style="display:flex;flex-direction:column;gap:12px;padding-right:4px;">
-        <div class="form-group">
-          <label class="form-label">함정 이름 *</label>
-          <input class="input-field" id="fTrName" value="${Utils.escHtml(tr.name || '')}"
-            placeholder="함정 이름" style="width:100%;box-sizing:border-box;" />
+        <div style="display:grid;grid-template-columns:auto 1fr;gap:8px;align-items:end;">
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">아이콘</label>
+            <input class="input-field" id="fTrIcon" value="${Utils.escHtml(tr.icon || '🪤')}"
+              placeholder="🪤" style="width:56px;text-align:center;font-size:22px;" maxlength="4" />
+          </div>
+          <div class="form-group" style="margin:0;">
+            <label class="form-label">함정 이름 *</label>
+            <input class="input-field" id="fTrName" value="${Utils.escHtml(tr.name || '')}"
+              placeholder="함정 이름" style="width:100%;box-sizing:border-box;" />
+          </div>
         </div>
         <div class="form-group">
-          <label class="form-label">제작 가능 레벨</label>
-          <input class="input-field" id="fTrLevel" value="${Utils.escHtml(tr.craftLevel || '')}"
-            placeholder="예: 30, S급 이상, 장인" style="width:100%;box-sizing:border-box;" />
+          <label class="form-label">제작 조건</label>
+          <input class="input-field" id="fTrLevel" value="${Utils.escHtml(tr.craftCondition || tr.craftLevel || '')}"
+            placeholder="예: S급 이상 장인, 마기 조작 스킬 보유" style="width:100%;box-sizing:border-box;" />
         </div>
         <div class="form-group">
           <label class="form-label">작동 트리거</label>
@@ -351,7 +373,8 @@ window.Pages.traps = {
         ...(tr || {}),
         worldId: wid,
         name,
-        craftLevel:   document.getElementById('fTrLevel')?.value.trim()   || '',
+        icon:         document.getElementById('fTrIcon')?.value.trim()     || '🪤',
+        craftCondition: document.getElementById('fTrLevel')?.value.trim()  || '',
         trigger:      document.getElementById('fTrTrigger')?.value.trim()  || '',
         effect:       document.getElementById('fTrEffect')?.value.trim()   || '',
         disarmMethod: document.getElementById('fTrDisarm')?.value.trim()   || '',
