@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v47';
+const CACHE_VERSION = 'novel-wiki-v48';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
@@ -93,6 +93,12 @@ self.addEventListener('activate', (event) => {
         console.log('[SW] Activate complete, claiming clients');
         return self.clients.claim();
       })
+      .then(() => {
+        // Notify all clients to reload so new assets take effect immediately
+        return self.clients.matchAll({ type: 'window' }).then((clients) => {
+          clients.forEach((client) => client.postMessage({ type: 'SW_UPDATED' }));
+        });
+      })
   );
 });
 
@@ -113,6 +119,22 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
+  // Network-first for HTML navigation so updates are always reflected
+  if (event.request.mode === 'navigate') {
+    event.respondWith(
+      fetch(event.request)
+        .then((networkResponse) => {
+          if (networkResponse && networkResponse.status === 200) {
+            const responseClone = networkResponse.clone();
+            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, responseClone));
+          }
+          return networkResponse;
+        })
+        .catch(() => caches.match('./index.html'))
+    );
+    return;
+  }
+
   // Cache-first strategy for same-origin assets
   event.respondWith(
     caches.match(event.request)
@@ -129,9 +151,8 @@ self.addEventListener('fetch', (event) => {
               }
               return networkResponse;
             })
-            .catch(() => null); // Ignore fetch errors for background update
+            .catch(() => null);
 
-          // Don't await background fetch — return cache immediately
           void fetchPromise;
           return cachedResponse;
         }
