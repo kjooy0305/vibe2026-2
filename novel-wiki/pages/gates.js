@@ -409,7 +409,6 @@ window.Pages.gates = {
     let decapTargets = [...(g.decapitationConfig?.targets || [])];
     let exRef = { ...(g.explorationConfig?.target || { id: '', name: '' }) };
     const mkPlaceRef = (src) => ({ type: src?.type || 'text', id: src?.id || '', name: src?.name || '', desc: src?.desc || '' });
-    let waveGlobalFixedPlace = mkPlaceRef(g.waveConfig?.fixedPlace);
     let bossPlace = mkPlaceRef(g.bossConfig?.place);
 
     const allTypes = [...this.TYPES, ...(this._customTypes || [])];
@@ -489,8 +488,6 @@ window.Pages.gates = {
       </div>`;
 
     const waveRowHtml = (w, idx) => {
-      const locationFixed = w.locationFixed || 'move';
-      const wavePlace = mkPlaceRef(w.place);
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
       const clearCondType = w.clearConditionType || (w.explorationLink ? 'exploration' : (w.clearCondition ? 'custom' : 'enemies'));
@@ -500,23 +497,6 @@ window.Pages.gates = {
         <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
           <div style="font-weight:700;font-size:13px;color:#60a5fa;">${idx + 1}웨이브</div>
           <button class="btn btn-ghost btn-sm wave-del-btn" data-widx="${idx}" style="color:var(--color-danger);font-size:11px;">삭제</button>
-        </div>
-        <div style="margin-bottom:6px;">
-          <div style="font-size:11px;color:var(--color-text-muted);font-weight:600;margin-bottom:3px;">이동 유형</div>
-          <div style="display:flex;gap:10px;">
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-              <input type="radio" name="waveLoc${idx}" class="wave-loc-radio" value="fixed" ${locationFixed === 'fixed' ? 'checked' : ''} data-widx="${idx}" /> 장소고정
-            </label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-              <input type="radio" name="waveLoc${idx}" class="wave-loc-radio" value="move" ${locationFixed === 'move' ? 'checked' : ''} data-widx="${idx}" /> 이동
-            </label>
-            <label style="display:flex;align-items:center;gap:4px;font-size:12px;cursor:pointer;">
-              <input type="radio" name="waveLoc${idx}" class="wave-loc-radio" value="puzzle" ${locationFixed === 'puzzle' ? 'checked' : ''} data-widx="${idx}" /> 퍼즐
-            </label>
-          </div>
-          <div id="wavePlaceRef${idx}" style="margin-top:4px;display:${locationFixed === 'fixed' ? 'block' : 'none'};">
-            ${placeRefHtml('waveP' + idx, wavePlace)}
-          </div>
         </div>
         <div style="margin-bottom:6px;">
           <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer;margin-bottom:4px;">
@@ -661,15 +641,8 @@ window.Pages.gates = {
           <div style="font-size:12px;font-weight:700;color:#60a5fa;margin-bottom:8px;">🌊 웨이브 설정</div>
           <div style="display:flex;gap:16px;margin-bottom:6px;">
             <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
-              <input type="checkbox" id="waveGlobalLocFixed" ${g.waveConfig?.locationFixed ? 'checked' : ''} /> 전체위치고정
-            </label>
-            <label style="display:flex;align-items:center;gap:5px;font-size:12px;cursor:pointer;">
               <input type="checkbox" id="waveGlobalEventFixed" ${g.waveConfig?.hasEventFixed ? 'checked' : ''} /> 전체사건고정
             </label>
-          </div>
-          <div id="waveGlobalLocWrap" style="display:${g.waveConfig?.locationFixed ? 'block' : 'none'};margin-bottom:6px;padding:8px;background:var(--color-surface3,#1e2030);border-radius:6px;">
-            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">전체 위치 지정</div>
-            ${placeRefHtml('globalWave', waveGlobalFixedPlace)}
           </div>
           <div id="waveGlobalEventWrap" style="display:${g.waveConfig?.hasEventFixed ? 'block' : 'none'};margin-bottom:6px;">
             <textarea class="input-field" id="waveGlobalEventDesc" rows="2" placeholder="전체 사건 설명"
@@ -867,25 +840,11 @@ window.Pages.gates = {
       });
     };
 
-    const applyGlobalLocFixed = (isFixed) => {
-      document.querySelectorAll('#globalModalBody .wave-loc-radio[value="fixed"]').forEach(radio => {
-        const label = radio.closest('label');
-        if (label) label.style.display = isFixed ? 'none' : '';
-        if (isFixed && radio.checked) {
-          const moveRadio = document.querySelector(`input[name="${radio.name}"][value="move"]`);
-          if (moveRadio) moveRadio.checked = true;
-          const placeRef = document.getElementById('wavePlaceRef' + radio.dataset.widx);
-          if (placeRef) placeRef.style.display = 'none';
-        }
-      });
-    };
-
     const reRenderWaveList = () => {
       const wl = document.getElementById('waveList');
       if (wl) {
         wl.innerHTML = formWaves.map((w, i) => waveRowHtml(w, i)).join('');
         wireWaveSection();
-        applyGlobalLocFixed(document.getElementById('waveGlobalLocFixed')?.checked || false);
       }
     };
 
@@ -923,13 +882,6 @@ window.Pages.gates = {
           () => { const used = getUsedTrapIds(); return allTraps.filter(t => !used.has(t.id)); },
           entityRowTrap, (ds) => addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap')
         );
-        document.querySelectorAll(`.wave-loc-radio[data-widx="${idx}"]`).forEach(r => {
-          r.addEventListener('change', () => {
-            const placeWrap = document.getElementById('wavePlaceRef' + idx);
-            if (placeWrap) placeWrap.style.display = r.value === 'fixed' ? 'block' : 'none';
-          });
-        });
-        wirePlaceRef('waveP' + idx, w.place ? mkPlaceRef(w.place) : { type: 'text', id: '', name: '', desc: '' });
         document.querySelectorAll(`.wave-clear-type[data-widx="${idx}"]`).forEach(r => {
           r.addEventListener('change', () => {
             const wrap = document.getElementById('waveClearCustomWrap' + idx);
@@ -945,8 +897,6 @@ window.Pages.gates = {
             document.querySelectorAll('#globalModalBody .wave-row').forEach(row => {
               const wi = parseInt(row.dataset.widx, 10);
               if (!formWaves[wi]) return;
-              const locRadioEl = row.querySelector('.wave-loc-radio:checked');
-              formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
               formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
               formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
               const clearTypeEl = row.querySelector('.wave-clear-type:checked');
@@ -1029,13 +979,9 @@ window.Pages.gates = {
       // Collect wave data
       const savedWaves = formWaves.map((w, idx) => {
         const row = document.querySelector(`.wave-row[data-widx="${idx}"]`);
-        const locRadioEl = row ? row.querySelector('.wave-loc-radio:checked') : null;
-        const locType = locRadioEl ? locRadioEl.value : (w.locationFixed || 'move');
         const clearTypeEl = row ? row.querySelector('.wave-clear-type:checked') : null;
         const clearType = clearTypeEl ? clearTypeEl.value : (w.clearConditionType || 'enemies');
         return {
-          locationFixed: locType,
-          place: locType === 'fixed' ? readPlaceRef('waveP' + idx) : null,
           hasEvent: row ? (row.querySelector('.wave-event-cb')?.checked || false) : (w.hasEvent || false),
           eventDesc: row ? (row.querySelector('.wave-event-desc')?.value || '') : (w.eventDesc || ''),
           enemies: readChipsFromContainer('waveEnemyChips' + idx, 'monster'),
@@ -1081,9 +1027,7 @@ window.Pages.gates = {
         images,
         concepts: [...formConcepts],
         waveConfig: formConcepts.has('wave') ? {
-          locationFixed: document.getElementById('waveGlobalLocFixed')?.checked || false,
           hasEventFixed: document.getElementById('waveGlobalEventFixed')?.checked || false,
-          fixedPlace: readPlaceRef('globalWave'),
           fixedEventDesc: document.getElementById('waveGlobalEventDesc')?.value || '',
           waves: savedWaves,
         } : null,
@@ -1199,26 +1143,17 @@ window.Pages.gates = {
       });
 
       // Wave global controls
-      document.getElementById('waveGlobalLocFixed')?.addEventListener('change', e => {
-        const wrap = document.getElementById('waveGlobalLocWrap');
-        if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
-        applyGlobalLocFixed(e.target.checked);
-      });
       document.getElementById('waveGlobalEventFixed')?.addEventListener('change', e => {
         const wrap = document.getElementById('waveGlobalEventWrap');
         if (wrap) wrap.style.display = e.target.checked ? 'block' : 'none';
       });
 
-      wirePlaceRef('globalWave', waveGlobalFixedPlace);
       wireWaveSection();
-      applyGlobalLocFixed(document.getElementById('waveGlobalLocFixed')?.checked || false);
 
       document.getElementById('btnAddWave')?.addEventListener('click', () => {
         document.querySelectorAll('#globalModalBody .wave-row').forEach(row => {
           const wi = parseInt(row.dataset.widx, 10);
           if (!formWaves[wi]) return;
-          const locRadioEl = row.querySelector('.wave-loc-radio:checked');
-          formWaves[wi].locationFixed = locRadioEl ? locRadioEl.value : 'move';
           formWaves[wi].hasEvent = row.querySelector('.wave-event-cb')?.checked || false;
           formWaves[wi].eventDesc = row.querySelector('.wave-event-desc')?.value || '';
           const clearTypeEl = row.querySelector('.wave-clear-type:checked');
@@ -1229,7 +1164,7 @@ window.Pages.gates = {
           formWaves[wi].enemies = readChipsFromContainer('waveEnemyChips' + wi, 'monster');
           formWaves[wi].traps = readChipsFromContainer('waveTrapChips' + wi, 'trap');
         });
-        formWaves.push({ locationFixed: 'move', hasEvent: false, eventDesc: '', enemies: [], traps: [], clearCondition: '', explorationLink: false });
+        formWaves.push({ hasEvent: false, eventDesc: '', enemies: [], traps: [], clearCondition: '', explorationLink: false });
         reRenderWaveList();
       });
 
