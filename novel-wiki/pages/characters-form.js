@@ -6,15 +6,19 @@ Object.assign(window.Pages.characters, {
     const stats = char?.stats || {};
     const isTemplate = char?.charType === 'template';
 
-    // Load constellations, stat definitions, skills, and achievements
-    const [allConsts, allStatDefs, allSkillsRaw, allAchievementsRaw] = await Promise.all([
+    // Load constellations, stat definitions, skills, achievements, jobs
+    const [allConsts, allStatDefs, allSkillsRaw, allAchievementsRaw, allJobsRaw] = await Promise.all([
       DB.getAll('constellations', wid),
       DB.getAll('statDefs', wid),
       DB.getAll('skills', wid),
       DB.getAll('achievements', wid),
+      DB.getAll('jobs', wid),
     ]);
     const sortedAchievements = allAchievementsRaw.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
     const linkedAchievementIds = new Set((char?.achievements || []).map(a => typeof a === 'string' ? a : a.id).filter(Boolean));
+    const sortedJobs = allJobsRaw.slice().sort((a, b) => (a.name||'').localeCompare(b.name||'', 'ko'));
+    let mainJobId = char?.mainJob?.id || null;
+    const subJobIds = new Set((char?.subJobs || []).map(j => j.id));
 
     if (allStatDefs.length === 0) {
       const catMap = { '힘 특화': '전투스텟', '민첩 특화': '전투스텟', '체력 특화': '전투스텟', '마나 계열': '마나계열', '정신 계열': '정신계열', '기타': '기타' };
@@ -202,48 +206,77 @@ Object.assign(window.Pages.characters, {
             </select>
           </div>
         </div>
-        <div class="form-group">
-          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">기본 스텟</label>
-          ${statInputs(this.BASE_STATS)}
-        </div>
-        <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
-            <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">커스텀 스텟</label>
-            <button type="button" id="btnAddCustomStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 직접 추가</button>
+        <!-- 일반 캐릭터 전용 스텟 (약식 모드에서 숨김) -->
+        <div id="normalStatsSection" style="${isTemplate ? 'display:none;' : ''}">
+          <div class="form-group">
+            <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">기본 스텟</label>
+            ${statInputs(this.BASE_STATS)}
           </div>
-          <div style="position:relative;margin-bottom:8px;">
-            <input class="input-field" id="statDefSearch" placeholder="스텟 이름 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
-            <div id="statDefSearchResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:150px;overflow-y:auto;top:100%;left:0;"></div>
+          <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;">
+              <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">커스텀 스텟</label>
+              <button type="button" id="btnAddCustomStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 직접 추가</button>
+            </div>
+            <div style="position:relative;margin-bottom:8px;">
+              <input class="input-field" id="statDefSearch" placeholder="스텟 이름 검색..." autocomplete="off" style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="statDefSearchResults" style="display:none;position:absolute;z-index:300;width:100%;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:6px;max-height:150px;overflow-y:auto;top:100%;left:0;"></div>
+            </div>
+            ${charStatDatalist}
+            <div id="customStatRows">
+              ${(char?.customStats || []).map((cs, i) => `
+                <div class="cs-row" style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:4px;margin-bottom:6px;align-items:center;">
+                  <input class="input-field cs-name" list="charStatDatalist" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+                  <input class="input-field cs-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
+                  <input class="input-field cs-desc" value="${Utils.escHtml(cs.desc||'')}" placeholder="보조 설명(선택)" style="font-size:12px;padding:5px 8px;" />
+                  <button type="button" class="btn-del-cs" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
+                </div>`).join('')}
+            </div>
           </div>
-          ${charStatDatalist}
-          <div id="customStatRows">
-            ${(char?.customStats || []).map((cs, i) => `
-              <div class="cs-row" style="display:grid;grid-template-columns:1fr 80px 1fr auto;gap:4px;margin-bottom:6px;align-items:center;">
-                <input class="input-field cs-name" list="charStatDatalist" value="${Utils.escHtml(cs.name||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
-                <input class="input-field cs-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
-                <input class="input-field cs-desc" value="${Utils.escHtml(cs.desc||'')}" placeholder="보조 설명(선택)" style="font-size:12px;padding:5px 8px;" />
-                <button type="button" class="btn-del-cs" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
-              </div>`).join('')}
+          <!-- 조건부 스텟 -->
+          <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
+            <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
+              <label class="form-label" style="margin:0;">조건부 스텟</label>
+              <button type="button" id="btnAddCondStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+            </div>
+            <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">예: 하늘을 날 때 이속 +50 / 전투 중 힘 +30</div>
+            <div id="condStatRows">
+              ${(char?.conditionalStats || []).map(cs => `
+                <div class="cond-stat-char-row" style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:4px;margin-bottom:6px;align-items:center;">
+                  <input class="input-field csc-cond" value="${Utils.escHtml(cs.condition||'')}" placeholder="조건 (예: 전투 중)" style="font-size:12px;padding:5px 8px;" />
+                  <input class="input-field csc-name" list="charStatDatalist" value="${Utils.escHtml(cs.stat||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
+                  <input type="number" class="input-field csc-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
+                  <button type="button" class="btn-del-csc" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
+                </div>`).join('')}
+            </div>
           </div>
         </div>
 
-        <!-- 조건부 스텟 -->
-        <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:6px;">
-            <label class="form-label" style="margin:0;">조건부 스텟</label>
-            <button type="button" id="btnAddCondStat" class="btn btn-ghost btn-sm" style="font-size:11px;">+ 추가</button>
+        <!-- 직업 연동 -->
+        ${sortedJobs.length > 0 ? `
+        <div class="form-group" style="border:1px solid rgba(16,185,129,0.3);border-radius:8px;padding:10px 12px;">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">⚔️ 직업 연동</label>
+          <div style="margin-bottom:10px;">
+            <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:5px;">메인 직업 (1개)</div>
+            <div id="mainJobChip" style="min-height:24px;margin-bottom:5px;">
+              ${mainJobId ? (() => { const mj = sortedJobs.find(x=>x.id===mainJobId); return mj ? `<span class="main-job-chip" data-jid="${Utils.escHtml(mj.id)}" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;" title="클릭하여 제거">${Utils.escHtml(mj.name)} ✕</span>` : ''; })() : ''}
+            </div>
+            <div style="position:relative;">
+              <input class="input-field" id="mainJobSearch" placeholder="메인 직업 검색..." style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="mainJobResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:150px;overflow-y:auto;"></div>
+            </div>
           </div>
-          <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:6px;">예: 하늘을 날 때 이속 +50 / 전투 중 힘 +30</div>
-          <div id="condStatRows">
-            ${(char?.conditionalStats || []).map(cs => `
-              <div class="cond-stat-char-row" style="display:grid;grid-template-columns:1fr 1fr 80px auto;gap:4px;margin-bottom:6px;align-items:center;">
-                <input class="input-field csc-cond" value="${Utils.escHtml(cs.condition||'')}" placeholder="조건 (예: 전투 중)" style="font-size:12px;padding:5px 8px;" />
-                <input class="input-field csc-name" list="charStatDatalist" value="${Utils.escHtml(cs.stat||'')}" placeholder="스텟명" style="font-size:12px;padding:5px 8px;" />
-                <input type="number" class="input-field csc-value" value="${Utils.escHtml(String(cs.value||''))}" placeholder="수치" style="font-size:12px;padding:5px 8px;" />
-                <button type="button" class="btn-del-csc" style="background:none;border:1px solid var(--color-border);border-radius:4px;cursor:pointer;color:var(--color-danger);font-size:13px;padding:2px 7px;">✕</button>
-              </div>`).join('')}
+          <div>
+            <div style="font-size:12px;color:var(--color-text-muted);margin-bottom:5px;">서브 직업 (복수)</div>
+            <div id="subJobChips" style="display:flex;flex-wrap:wrap;gap:5px;min-height:24px;margin-bottom:5px;">
+              ${[...subJobIds].map(jid => { const sj = sortedJobs.find(x=>x.id===jid); if(!sj) return ''; return \`<span class="sub-job-chip" data-jid="\${Utils.escHtml(jid)}" style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;" title="클릭하여 제거">\${Utils.escHtml(sj.name)} ✕</span>\`; }).filter(Boolean).join('')}
+            </div>
+            <div style="position:relative;">
+              <input class="input-field" id="subJobSearch" placeholder="서브 직업 검색..." style="width:100%;box-sizing:border-box;font-size:12px;" />
+              <div id="subJobResults" style="display:none;position:absolute;top:100%;left:0;right:0;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;z-index:20;max-height:150px;overflow-y:auto;"></div>
+            </div>
           </div>
-        </div>
+        </div>` : ''}
+
         ${sortedConsts.length > 0 ? `
         <div class="form-group" style="border:1px solid var(--color-border);border-radius:8px;padding:10px 12px;">
           <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:8px;display:block;">성좌 계약</label>
@@ -379,6 +412,8 @@ Object.assign(window.Pages.characters, {
           const a = sortedAchievements.find(x => x.id === aid);
           return a ? { id: a.id, name: a.name || '' } : null;
         }).filter(Boolean),
+        mainJob: mainJobId ? (() => { const mj = sortedJobs.find(x => x.id === mainJobId); return mj ? { id: mj.id, name: mj.name || '' } : null; })() : null,
+        subJobs: [...subJobIds].map(jid => { const sj = sortedJobs.find(x => x.id === jid); return sj ? { id: sj.id, name: sj.name || '' } : null; }).filter(Boolean),
         organizations: char?.organizations || [],
         updatedAt: Date.now(),
         createdAt: char?.createdAt || Date.now(),
@@ -607,10 +642,75 @@ Object.assign(window.Pages.characters, {
       // ── Template character UI ──────────────────────────────────
       document.querySelectorAll('[name="charTypeSel"]').forEach(r => {
         r.addEventListener('change', () => {
+          const isTplMode = r.value === 'template';
           const tpl = document.getElementById('tplSection');
-          if (tpl) tpl.style.display = r.value === 'template' ? 'block' : 'none';
+          if (tpl) tpl.style.display = isTplMode ? 'block' : 'none';
+          const normalStats = document.getElementById('normalStatsSection');
+          if (normalStats) normalStats.style.display = isTplMode ? 'none' : '';
         });
       });
+
+      // ── 직업 검색 wiring ──────────────────────────────────────
+      const wireJobSearch = (inputId, resultsId, chipContainerId, isSingle) => {
+        const inp = document.getElementById(inputId);
+        const res = document.getElementById(resultsId);
+        const chips = document.getElementById(chipContainerId);
+        if (!inp || !res || !chips) return;
+
+        const renderMainChip = () => {
+          chips.innerHTML = mainJobId ? (() => {
+            const mj = sortedJobs.find(x => x.id === mainJobId);
+            return mj ? `<span class="main-job-chip" data-jid="${Utils.escHtml(mj.id)}"
+              style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+              title="클릭하여 제거">${Utils.escHtml(mj.name)} ✕</span>` : '';
+          })() : '';
+          chips.querySelectorAll('.main-job-chip').forEach(c => {
+            c.addEventListener('click', () => { mainJobId = null; renderMainChip(); });
+          });
+        };
+
+        const renderSubChips = () => {
+          chips.innerHTML = [...subJobIds].map(jid => {
+            const sj = sortedJobs.find(x => x.id === jid);
+            if (!sj) return '';
+            return `<span class="sub-job-chip" data-jid="${Utils.escHtml(jid)}"
+              style="display:inline-flex;align-items:center;gap:4px;background:rgba(16,185,129,0.1);border:1px solid rgba(16,185,129,0.3);padding:2px 8px;border-radius:12px;font-size:12px;cursor:pointer;"
+              title="클릭하여 제거">${Utils.escHtml(sj.name)} ✕</span>`;
+          }).filter(Boolean).join('');
+          chips.querySelectorAll('.sub-job-chip').forEach(c => {
+            c.addEventListener('click', () => { subJobIds.delete(c.dataset.jid); renderSubChips(); });
+          });
+        };
+
+        if (isSingle) renderMainChip(); else renderSubChips();
+
+        inp.addEventListener('input', () => {
+          const q = inp.value.trim().toLowerCase();
+          if (!q) { res.style.display = 'none'; return; }
+          const matches = sortedJobs.filter(j => {
+            if (isSingle) return j.name.toLowerCase().includes(q);
+            return !subJobIds.has(j.id) && j.name.toLowerCase().includes(q);
+          }).slice(0, 10);
+          if (!matches.length) { res.style.display = 'none'; return; }
+          res.style.display = 'block';
+          res.innerHTML = matches.map(j => `
+            <div class="job-result-row" data-jid="${Utils.escHtml(j.id)}"
+              style="padding:8px 12px;cursor:pointer;font-size:13px;border-bottom:1px solid var(--color-border);">
+              ${Utils.escHtml(j.name)}${j.grade ? ` <span style="font-size:11px;color:var(--color-text-dim);">${Utils.escHtml(j.grade)}</span>` : ''}
+            </div>`).join('');
+          res.querySelectorAll('.job-result-row').forEach(row => {
+            row.addEventListener('mousedown', e => {
+              e.preventDefault();
+              if (isSingle) { mainJobId = row.dataset.jid; inp.value = ''; res.style.display = 'none'; renderMainChip(); }
+              else { subJobIds.add(row.dataset.jid); inp.value = ''; res.style.display = 'none'; renderSubChips(); }
+            });
+          });
+        });
+        inp.addEventListener('blur', () => setTimeout(() => { res.style.display = 'none'; }, 150));
+      };
+
+      wireJobSearch('mainJobSearch', 'mainJobResults', 'mainJobChip', true);
+      wireJobSearch('subJobSearch',  'subJobResults',  'subJobChips', false);
 
       const rebindTplAll = () => {
         document.querySelectorAll('#tplStatRows .tstat-del').forEach(btn => {

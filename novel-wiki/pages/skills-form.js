@@ -47,12 +47,7 @@ Object.assign(window.Pages.skills, {
         <label class="form-label">패시브 세부 분류 (스킬의 구체적 동작 방식)</label>
         <select class="select-input" id="fSkPassiveSub" style="width:100%;">
           <option value="">-- 세부 분류 없음 --</option>
-          <option value="강화-스텟"  ${skill?.passiveSubtype==='강화-스텟' ?'selected':''}>강화-스텟 (캐릭터 수치를 직접 높여줌)</option>
-          <option value="강화-스킬"  ${skill?.passiveSubtype==='강화-스킬' ?'selected':''}>강화-스킬 (다른 스킬의 효과를 강화함)</option>
-          <option value="자동반사"   ${skill?.passiveSubtype==='자동반사'  ?'selected':''}>자동반사 (조건 충족 시 자동으로 반응함)</option>
-          <option value="억제-광역"  ${skill?.passiveSubtype==='억제-광역' ?'selected':''}>억제-광역 (범위 내 적에게 패널티 부여)</option>
-          <option value="억제-단일"  ${skill?.passiveSubtype==='억제-단일' ?'selected':''}>억제-단일 (특정 대상에게 패널티 부여)</option>
-          <option value="반격"       ${skill?.passiveSubtype==='반격'      ?'selected':''}>반격 (피격 시 자동으로 반격 발동)</option>
+          ${this._C.passiveSubtypes.map(v => `<option value="${Utils.escHtml(v)}" ${skill?.passiveSubtype===v?'selected':''}>${Utils.escHtml(v)}</option>`).join('')}
         </select>
       </div>
 
@@ -60,12 +55,7 @@ Object.assign(window.Pages.skills, {
         <label class="form-label">액티브 세부 분류 (스킬의 구체적 동작 방식)</label>
         <select class="select-input" id="fSkActiveSub" style="width:100%;">
           <option value="">-- 세부 분류 없음 --</option>
-          <option value="변형"         ${skill?.activeSubtype==='변형'        ?'selected':''}>변형 (신체·물체·공간 형태를 바꿈)</option>
-          <option value="일반-공격"    ${skill?.activeSubtype==='일반-공격'   ?'selected':''}>일반-공격 (직접 타격하거나 발사형 공격)</option>
-          <option value="일반-방어"    ${skill?.activeSubtype==='일반-방어'   ?'selected':''}>일반-방어 (방어막·회피·피해 경감)</option>
-          <option value="일반-서포트"  ${skill?.activeSubtype==='일반-서포트' ?'selected':''}>일반-서포트 (아군 강화·회복·버프 부여)</option>
-          <option value="캐스팅-즉발"  ${skill?.activeSubtype==='캐스팅-즉발' ?'selected':''}>캐스팅-즉발 (시전 후 즉시 발동)</option>
-          <option value="캐스팅-필요"  ${skill?.activeSubtype==='캐스팅-필요' ?'selected':''}>캐스팅-필요 (일정 시간 집중해야 발동)</option>
+          ${this._C.activeSubtypes.map(v => `<option value="${Utils.escHtml(v)}" ${skill?.activeSubtype===v?'selected':''}>${Utils.escHtml(v)}</option>`).join('')}
         </select>
       </div>
 
@@ -89,11 +79,7 @@ Object.assign(window.Pages.skills, {
           <label class="form-label">세부 유형 (단계·형태)</label>
           <select class="select-input" id="fSkSubType" style="width:100%;">
             <option value="">-- 없음 --</option>
-            <option value="상급"  ${skill?.subType==='상급' ?'selected':''}>상급 (기본보다 강화)</option>
-            <option value="하급"  ${skill?.subType==='하급' ?'selected':''}>하급 (기본보다 약함)</option>
-            <option value="응용"  ${skill?.subType==='응용' ?'selected':''}>응용 (파생 형태)</option>
-            <option value="진화"  ${skill?.subType==='진화' ?'selected':''}>진화 (다른 스킬에서 진화)</option>
-            <option value="융합"  ${skill?.subType==='융합' ?'selected':''}>융합 (둘 이상 합쳐진 형태)</option>
+            ${this._C.skillSubtypes.map(v => `<option value="${Utils.escHtml(v)}" ${skill?.subType===v?'selected':''}>${Utils.escHtml(v)}</option>`).join('')}
           </select>
         </div>
         <div class="form-group">

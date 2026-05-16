@@ -321,6 +321,11 @@ window.Pages.quests = {
         <div>
           <label class="form-label">아이콘</label>
           <div id="qIconDisplay" style="font-size:36px;text-align:center;margin-bottom:8px;" data-icon="${currentIcon}">${currentIcon}</div>
+          <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px;">
+            <input class="input-field" id="qIconCustomInput" placeholder="직접 이모지 입력..." maxlength="4"
+              style="width:140px;font-size:20px;text-align:center;padding:4px 8px;" />
+            <span style="font-size:11px;color:var(--color-text-dim);">원하는 이모지를 직접 입력하거나 아래에서 선택</span>
+          </div>
           <div id="qIconGrid" style="display:flex;flex-wrap:wrap;gap:6px;">
             ${icons.map(ic => `<button type="button" class="q-icon-btn" data-icon="${ic}" style="font-size:22px;padding:5px;border-radius:8px;border:2px solid ${ic===currentIcon?'var(--color-primary)':'transparent'};background:var(--color-bg);cursor:pointer;line-height:1.2;">${ic}</button>`).join('')}
           </div>
@@ -574,6 +579,11 @@ window.Pages.quests = {
           grid.querySelectorAll('.q-icon-btn').forEach(b => b.style.borderColor = 'transparent');
           btn.style.borderColor = 'var(--color-primary)';
         });
+      });
+      // Custom emoji input
+      document.getElementById('qIconCustomInput')?.addEventListener('input', e => {
+        const val = [...e.target.value].filter(c => c.trim()).slice(0, 2).join('');
+        if (val && display) { display.textContent = val; display.dataset.icon = val; grid?.querySelectorAll('.q-icon-btn').forEach(b => b.style.borderColor = 'transparent'); }
       });
 
       // Location type radio

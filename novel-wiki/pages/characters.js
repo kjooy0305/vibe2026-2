@@ -457,6 +457,14 @@ window.Pages.characters = {
 
       <!-- Skill management -->
       <div style="background:var(--color-surface2);border-radius:10px;padding:14px;margin-bottom:12px;">
+        ${(char.mainJob || (char.subJobs || []).length > 0) ? `
+        <div style="margin-bottom:12px;">
+          <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);margin-bottom:6px;">직업</div>
+          <div style="display:flex;flex-wrap:wrap;gap:6px;">
+            ${char.mainJob ? `<span style="background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);padding:4px 10px;border-radius:8px;font-size:12px;font-weight:600;color:#6ee7b7;">⚔️ ${Utils.escHtml(char.mainJob.name || '')} <span style="font-size:10px;opacity:0.7;">(메인)</span></span>` : ''}
+            ${(char.subJobs || []).map(sj => `<span style="background:rgba(16,185,129,0.08);border:1px solid rgba(16,185,129,0.25);padding:4px 10px;border-radius:8px;font-size:12px;color:#6ee7b7;">${Utils.escHtml(sj.name || '')} <span style="font-size:10px;opacity:0.7;">(서브)</span></span>`).join('')}
+          </div>
+        </div>` : ''}
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;">
           <div style="font-weight:700;font-size:13px;color:var(--color-text-muted);">스킬 관리</div>
           <button class="btn btn-ghost btn-sm" id="btnManageSkills">편집</button>

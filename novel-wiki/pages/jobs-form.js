@@ -94,6 +94,26 @@ Object.assign(window.Pages.jobs, {
           : `<div style="font-size:12px;color:var(--color-text-muted);">이 세계에 스킬이 없습니다</div>`}
       </div>
 
+      <div class="form-group" style="border:1px solid rgba(167,139,250,0.3);border-radius:8px;padding:10px 12px;">
+        <label style="display:flex;align-items:center;gap:8px;font-size:13px;font-weight:600;cursor:pointer;">
+          <input type="checkbox" id="fJobRegressable" ${j.isRegressable ? 'checked' : ''} />
+          회귀 가능 직업 <span style="font-size:11px;font-weight:400;color:var(--color-text-muted);">(회귀 후에도 유지·재획득 가능)</span>
+        </label>
+        <div id="regressSection" style="${j.isRegressable ? '' : 'display:none;'}margin-top:10px;display:flex;flex-direction:column;gap:8px;">
+          <div class="form-group">
+            <label class="form-label">첫 획득 가능 회차</label>
+            <input type="number" class="input-field" id="fJobRegressFrom" min="0"
+              value="${j.regressFromCycle !== undefined ? j.regressFromCycle : ''}"
+              placeholder="예: 2 (2회차부터 획득 가능)" style="width:100%;box-sizing:border-box;" />
+          </div>
+          <div class="form-group">
+            <label class="form-label">회귀 조건 메모</label>
+            <input class="input-field" id="fJobRegressNote"
+              value="${Utils.escHtml(j.regressNote || '')}"
+              placeholder="예: 전생 기억 보유 시, 회귀 전 SS급 도달 필요" style="width:100%;box-sizing:border-box;" />
+          </div>
+        </div>
+      </div>
       <div class="form-group">
         <label class="form-label">설명 (소설 표시용)</label>
         <textarea class="textarea-field" id="fJobDesc" rows="3" style="width:100%;box-sizing:border-box;">${Utils.escHtml(j.description || '')}</textarea>
@@ -127,22 +147,27 @@ Object.assign(window.Pages.jobs, {
         return sk ? { id: sk.id, name: sk.name, grade: sk.grade || '' } : null;
       }).filter(Boolean);
 
+      const isRegressable = document.getElementById('fJobRegressable')?.checked || false;
+      const regressFromVal = document.getElementById('fJobRegressFrom')?.value.trim();
       const record = {
         ...(j || {}),
-        worldId:     wid,
+        worldId:          wid,
         name,
-        grade:       document.getElementById('fJobGrade')?.value || 'F',
-        type:        document.getElementById('fJobType')?.value || '',
-        effects:     document.getElementById('fJobEffects')?.value.trim() || '',
-        statEffects: newStatEffects,
-        statCustom:  newStatCustom,
+        grade:            document.getElementById('fJobGrade')?.value || 'F',
+        type:             document.getElementById('fJobType')?.value || '',
+        effects:          document.getElementById('fJobEffects')?.value.trim() || '',
+        statEffects:      newStatEffects,
+        statCustom:       newStatCustom,
         itemLinks,
-        skills:      pickedSkills,
-        description: document.getElementById('fJobDesc')?.value.trim() || '',
-        authorNotes: document.getElementById('fJobAuthor')?.value.trim() || '',
-        id:          j.id || DB.genId(),
-        createdAt:   j.createdAt || Date.now(),
-        updatedAt:   Date.now(),
+        skills:           pickedSkills,
+        isRegressable,
+        regressFromCycle: isRegressable && regressFromVal !== '' ? Number(regressFromVal) : undefined,
+        regressNote:      isRegressable ? (document.getElementById('fJobRegressNote')?.value.trim() || '') : '',
+        description:      document.getElementById('fJobDesc')?.value.trim() || '',
+        authorNotes:      document.getElementById('fJobAuthor')?.value.trim() || '',
+        id:               j.id || DB.genId(),
+        createdAt:        j.createdAt || Date.now(),
+        updatedAt:        Date.now(),
       };
 
       await DB.put('jobs', record);
@@ -156,6 +181,12 @@ Object.assign(window.Pages.jobs, {
     }, isEdit ? '저장' : '추가');
 
     setTimeout(() => {
+      // ── 회귀 여부 토글 ────────────────────────────────────────
+      document.getElementById('fJobRegressable')?.addEventListener('change', e => {
+        const sec = document.getElementById('regressSection');
+        if (sec) sec.style.display = e.target.checked ? '' : 'none';
+      });
+
       // ── 커스텀 스텟 행 ───────────────────────────────────────
       const addJcsRow = () => {
         const rows = document.getElementById('jobCustomStatRows');

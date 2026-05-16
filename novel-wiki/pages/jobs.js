@@ -265,6 +265,13 @@ window.Pages.jobs = {
             </div>
           </div>` : ''}
 
+        ${j.isRegressable ? `
+          <div style="margin-top:12px;padding:8px 12px;background:rgba(167,139,250,0.1);border:1px solid rgba(167,139,250,0.3);border-radius:8px;">
+            <div style="font-size:11px;color:#a78bfa;font-weight:700;margin-bottom:4px;">🔄 회귀 가능 직업</div>
+            ${j.regressFromCycle !== undefined ? `<div style="font-size:12px;color:var(--color-text-muted);">첫 획득 가능: ${j.regressFromCycle}회차부터</div>` : ''}
+            ${j.regressNote ? `<div style="font-size:12px;color:var(--color-text-muted);margin-top:2px;">${Utils.escHtml(j.regressNote)}</div>` : ''}
+          </div>` : ''}
+
         ${j.description ? `
           <div style="margin-top:12px;">
             <div style="font-size:11px;color:var(--color-text-muted);margin-bottom:4px;">설명</div>
