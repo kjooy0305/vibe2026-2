@@ -904,6 +904,7 @@ window.Pages.tower = {
       </div>`;
 
     // ── wireSearch helper (runs after modal renders) ──
+    // data can be an array or a function () => array for dynamic filtering
     const wireSearch = (inputId, resultId, data, renderRow, onSelect) => {
       const inp = document.getElementById(inputId);
       const res = document.getElementById(resultId);
@@ -911,7 +912,8 @@ window.Pages.tower = {
       inp.addEventListener('input', () => {
         const q = inp.value.trim();
         if (!q) { res.style.display = 'none'; res.innerHTML = ''; return; }
-        const matches = data.filter(d => Utils.matchesQuery((d.name || '') + ' ' + (d.grade || ''), q)).slice(0, 20);
+        const source = typeof data === 'function' ? data() : data;
+        const matches = source.filter(d => Utils.matchesQuery((d.name || '') + ' ' + (d.grade || ''), q)).slice(0, 20);
         if (!matches.length) { res.style.display = 'none'; return; }
         res.innerHTML = matches.map(d => renderRow(d)).join('');
         res.style.display = 'block';
@@ -1052,16 +1054,48 @@ window.Pages.tower = {
         ...allChars.map(c => ({ ...c, _etype: 'char' })),
       ];
 
+      // Returns entity IDs already used across ALL wave enemy/trap containers
+      const getUsedEnemyIds = () => {
+        const ids = new Set();
+        formWaves.forEach((_, i) => {
+          document.getElementById('waveEnemyChips' + i)
+            ?.querySelectorAll('.entity-chip')
+            .forEach(chip => ids.add(chip.dataset.eid));
+        });
+        return ids;
+      };
+      const getUsedTrapIds = () => {
+        const ids = new Set();
+        formWaves.forEach((_, i) => {
+          document.getElementById('waveTrapChips' + i)
+            ?.querySelectorAll('.entity-chip')
+            .forEach(chip => ids.add(chip.dataset.eid));
+        });
+        return ids;
+      };
+
       // Wire per-wave enemy/trap search
       formWaves.forEach((w, idx) => {
         wireChipDeletes('waveEnemyChips' + idx);
         wireChipDeletes('waveTrapChips' + idx);
-        wireSearch('waveEnemySearch' + idx, 'waveEnemyResults' + idx, allMonChars, entityRow, (ds) => {
-          addChipToContainer('waveEnemyChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype);
-        });
-        wireSearch('waveTrapSearch' + idx, 'waveTrapResults' + idx, allTraps, entityRowTrap, (ds) => {
-          addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap');
-        });
+        wireSearch('waveEnemySearch' + idx, 'waveEnemyResults' + idx,
+          () => {
+            const used = getUsedEnemyIds();
+            return allMonChars.filter(m => !used.has(m.id));
+          },
+          entityRow, (ds) => {
+            addChipToContainer('waveEnemyChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype);
+          }
+        );
+        wireSearch('waveTrapSearch' + idx, 'waveTrapResults' + idx,
+          () => {
+            const used = getUsedTrapIds();
+            return allTraps.filter(t => !used.has(t.id));
+          },
+          entityRowTrap, (ds) => {
+            addChipToContainer('waveTrapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'trap');
+          }
+        );
         // Location radio toggle
         const locRadios = document.querySelectorAll(`.wave-loc-radio[data-widx="${idx}"]`);
         locRadios.forEach(r => {
