@@ -19,7 +19,7 @@
 
   커밋/배포 원칙:
     - 항상 master:master 로 push (git push origin master:master)
-    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v65)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v68)
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
@@ -29,7 +29,7 @@
   [ 루트 파일 ]
     index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
     manifest.json   — PWA 매니페스트
-    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v65)
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v68)
 
   [ js/ — 핵심 모듈 ]
     js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
@@ -41,7 +41,7 @@
     js/app.js       — 앱 부트스트랩, 서랍 메뉴, 헤더, 페이지 등록, 12초 로딩 타임아웃
     js/utils.js     — Utils (toast, confirm, openModal, escHtml, gradeColor 등)
     js/constants.js — AppConstants (기본값, 등급 목록 등)
-    js/search.js    — SearchEngine (전체 검색)
+    js/search.js    — SearchEngine (전체 검색, 타입 필터 칩 UI: 전체/캐릭터/스킬/업적 등)
 
   [ css/ ]
     css/main.css        — 기본 변수, 레이아웃, 타이포그래피
@@ -63,12 +63,14 @@
     ── 세계 & 시스템 ──
     world.js          — 세계/차원 관리
     settings.js       — 설정 (아이콘 관리, 기능 플래그, 데이터 내보내기/가져오기,
-                        세계 타입 관리, 질문 관리, 앱 버전 표시 [SW 버전 자동 연동],
+                        수정 기록 보관 수 설정, 질문 관리, 앱 버전 표시 [SW 버전 자동 연동],
                         함정 아이콘 목록 관리 포함)
+                        ※ 세계 타입 관리는 templates.js 로 이동됨
     templates.js      — 기본 설정 관리
                         · 탭1: 필드 템플릿 (스킬/아이템/직업/업적 등)
                         · 탭2: 전역 상수 (등급/속성/계열 등, baseStats 제거됨)
                         · 탭3: 게이트 목록 (종류/브레이크 유형 커스텀 CRUD)
+                        · 탭4: 세계 타입 (세계/차원 편집 시 사용할 타입 목록 CRUD)
     status-viewer.js  — 상태창 뷰어 (소설 뷰 포함)
     novel-view.js     — 소설 쓰기 뷰
 
@@ -76,6 +78,7 @@
     characters.js     — 캐릭터 목록/상세
                         HIDDEN_STATS: 힘특화/민첩특화/체력특화/마나계열/정신계열/기타
     characters-form.js— 캐릭터 편집 폼 (statDefs 없을 시 기본 스텟 자동 생성)
+                        · 업적 연동: achievements DB 검색+칩UI, linkedAchievements [{id,name}] 저장
     races.js          — 종족
     gods.js           — 신
 
@@ -89,11 +92,17 @@
                         · statDefs 없을 시 기본 스텟 자동 생성
     monsters.js       — 몬스터
     monsters-form.js  — 몬스터 편집 폼
-    tower.js          — 탑 관리 (통합 층 배지 표시: 🔀 통합)
+    tower.js          — 탑 관리 (통합 층 compositeRange 라벨 표시, 서브/히든층 분리 버튼)
+                        · 서브층: 보라색 점선 버튼 / 히든층: 노란색 점선 버튼
+                        · 서브층 카드: 히든=노란 좌측 선, 일반=보라 좌측 선, 접근방식 칩 표시
     tower-floor-form.js — 탑 층 편집 폼
                         · 통합 층 (isComposite) 기능: 층 범위(compositeRange) 입력
+                        · 컨셉: 웨이브/탐험/참수/보스/방어전/공성전/스피드런/생존 전부 활성화
                         · statDefs 없을 시 기본 스텟 자동 생성
-    tower-subfloor-form.js — 서브플로어 편집 폼
+    tower-subfloor-form.js — 서브/히든 플로어 편집 폼
+                        · defaultHidden 파라미터로 히든층/서브층 모드 분리
+                        · 접근 방식 칩 (quest/item/stat/skill/level/hidden) + accessDesc 텍스트
+                        · accessTypes[], accessDesc 저장
     traps.js          — 함정 종류
                         · 아이콘 필드 (icon, 기본: 🪤)
                         · 제작 조건 (craftCondition, 구 craftLevel 대체)
@@ -204,17 +213,21 @@
      (현재는 직접 이모지 입력만 가능)
   ☐ 통합 층(isComposite) — 퀘스트 연동 필드가 미추가 (compositeQuests)
   ☐ 퀘스트 ↔ 게이트 양방향 연동 — 저장 시 상대 쪽에도 자동 반영 미구현
-  ☐ 히스토리 길이 설정 UI — settings.js에 표시 및 조정 UI 미추가
-  ☐ 서브플로어 폼(tower-subfloor-form.js) — 통합 층 기능 미반영
+  ☑ 히스토리 길이 설정 UI — settings.js에 "수정 기록 보관 수" 로 표시 및 조정 UI 완료
+  ☑ 서브플로어 폼(tower-subfloor-form.js) — 서브/히든 분리, 접근방식 칩UI 완료
+  ☐ 캐릭터 상세 뷰 — 업적 연동 표시 (현재 폼에서 저장은 되나 상세 뷰 표시 미검토)
+  ☐ novel-view.js — THEMATIC_QUESTIONS 비어있어 참고 질문 패널 빈 상태 (의도적 리셋)
 
 ================================================================================
 7. 버전 이력 (최근)
 ================================================================================
 
-  v65 (2026-05-17): 바로가기 하단탭/전용페이지, 앱버전 SW 연동, 컨셉칩 토글버튼화,
+  v68 (2026-05-17): 서브/히든층 폼 분리+접근방식 칩UI, 캐릭터 업적 DB 연동,
+                    검색 타입 필터 칩, 세계타입→기본설정관리 이동, 수정기록 용어 정리,
+                    novel-view 언두 버그수정, 홈 바로가기 명언 위로, 타워 컨셉 전부 활성화
+  v65~67 (2026-05-17): 바로가기 하단탭/전용페이지, 앱버전 SW 연동, 컨셉칩 토글버튼화,
                     통합 층, 기본 스텟 자동초기화, 스텟 정의 목록UI,
-                    함정 아이콘/제작조건/접기, 템플릿 baseStats 제거, 함정 아이콘 설정 추가
-  v64 (2026-05-17): 게이트-퀘스트 연동, 웨이브 조건 칩UI, 퀘스트 필드 추가, 템플릿 게이트 목록
+                    함정 아이콘/제작조건/접기, 게이트-퀘스트 연동, 웨이브 조건 칩UI
   v63 (이전): 캐릭터 스텟 검색 피커, 히든 스텟 섹션 제거
   v62 (이전): 다수 form 파일 분리, 국가 접기, 바로가기 홈 개편, 히스토리 모달
 
