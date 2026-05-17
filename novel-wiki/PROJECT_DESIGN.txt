@@ -19,7 +19,7 @@
 
   커밋/배포 원칙:
     - 항상 master:master 로 push (git push origin master:master)
-    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v86)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v87)
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
@@ -29,7 +29,7 @@
   [ 루트 파일 ]
     index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
     manifest.json   — PWA 매니페스트
-    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v86)
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v87)
 
   [ js/ — 핵심 모듈 ]
     js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
@@ -260,6 +260,7 @@
 7. 버전 이력 (최근)
 ================================================================================
 
+  v87 (2026-05-17): 전체 초기화 버그 수정 — editHistory·모든 스토어·localStorage 완전 삭제
   v86 (2026-05-17): TRPG 기능 전체 제거 + 튜토리얼 대폭 개선
                     - pages/trpg.js 삭제, index.html/app.js/sw.js 에서 TRPG 참조 제거
                     - tutorial.js: 기능 설명 탭 접기/펼치기 카드 UI 추가

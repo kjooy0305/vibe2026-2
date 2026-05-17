@@ -665,18 +665,23 @@ window.Pages.settings = {
     // ── Reset all ─────────────────────────────────────────────────────────
     container.querySelector('#btnResetAll')?.addEventListener('click', () => {
       Utils.confirmWithInput('전체 초기화',
-        '모든 세계, 캐릭터, 스킬, 아이템, 업적 등 저장된 모든 데이터가 영구 삭제됩니다. 백업 후 진행하세요.',
+        '모든 세계, 캐릭터, 스킬, 아이템, 업적, 수정 기록 등 저장된 모든 데이터가 영구 삭제됩니다. 백업 후 진행하세요.',
         '초기화',
         async () => {
           try {
-            const emptyData = {
-              worlds: [], characters: [], skills: [], achievements: [],
-              organizations: [], constellations: [], gates: [], monsters: [],
-              towers: [], items: [], jobs: [], events: [], worldRules: [],
-              templates: [], folders: [], settings: [], streak: [],
-            };
+            // Clear every IndexedDB store (including editHistory)
+            const ALL_STORES = [
+              'worlds','characters','skills','achievements','organizations',
+              'constellations','gates','monsters','towers','items','jobs',
+              'events','worldRules','templates','folders','settings','streak',
+              'countries','companies','keywordFolders','keywords','statDefs',
+              'traps','places','gods','races','quests','editHistory',
+            ];
+            const emptyData = {};
+            ALL_STORES.forEach(s => { emptyData[s] = []; });
             await DB.importAll(emptyData);
-            localStorage.removeItem('appFlags');
+            // Clear all localStorage (flags, streak display, etc.)
+            localStorage.clear();
             Utils.toast('초기화 완료. 앱을 다시 시작합니다.', 'info');
             setTimeout(() => window.location.reload(), 1800);
           } catch (err) {
