@@ -19,7 +19,7 @@
 
   커밋/배포 원칙:
     - 항상 master:master 로 push (git push origin master:master)
-    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v83)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v84)
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
@@ -29,7 +29,7 @@
   [ 루트 파일 ]
     index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
     manifest.json   — PWA 매니페스트
-    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v83)
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v84)
 
   [ js/ — 핵심 모듈 ]
     js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
@@ -253,6 +253,12 @@
 7. 버전 이력 (최근)
 ================================================================================
 
+  v84 (2026-05-17): TRPG 씬 콘텐츠 시스템 요소 추가
+                    - GM 노트 (씬별 비공개, 저장/이전/삭제 연동)
+                    - 룰북 (편집뷰 작성 + 플레이뷰 참조 패널)
+                    - 시나리오 노트 (NPC/사건 GM 힌트)
+                    - 캐릭터 시트 CRUD (이름/역할/스탯/소지품, 모달 편집)
+                    - 플레이뷰 사이드: 룰북·캐릭터·GM노트 패널
   v83 (2026-05-17): TRPG 새 씬 생성 버그 수정 (buildSceneList null 가드,
                     doNewSc 현재 씬 자동저장 + ID 충돌 방지)
   v82 (이전): TRPG 새 씬 생성 버그 1차 수정 (doNewSc _E.scenes 미추가 수정)
