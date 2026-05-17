@@ -1,6 +1,13 @@
 'use strict';
 // monsters-form.js — form methods for window.Pages.monsters
 Object.assign(window.Pages.monsters, {
+  MONSTER_ICONS: [
+    '👾','👹','👺','🧟','🧌','🧛','😈','👿','💀','☠️',
+    '🐉','🐲','🦖','🦕','🐺','🦁','🐯','🐻','🦊','🐗',
+    '🦎','🐍','🦂','🕷️','🦀','🦑','🐙','🦈','🐊','🐋',
+    '🦅','🦉','🐦‍⬛','🔥','⚡','❄️','🌊','🌿','🌑','🌪️',
+  ],
+
   _openSkillPicker: async function(m, wid, container) {
     const allSkills = await DB.getAll('skills', wid);
     if (!allSkills.length) { Utils.toast('스킬 라이브러리가 비어 있습니다', 'error'); return; }
@@ -110,10 +117,23 @@ Object.assign(window.Pages.monsters, {
     const lifespanMinVal = m.lifespanMin !== null && m.lifespanMin !== undefined ? String(m.lifespanMin) : '';
     const lifespanMaxVal = m.lifespanMax !== null && m.lifespanMax !== undefined ? String(m.lifespanMax) : '';
 
+    const iconPickerHtml = this.MONSTER_ICONS.map(ic => {
+      const sel = (m.icon || '👾') === ic;
+      return `<button type="button" class="mon-icon-btn" data-icon="${ic}"
+        style="font-size:22px;padding:4px;border-radius:6px;border:2px solid ${sel ? '#6366f1' : 'transparent'};background:${sel ? 'rgba(99,102,241,0.2)' : 'none'};cursor:pointer;line-height:1;transition:all .1s;">${ic}</button>`;
+    }).join('');
+
     const body = `
       <div style="display:flex;flex-direction:column;gap:10px;padding-right:4px;">
         <div class="form-group">
-          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">이미지</label>
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:6px;display:block;">아이콘 <span style="font-size:11px;font-weight:400;color:var(--color-text-muted);">(이미지 없을 때 표시)</span></label>
+          <div id="monIconPicker" style="display:flex;flex-wrap:wrap;gap:2px;background:var(--color-surface3,#2a2a3a);border:1px solid var(--color-border);border-radius:8px;padding:6px;">
+            ${iconPickerHtml}
+          </div>
+          <input type="hidden" id="fMIcon" value="${Utils.escHtml(m.icon || '👾')}" />
+        </div>
+        <div class="form-group">
+          <label class="form-label" style="font-size:13px;font-weight:600;margin-bottom:4px;display:block;">이미지 <span style="font-size:11px;font-weight:400;color:var(--color-text-muted);">(선택)</span></label>
           <div id="monsterImgPreview" style="margin-bottom:6px;">
             ${m.image ? `<img src="${m.image}" style="max-width:120px;border-radius:8px;" />` : ''}
           </div>
@@ -190,6 +210,7 @@ Object.assign(window.Pages.monsters, {
         deathType:    document.getElementById('fMDeathType')?.value || '',
         modifier,
         authorNotes:  document.getElementById('fMAuthorNotes')?.value.trim() || '',
+        icon:         document.getElementById('fMIcon')?.value || '👾',
         image:        newImage,
         createdAt:    m.createdAt || Date.now(),
         updatedAt:    Date.now(),
@@ -207,6 +228,17 @@ Object.assign(window.Pages.monsters, {
     }, isEdit ? '저장' : '추가');
 
     setTimeout(() => {
+      document.querySelectorAll('.mon-icon-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const ic = btn.dataset.icon;
+          document.getElementById('fMIcon').value = ic;
+          document.querySelectorAll('.mon-icon-btn').forEach(b => {
+            const sel = b.dataset.icon === ic;
+            b.style.border = sel ? '2px solid #6366f1' : '2px solid transparent';
+            b.style.background = sel ? 'rgba(99,102,241,0.2)' : 'none';
+          });
+        });
+      });
       const dtSel  = document.getElementById('fMDeathType');
       const dtDesc = document.getElementById('deathTypeDesc');
       if (dtSel && dtDesc) {

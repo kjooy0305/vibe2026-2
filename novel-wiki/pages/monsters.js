@@ -181,7 +181,7 @@ window.Pages.monsters = {
       style="cursor:pointer;border-left:3px solid ${isGrad ? '#fbbf24' : gc};display:flex;align-items:center;gap:12px;padding:14px 16px;background:var(--color-surface2);border-radius:12px;border:1px solid var(--color-border);margin-bottom:8px;">
       ${m.image
         ? `<img src="${m.image}" style="width:52px;height:52px;border-radius:10px;object-fit:cover;flex-shrink:0;" />`
-        : `<div style="width:52px;height:52px;border-radius:10px;background:var(--color-surface3,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">👾</div>`}
+        : `<div style="width:52px;height:52px;border-radius:10px;background:var(--color-surface3,#2a2a3a);display:flex;align-items:center;justify-content:center;font-size:24px;flex-shrink:0;">${Utils.escHtml(m.icon || '👾')}</div>`}
       <div style="flex:1;min-width:0;">
         <div style="display:flex;align-items:center;gap:6px;flex-wrap:wrap;margin-bottom:3px;">
           <span class="monster-name" style="font-weight:700;font-size:15px;">${Utils.escHtml(m.name || '이름 없음')}</span>
@@ -268,7 +268,9 @@ window.Pages.monsters = {
         </div>
       </div>
 
-      ${m.image ? `<div style="text-align:center;margin-bottom:16px;"><img src="${m.image}" style="max-width:200px;max-height:220px;border-radius:12px;object-fit:cover;" /></div>` : ''}
+      ${m.image
+        ? `<div style="text-align:center;margin-bottom:16px;"><img src="${m.image}" style="max-width:200px;max-height:220px;border-radius:12px;object-fit:cover;" /></div>`
+        : `<div style="text-align:center;margin-bottom:16px;"><div style="display:inline-flex;align-items:center;justify-content:center;width:80px;height:80px;border-radius:16px;background:var(--color-surface2);font-size:44px;">${Utils.escHtml(m.icon || '👾')}</div></div>`}
 
       <div style="background:var(--color-surface2);border-radius:10px;padding:16px;margin-bottom:10px;">
         <div style="font-size:11px;color:var(--color-primary);font-weight:700;margin-bottom:12px;letter-spacing:1px;">기본 정보</div>

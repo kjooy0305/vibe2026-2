@@ -49,6 +49,8 @@
       overflow:hidden;`;
     const items = [
       { icon: '🌍', label: '세계/차원 관리', page: 'world' },
+      { icon: '📚', label: '기능 설명', page: 'tutorial', tab: 'guide' },
+      { icon: '📋', label: '튜토리얼 미션', page: 'tutorial' },
       { icon: '⚙️', label: '설정', page: 'settings' },
       { icon: '📝', label: '기본 설정 관리', page: 'templates' },
       { icon: '📖', label: '상태창 뷰어', page: 'status-viewer' },
@@ -56,7 +58,7 @@
     menu.innerHTML = `
       <div style="padding:10px 14px;border-bottom:1px solid var(--color-border);font-size:12px;color:var(--color-text-muted);font-weight:700;">빠른 이동</div>
       ${items.map(item => `
-        <button data-page="${item.page}"
+        <button data-page="${item.page}" ${item.tab ? `data-tab="${item.tab}"` : ''}
           style="width:100%;display:flex;align-items:center;gap:10px;padding:12px 14px;background:none;border:none;color:var(--color-text);font-size:13px;cursor:pointer;text-align:left;border-bottom:1px solid rgba(45,55,72,0.3);">
           <span>${item.icon}</span><span>${item.label}</span>
         </button>`).join('')}
@@ -75,7 +77,8 @@
     menu.querySelectorAll('button[data-page]').forEach(b => {
       b.addEventListener('click', () => {
         menu.style.display = 'none';
-        AppRouter.navigate(b.dataset.page);
+        const opts = b.dataset.tab ? { tab: b.dataset.tab } : undefined;
+        AppRouter.navigate(b.dataset.page, opts);
       });
     });
 
@@ -139,6 +142,7 @@
         ['races', window.Pages?.races],
         ['quests', window.Pages?.quests],
         ['shortcuts', window.Pages?.shortcuts],
+        ['tutorial', window.Pages?.tutorial],
       ];
 
       pageModules.forEach(([id, mod]) => {
