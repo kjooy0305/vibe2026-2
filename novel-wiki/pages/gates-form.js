@@ -149,6 +149,8 @@ Object.assign(window.Pages.gates, {
       const enemyChips = (w.enemies || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const trapChips = (w.traps || []).map(t => chipHtml(t, 'trap')).join('');
       const killChips = (w.killTargets || []).map(e => chipHtml(e, e.type || 'monster')).join('');
+      const decapChips = (w.decapTargets || []).map(e => chipHtml(e, e.type || 'monster')).join('');
+      const bossChips = (w.bossTargets || []).map(e => chipHtml(e, e.type || 'monster')).join('');
       const waveQuestChips = (w.linkedQuests || []).map(q =>
         `<span class="${ns}-quest-chip" data-qid="${Utils.escHtml(q.id)}" data-qname="${Utils.escHtml(q.name||'')}" data-ns="${ns}"
           style="display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:12px;font-size:11px;background:rgba(16,185,129,0.15);border:1px solid rgba(16,185,129,0.4);">
@@ -229,6 +231,16 @@ Object.assign(window.Pages.gates, {
                   <input type="hidden" class="${ns}-expl-item-id" data-widx="${idx}" data-ns="${ns}" value="${Utils.escHtml(explItem.id || '')}" />
                 </div>
               </div>
+            </div>
+            <div id="${ns}DecapWrap${idx}" style="display:${clearTypes.includes('decapitation') ? 'block' : 'none'};margin-top:6px;padding:6px;background:rgba(248,113,113,0.07);border-radius:6px;border:1px solid rgba(248,113,113,0.2);">
+              <div style="font-size:11px;color:#f87171;font-weight:600;margin-bottom:3px;">🗡️ 참수 대상</div>
+              <div class="${ns}-decap-chips" id="${ns}DecapChips${idx}" style="display:flex;flex-wrap:wrap;gap:2px;min-height:20px;">${decapChips}</div>
+              ${entitySearchHtml(ns + 'DecapSearch' + idx, ns + 'DecapResults' + idx, '몬스터/캐릭터 검색...')}
+            </div>
+            <div id="${ns}BossWrap${idx}" style="display:${clearTypes.includes('boss') ? 'block' : 'none'};margin-top:6px;padding:6px;background:rgba(192,132,252,0.07);border-radius:6px;border:1px solid rgba(192,132,252,0.2);">
+              <div style="font-size:11px;color:#c084fc;font-weight:600;margin-bottom:3px;">👑 보스 대상</div>
+              <div class="${ns}-boss-chips" id="${ns}BossChips${idx}" style="display:flex;flex-wrap:wrap;gap:2px;min-height:20px;">${bossChips}</div>
+              ${entitySearchHtml(ns + 'BossSearch' + idx, ns + 'BossResults' + idx, '몬스터/캐릭터 검색...')}
             </div>
             <textarea class="input-field ${ns}-clear-comment" data-widx="${idx}" data-ns="${ns}" rows="2" placeholder="클리어 조건 코멘트..." style="width:100%;box-sizing:border-box;font-size:12px;resize:vertical;margin-top:6px;">${Utils.escHtml(w.clearConditionComment || '')}</textarea>
           </div>
@@ -798,6 +810,16 @@ Object.assign(window.Pages.gates, {
           count: parseInt(chip.querySelector('.chip-count')?.value || '1', 10) || 1,
           unit: chip.querySelector('.chip-unit')?.value || '마리',
         })) : (w.killTargets || []);
+        const decapChipsEl = document.getElementById(ns + 'DecapChips' + idx);
+        const decapTargets = decapChipsEl ? Array.from(decapChipsEl.querySelectorAll('.entity-chip')).map(chip => ({
+          id: chip.dataset.eid, type: chip.dataset.etype || 'monster', name: chip.dataset.ename || '',
+          grade: chip.dataset.egrade || '',
+        })) : (w.decapTargets || []);
+        const bossChipsEl = document.getElementById(ns + 'BossChips' + idx);
+        const bossTargets = bossChipsEl ? Array.from(bossChipsEl.querySelectorAll('.entity-chip')).map(chip => ({
+          id: chip.dataset.eid, type: chip.dataset.etype || 'monster', name: chip.dataset.ename || '',
+          grade: chip.dataset.egrade || '',
+        })) : (w.bossTargets || []);
         const explPlaceId = row ? (row.querySelector(`.${ns}-expl-place-id`)?.value || '') : (w.explorationPlace?.id || '');
         const explPlaceName = row ? (row.querySelector(`.${ns}-expl-place-search`)?.value || '') : (w.explorationPlace?.name || '');
         const explItemId = row ? (row.querySelector(`.${ns}-expl-item-id`)?.value || '') : (w.explorationItem?.id || '');
@@ -808,6 +830,8 @@ Object.assign(window.Pages.gates, {
           enemies: readChipsFromContainer(ns + 'EnemyChips' + idx, 'monster'),
           traps: readChipsFromContainer(ns + 'TrapChips' + idx, 'trap'),
           killTargets,
+          decapTargets,
+          bossTargets,
           clearConditionTypes: clearTypes2,
           explorationLink: clearTypes2.includes('exploration'),
           clearCondition: clearTypes2.includes('custom') ? (row ? (row.querySelector(`.${ns}-clear-cond`)?.value || '') : (w.clearCondition || '')) : '',
@@ -850,6 +874,8 @@ Object.assign(window.Pages.gates, {
         wireChipDeletes(ns + 'EnemyChips' + idx);
         wireChipDeletes(ns + 'TrapChips' + idx);
         wireChipDeletes(ns + 'KillChips' + idx);
+        wireChipDeletes(ns + 'DecapChips' + idx);
+        wireChipDeletes(ns + 'BossChips' + idx);
         wireSearch(ns + 'EnemySearch' + idx, ns + 'EnemyResults' + idx,
           () => { const used = getUsedEnemyIds(); return allMonChars.filter(m => !used.has(m.id)); },
           entityRow, (ds) => addChipToContainer(ns + 'EnemyChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype)
@@ -861,6 +887,14 @@ Object.assign(window.Pages.gates, {
         wireSearch(ns + 'KillSearch' + idx, ns + 'KillResults' + idx,
           allMonsters.map(m => ({ ...m, _etype: 'monster' })),
           entityRow, (ds) => addChipToContainer(ns + 'KillChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, 'monster')
+        );
+        wireSearch(ns + 'DecapSearch' + idx, ns + 'DecapResults' + idx,
+          allMonChars,
+          entityRow, (ds) => addChipToContainer(ns + 'DecapChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype)
+        );
+        wireSearch(ns + 'BossSearch' + idx, ns + 'BossResults' + idx,
+          allMonChars,
+          entityRow, (ds) => addChipToContainer(ns + 'BossChips' + idx, { id: ds.id, name: ds.name, grade: ds.grade }, ds.etype)
         );
         // Exploration place/item search
         const explPlaceInp = document.getElementById(ns + 'ExplWrap' + idx)?.querySelector(`.${ns}-expl-place-search`);
@@ -925,6 +959,16 @@ Object.assign(window.Pages.gates, {
             if (explWrap) {
               const hasExpl = [...document.querySelectorAll(`.${ns}-cond-chip[data-widx="${idx}"][data-ns="${ns}"]`)].some(c => c.dataset.val === 'exploration' && c.dataset.active === 'true');
               explWrap.style.display = hasExpl ? 'block' : 'none';
+            }
+            const decapWrap = document.getElementById(ns + 'DecapWrap' + idx);
+            if (decapWrap) {
+              const hasDecap = [...document.querySelectorAll(`.${ns}-cond-chip[data-widx="${idx}"][data-ns="${ns}"]`)].some(c => c.dataset.val === 'decapitation' && c.dataset.active === 'true');
+              decapWrap.style.display = hasDecap ? 'block' : 'none';
+            }
+            const bossWrap = document.getElementById(ns + 'BossWrap' + idx);
+            if (bossWrap) {
+              const hasBoss = [...document.querySelectorAll(`.${ns}-cond-chip[data-widx="${idx}"][data-ns="${ns}"]`)].some(c => c.dataset.val === 'boss' && c.dataset.active === 'true');
+              bossWrap.style.display = hasBoss ? 'block' : 'none';
             }
           });
         });
