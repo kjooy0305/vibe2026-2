@@ -815,14 +815,13 @@ function doDelSc() {
 function doNewSc() {
   const nums = _E.order.map(id=>+id).filter(n=>!isNaN(n));
   const nextId = nums.length ? String(Math.max(...nums)+1) : '1';
-  _E.editId = null;
-  ['eScTitle','eText'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
-  const eId = document.getElementById('eId'); if(eId) eId.value = nextId;
-  const ced = document.getElementById('eCed'); if(ced) ced.innerHTML='';
-  buildSceneList();
+  _E.scenes[nextId] = { id: nextId, title: '', text: '', choices: [], initVars: {} };
+  _E.order.push(nextId);
+  loadSceneToEditor(nextId);
   // On mobile: switch to edit tab
   const editBtn = document.querySelector('#eTabs .trpg-tab-btn[data-tab="eTabEdit"]');
   if (editBtn && editBtn.offsetParent !== null) editBtn.click();
+  tst('새 씬 #' + nextId + '# 생성됨.');
 }
 
 async function doSaveStory() {
