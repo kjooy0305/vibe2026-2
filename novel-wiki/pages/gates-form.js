@@ -274,9 +274,8 @@ Object.assign(window.Pages.gates, {
           <select class="select-input" id="fGateGrade" style="width:100%;">${gradeOptions}</select>
         </div>
         <div class="form-group">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="margin-bottom:4px;">
             <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">종류</label>
-            <button type="button" id="btnToggleTypeList" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;">목록 관리</button>
           </div>
           <select class="select-input" id="fGateType" style="width:100%;">${typeOptions}</select>
           <input class="input-field" id="fGateTypeCustom" placeholder="종류 직접 입력..." style="width:100%;box-sizing:border-box;margin-top:4px;display:${typeIsCustom ? 'block' : 'none'};" value="${typeIsCustom ? Utils.escHtml(existingType) : ''}" />
@@ -294,9 +293,8 @@ Object.assign(window.Pages.gates, {
           </div>
         </div>
         <div class="form-group">
-          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:4px;">
+          <div style="margin-bottom:4px;">
             <label class="form-label" style="font-size:13px;font-weight:600;margin:0;">브레이크 유형</label>
-            <button type="button" id="btnToggleBreakTypeList" class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 7px;">목록 관리</button>
           </div>
           <select class="select-input" id="fGateBreakType" style="width:100%;">${breakTypeOptions}</select>
           <input class="input-field" id="fGateBreakTypeCustom" placeholder="브레이크 유형 직접 입력..." style="width:100%;box-sizing:border-box;margin-top:4px;display:${breakTypeIsCustom ? 'block' : 'none'};" value="${breakTypeIsCustom ? Utils.escHtml(existingBreakType) : ''}" />
