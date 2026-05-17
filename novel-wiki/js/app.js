@@ -25,6 +25,9 @@
     document.querySelectorAll('.drawer__item[data-page]').forEach(btn => {
       btn.addEventListener('click', () => { closeDrawer(); AppRouter.navigate(btn.dataset.page); });
     });
+    document.querySelectorAll('.drawer__item[data-href]').forEach(btn => {
+      btn.addEventListener('click', () => { closeDrawer(); window.open(btn.dataset.href, '_blank'); });
+    });
     document.querySelectorAll('.bottom-nav__item[data-page]').forEach(btn => {
       btn.addEventListener('click', () => AppRouter.navigate(btn.dataset.page));
     });
