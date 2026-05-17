@@ -146,6 +146,7 @@
         ['quests', window.Pages?.quests],
         ['shortcuts', window.Pages?.shortcuts],
         ['tutorial', window.Pages?.tutorial],
+        ['trpg', window.Pages?.trpg],
       ];
 
       pageModules.forEach(([id, mod]) => {

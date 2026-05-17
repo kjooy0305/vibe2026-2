@@ -3,7 +3,7 @@
  * Cache-first strategy for full offline support
  */
 
-const CACHE_VERSION = 'novel-wiki-v79';
+const CACHE_VERSION = 'novel-wiki-v80';
 const CACHE_NAME = CACHE_VERSION;
 
 // All app assets to pre-cache on install
@@ -66,6 +66,7 @@ const PRECACHE_ASSETS = [
   './pages/quests.js',
   './pages/shortcuts.js',
   './pages/tutorial.js',
+  './pages/trpg.js',
   './trpg.html',
   './icons/icon-192.png',
   './icons/icon-512.png',
