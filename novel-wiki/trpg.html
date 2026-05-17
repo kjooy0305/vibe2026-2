@@ -664,7 +664,7 @@ function setMode(m) {
   document.getElementById('sivars').style.display = m==='editor' ? 'block' : 'none';
   document.getElementById('sdisp').style.display = m==='editor' ? 'none' : 'block';
   if (m==='editor') buildSceneList();
-  else { updateStats(); renderScene(G.play.sceneId || G.order[0] || '1'); }
+  else { if (!Object.keys(G.play.vars).length) G.play.vars = makeVars(); updateStats(); renderScene(G.play.sceneId || G.order[0] || '1'); }
 }
 
 function tog(bodyId, togId) {
@@ -825,6 +825,7 @@ const SAMPLE = `#1#
   if (savedMemo) document.getElementById('memo').value=savedMemo;
   document.getElementById('memo').addEventListener('input', e => localStorage.setItem('trpg_memo',e.target.value));
 
+  G.play.vars = makeVars();
   setMode('play');
 })();
 </script>
