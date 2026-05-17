@@ -59,7 +59,7 @@ const DB = (function() {
   }
 
   function put(storeName, data) {
-    const HISTORY_STORES = ['characters','skills','items','monsters','organizations','gates','towers','countries','companies','places','races','gods','quests','constellations','events','worldRules','traps','jobs','statDefs','keywords','achievements'];
+    const HISTORY_STORES = ['worlds','characters','skills','items','monsters','organizations','gates','towers','countries','companies','places','races','gods','quests','constellations','events','worldRules','traps','jobs','statDefs','keywords','achievements','keywordFolders'];
     return open().then(() => {
       if (HISTORY_STORES.includes(storeName) && data.id) {
         try {
@@ -67,8 +67,8 @@ const DB = (function() {
           oldReq.onsuccess = () => {
             const old = oldReq.result;
             if (!old) return;
-            getSetting('historyLimit').then(lim => {
-              const maxE = (typeof lim === 'number' && lim > 0) ? lim : 50;
+            getSetting('historyMaxLength', 366).then(lim => {
+              const maxE = (typeof lim === 'number' && lim > 0) ? lim : 366;
               const histEntry = { id: genId(), storeName, itemId: old.id, itemName: old.name || old.id, timestamp: Date.now(), snapshot: JSON.parse(JSON.stringify(old)) };
               const hTx = db.transaction('editHistory','readwrite');
               hTx.objectStore('editHistory').put(histEntry);

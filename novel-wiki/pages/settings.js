@@ -317,6 +317,10 @@ window.Pages.settings = {
           <div><div style="font-weight:600;">가져오기 (Import)</div><div style="font-size:11px;color:var(--color-text-muted);margin-top:1px;">JSON 백업 파일을 불러와 기존 데이터를 교체합니다</div></div>
         </button>
         <input type="file" id="importFileInput" accept=".json" style="display:none;" />
+        <button id="btnClearHistory" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.2);background:rgba(239,68,68,0.04);cursor:pointer;color:var(--color-danger);font-size:13px;margin-bottom:8px;text-align:left;">
+          <span style="font-size:16px;">🕐</span>
+          <div><div style="font-weight:600;">수정 기록 초기화</div><div style="font-size:11px;color:rgba(239,68,68,0.7);margin-top:1px;">세계·캐릭터·스킬 등 수정 기록만 삭제합니다. 실제 데이터는 유지됩니다.</div></div>
+        </button>
         <button id="btnResetAll" style="width:100%;display:flex;align-items:center;gap:10px;padding:11px 12px;border-radius:8px;border:1px solid rgba(239,68,68,0.3);background:rgba(239,68,68,0.06);cursor:pointer;color:var(--color-danger);font-size:13px;text-align:left;">
           <span style="font-size:16px;">🗑️</span>
           <div><div style="font-weight:600;">초기화 (Reset)</div><div style="font-size:11px;color:rgba(239,68,68,0.7);margin-top:1px;">모든 데이터를 영구 삭제합니다. 되돌릴 수 없습니다.</div></div>
@@ -660,6 +664,22 @@ window.Pages.settings = {
         await saveAndRefreshQuestions([...self.THEMATIC_QUESTIONS]);
         Utils.toast('초기화됨', 'info');
       }, '초기화');
+    });
+
+    // ── Clear edit history only ───────────────────────────────────────────
+    container.querySelector('#btnClearHistory')?.addEventListener('click', () => {
+      Utils.confirm('수정 기록 초기화',
+        '모든 수정 기록을 삭제합니다. 실제 데이터(세계·캐릭터·스킬 등)는 유지됩니다.',
+        async () => {
+          try {
+            const all = await DB.getAll('editHistory');
+            await Promise.all(all.map(h => DB.del('editHistory', h.id)));
+            Utils.toast(`수정 기록 ${all.length}개가 삭제되었습니다.`, 'info');
+            await self._renderPage(container);
+          } catch (err) {
+            Utils.toast('오류: ' + err.message, 'error');
+          }
+        }, '삭제');
     });
 
     // ── Reset all ─────────────────────────────────────────────────────────

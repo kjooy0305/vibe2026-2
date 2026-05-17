@@ -415,39 +415,61 @@ window.Pages.home = {
 
     // 수정 기록 버튼
     document.getElementById('btnShowHistory')?.addEventListener('click', () => {
-      const sorted = [...editHistAll].sort((a,b) => b.timestamp - a.timestamp).slice(0, 100);
-      if (!sorted.length) { Utils.toast('수정 기록이 없습니다', 'error'); return; }
-      const STORE_LABELS = { characters:'캐릭터', skills:'스킬', items:'아이템', monsters:'몬스터', organizations:'조직', gates:'게이트', towers:'탑', countries:'국가', companies:'기업', places:'장소', races:'종족', gods:'신', quests:'퀘스트', constellations:'성좌', events:'사건', worldRules:'세계관 규칙', traps:'함정', jobs:'직업', statDefs:'스텟', keywords:'키워드', achievements:'업적' };
-      const body = `
-        <div style="display:flex;flex-direction:column;gap:4px;max-height:60vh;overflow-y:auto;">
-          ${sorted.map(h => `
-            <button class="hist-entry" data-hid="${Utils.escHtml(h.id)}"
-              style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;cursor:pointer;text-align:left;width:100%;">
-              <div style="flex:1;min-width:0;">
-                <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(h.itemName || '?')}</div>
-                <div style="font-size:11px;color:var(--color-text-muted);">${STORE_LABELS[h.storeName] || h.storeName} · ${Utils.formatDate(h.timestamp)}</div>
-              </div>
-              <span style="font-size:13px;color:var(--color-text-muted);">›</span>
-            </button>`).join('')}
-        </div>`;
-      Utils.openModal('수정 기록', body, null, null);
-      setTimeout(() => {
-        document.querySelectorAll('#globalModalBody .hist-entry').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const hid = btn.dataset.hid;
-            const entry = sorted.find(h => h.id === hid);
-            if (!entry) return;
-            const snap = entry.snapshot;
-            const fields = Object.entries(snap).filter(([k]) => !['id','worldId','createdAt','updatedAt'].includes(k));
-            const preview = fields.map(([k, v]) => {
-              if (typeof v === 'object' && v !== null) return `<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--color-text-muted);font-weight:700;margin-bottom:2px;">${Utils.escHtml(k)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-all;">${Utils.escHtml(JSON.stringify(v, null, 2))}</div></div>`;
-              if (!v && v !== 0) return '';
-              return `<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--color-text-muted);font-weight:700;margin-bottom:2px;">${Utils.escHtml(k)}</div><div style="font-size:12px;white-space:pre-wrap;">${Utils.escHtml(String(v))}</div></div>`;
-            }).filter(Boolean).join('');
-            Utils.openModal(`이전 버전: ${Utils.escHtml(entry.itemName)}`, `<div style="max-height:60vh;overflow-y:auto;">${preview || '내용 없음'}</div>`, null, null);
+      const sorted = [...editHistAll].sort((a,b) => b.timestamp - a.timestamp);
+      const STORE_LABELS = { worlds:'세계', characters:'캐릭터', skills:'스킬', items:'아이템', monsters:'몬스터', organizations:'조직', gates:'게이트', towers:'탑', countries:'국가', companies:'기업', places:'장소', races:'종족', gods:'신', quests:'퀘스트', constellations:'성좌', events:'사건', worldRules:'세계관 규칙', traps:'함정', jobs:'직업', statDefs:'스텟', keywords:'키워드', achievements:'업적', keywordFolders:'키워드 폴더' };
+
+      const renderHistModal = (list) => {
+        const body = `
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:8px;flex-shrink:0;">
+            <div style="font-size:12px;color:var(--color-text-muted);">총 ${list.length}개</div>
+            <button id="btnClearHistory" class="btn btn-ghost btn-sm" style="font-size:11px;color:var(--color-danger);">🗑 기록 전체 삭제</button>
+          </div>
+          ${list.length === 0
+            ? '<div style="font-size:13px;color:var(--color-text-muted);padding:20px 0;text-align:center;">수정 기록이 없습니다</div>'
+            : `<div style="display:flex;flex-direction:column;gap:4px;max-height:56vh;overflow-y:auto;">
+                ${list.map(h => `
+                  <button class="hist-entry" data-hid="${Utils.escHtml(h.id)}"
+                    style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--color-surface2);border:1px solid var(--color-border);border-radius:8px;cursor:pointer;text-align:left;width:100%;">
+                    <div style="flex:1;min-width:0;">
+                      <div style="font-size:13px;font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${Utils.escHtml(h.itemName || '?')}</div>
+                      <div style="font-size:11px;color:var(--color-text-muted);">${Utils.escHtml(STORE_LABELS[h.storeName] || h.storeName)} · ${Utils.escHtml(Utils.formatDate(h.timestamp))}</div>
+                    </div>
+                    <span style="font-size:13px;color:var(--color-text-muted);">›</span>
+                  </button>`).join('')}
+              </div>`}`;
+        Utils.openModal('수정 기록', body, null, null);
+        setTimeout(() => {
+          document.getElementById('btnClearHistory')?.addEventListener('click', () => {
+            Utils.confirm('수정 기록 전체 삭제', '모든 수정 기록을 삭제합니다. 되돌릴 수 없습니다.', async () => {
+              const all = await DB.getAll('editHistory');
+              await Promise.all(all.map(h => DB.del('editHistory', h.id)));
+              Utils.toast('수정 기록이 삭제되었습니다.', 'info');
+              // Close modal and re-render home
+              document.getElementById('globalModal')?.classList.remove('open');
+              container.querySelector('#btnShowHistory')?.closest('.page')?.querySelector('#btnShowHistory')
+                && (document.getElementById('btnShowHistory').querySelector('div:last-child').textContent = '총 0개 기록');
+              this.init(container);
+            }, '삭제');
           });
-        });
-      }, 50);
+          document.querySelectorAll('#globalModalBody .hist-entry').forEach(btn => {
+            btn.addEventListener('click', () => {
+              const hid = btn.dataset.hid;
+              const entry = list.find(h => h.id === hid);
+              if (!entry) return;
+              const snap = entry.snapshot;
+              const fields = Object.entries(snap).filter(([k]) => !['id','worldId','createdAt','updatedAt'].includes(k));
+              const preview = fields.map(([k, v]) => {
+                if (typeof v === 'object' && v !== null) return `<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--color-text-muted);font-weight:700;margin-bottom:2px;">${Utils.escHtml(k)}</div><div style="font-size:12px;white-space:pre-wrap;word-break:break-all;">${Utils.escHtml(JSON.stringify(v, null, 2))}</div></div>`;
+                if (!v && v !== 0) return '';
+                return `<div style="margin-bottom:6px;"><div style="font-size:10px;color:var(--color-text-muted);font-weight:700;margin-bottom:2px;">${Utils.escHtml(k)}</div><div style="font-size:12px;white-space:pre-wrap;">${Utils.escHtml(String(v))}</div></div>`;
+              }).filter(Boolean).join('');
+              Utils.openModal(`이전 버전: ${Utils.escHtml(entry.itemName)}`, `<div style="max-height:60vh;overflow-y:auto;">${preview || '내용 없음'}</div>`, null, null);
+            });
+          });
+        }, 50);
+      };
+
+      renderHistModal(sorted);
     });
 
     await AppStore.updateStreak();
