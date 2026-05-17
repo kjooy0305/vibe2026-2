@@ -445,7 +445,7 @@ window.Pages.home = {
               await Promise.all(all.map(h => DB.del('editHistory', h.id)));
               Utils.toast('수정 기록이 삭제되었습니다.', 'info');
               // Close modal and re-render home
-              document.getElementById('globalModal')?.classList.remove('open');
+              Utils.closeModal();
               container.querySelector('#btnShowHistory')?.closest('.page')?.querySelector('#btnShowHistory')
                 && (document.getElementById('btnShowHistory').querySelector('div:last-child').textContent = '총 0개 기록');
               this.init(container);

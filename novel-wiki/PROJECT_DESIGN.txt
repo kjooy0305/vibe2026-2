@@ -23,210 +23,561 @@
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
-2. 파일 구조 및 역할
+2. 스크립트 로드 순서 (index.html) — 의존성 있음
+================================================================================
+
+  로드 순서 (반드시 이 순서 유지):
+    1. js/db.js          — IndexedDB (window.DB)
+    2. js/store.js       — AppStore (window.AppStore, QUEST_POOL, MISSION_POOL)
+    3. js/router.js      — AppRouter (window.AppRouter)
+    4. js/utils.js       — Utils, AppFlags (window.Utils, window.AppFlags)
+    5. js/constants.js   — AppConstants (window.AppConstants)
+    6. js/search.js      — SearchEngine (window.SearchEngine)
+    7. pages/*.js        — 각 페이지 모듈 (의존성 아래 참조)
+    8. js/app.js         — 부트스트랩 (페이지 등록 + 앱 시작)
+
+  pages/ 내 의존성:
+    - home.js 반드시 shortcuts.js 보다 먼저 로드 (HOME_ALL_PAGES 전역 상수)
+    - tower.js 반드시 tower-floor-form.js, tower-subfloor-form.js 보다 먼저 로드
+      (Object.assign(window.Pages.tower, {...}) 패턴으로 확장)
+    - organizations.js 반드시 organizations-form.js 보다 먼저 로드
+    - characters.js 반드시 characters-form.js 보다 먼저 로드
+    - stat-defs.js 는 어느 시점에든 로드 가능
+      (window.StatDefs 전역, characters-form/gates-form/tower-floor-form 에서 참조)
+
+================================================================================
+3. 파일 구조 및 역할
 ================================================================================
 
   [ 루트 파일 ]
-    index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
+    index.html      — 앱 셸 HTML, 스크립트 로드 순서 정의
+                      모달/컨펌/토스트 DOM 인프라 포함:
+                        #confirmDialog, #confirmTitle, #confirmDesc,
+                        #btnConfirmOk, #btnConfirmCancel
+                        #globalModalOverlay, #globalModal, #globalModalTitle,
+                        #globalModalBody, #globalModalFooter,
+                        #btnCloseModal, #btnModalConfirm, #btnModalCancel
     manifest.json   — PWA 매니페스트
     sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v88)
+                      전략: 자산 → 캐시우선(stale-while-revalidate)
+                            HTML 내비게이션 → 네트워크 우선
+                      설치 시: PRECACHE_ASSETS 71개 파일 개별 캐싱 (실패 무시)
+                      활성화 시: 구버전 캐시 삭제 + SW_UPDATED 메시지 전송
 
-  [ js/ — 핵심 모듈 ]
-    js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
-                      DB.getSetting, DB.setSetting, DB.genId)
-                      DB_VERSION=12, editHistory 스토어 포함
-                      DB.put() 에서 주요 스토어 변경 시 자동 히스토리 스냅샷 저장
-    js/store.js     — AppStore (세계 선택, 스트릭, 활동 기록, 기능 플래그)
-    js/router.js    — AppRouter (해시 기반 SPA 라우터, 뒤로가기 스택)
-    js/app.js       — 앱 부트스트랩, 서랍 메뉴, 헤더, 페이지 등록, 12초 로딩 타임아웃
-    js/utils.js     — Utils (toast, confirm, openModal, escHtml, gradeColor 등)
-                      AppFlags: 동기 기능 플래그 캐시 (localStorage 기반)
-                        AppFlags.get(key, default) / AppFlags.set(key, value)
-    js/constants.js — AppConstants (기본값, 등급 목록 등)
-                      AppConstants.load() → this._C 로 상수 비동기 로드
-    js/search.js    — SearchEngine (전체 검색, 타입 필터 칩 UI: 전체/캐릭터/스킬/업적 등)
-                      search(query, worldId, scopeAll, typeFilter)
+  ──────────────────────────────────────────────────────────────────────────────
+  js/ — 핵심 모듈
+  ──────────────────────────────────────────────────────────────────────────────
 
-  [ css/ ]
-    css/main.css        — 기본 변수, 레이아웃, 타이포그래피
-    css/components.css  — 버튼, 카드, 배지, 모달, 서랍 등 컴포넌트
-    css/mobile.css      — 하단 내비게이션, 반응형
-    css/novel-view.css  — 소설 뷰어 전용
+  js/db.js
+    역할: IndexedDB 래퍼. window.DB 전역.
+    DB_NAME: 'NovelWikiDB', DB_VERSION: 12
 
-  [ pages/ — 페이지 모듈 (window.Pages.xxx) ]
+    STORES (28개):
+      worlds, characters, skills, achievements, organizations, constellations,
+      gates, monsters, towers, items, jobs, events, worldRules, templates,
+      folders, settings, streak, countries, companies, keywordFolders,
+      keywords, statDefs, traps, places, gods, races, quests, editHistory
 
-    ── 홈 & 탐색 ──
-    home.js           — 홈 화면 (스트릭, 미션, 바로가기 북마크 5슬롯, 전체페이지 그리드,
-                        편집 이력 아이콘버튼 → 이전 버전 모달)
-    shortcuts.js      — 바로가기 전용 페이지 (하단탭 마지막 칸, 북마크+전체페이지 그리드)
-    timeline.js       — 타임라인 (사건 추가/편집 가능, 카드 클릭 → 상세 모달 → 편집 버튼)
-    event-graph.js    — 사건 그래프
-                        · 캔버스 기반 노드-엣지 그래프 (드래그/핀치 줌 지원)
-                        · 노드색상: BASE_COLORS + 커스텀 컬러 피커 (+저장 버튼)
-                        · 연결(outcomes): 화살표 방향만, 타입 없음, label+edgeColor만 저장
-                        · 기존 데이터 호환: EDGE_COLORS 로 구버전 out.type 색상 fallback
-                        · 회귀 시스템 플래그(useRegression) on/off 시 회차 필드·필터·노드텍스트 연동
-                        · 사건 필터: 회차 칩 + 기준사건 깊이 필터
-    family-tree.js    — 가족 관계도
-    world-rules.js    — 세계관 규칙
+    worldId 인덱스 있는 스토어 (22개):
+      characters, skills, achievements, organizations, constellations, gates,
+      monsters, towers, items, jobs, events, worldRules, folders, countries,
+      companies, keywordFolders, keywords, statDefs, traps, places, gods,
+      races, quests
 
-    ── 세계 & 시스템 ──
-    world.js          — 세계/차원 관리
-    settings.js       — 설정 (아이콘 관리, 기능 플래그, 데이터 내보내기/가져오기,
-                        수정 기록 보관 수 설정, 질문 관리, 앱 버전 표시 [SW 버전 자동 연동],
-                        함정 아이콘 목록 관리 포함)
-                        기능 플래그 목록: gradeColors, showAuthorBadge, novelViewDefault,
-                          communityLockedDefault, showConstellationsInStatus,
-                          deleteConfirmInput, listScrollMemory, autoResetFilters,
-                          useRegression (회귀 시스템), searchScope
-                        ※ 세계 타입 관리는 templates.js 로 이동됨
-    templates.js      — 기본 설정 관리
-                        · 탭1: 필드 템플릿 (스킬/아이템/직업/업적 등)
-                        · 탭2: 전역 상수 (등급/속성/계열 등, baseStats 제거됨)
-                        · 탭3: 게이트 목록 (종류/브레이크 유형 커스텀 CRUD)
-                        · 탭4: 세계 타입 (세계/차원 편집 시 사용할 타입 목록 CRUD)
-    status-viewer.js  — 상태창 뷰어 (소설 뷰 포함)
-                        · HIDDEN_STATS 처리, 커뮤니티 패널, 성좌 계약 섹션
-    novel-view.js     — 소설 쓰기 뷰 (참고 질문 패널, 언두 지원)
+    worldId 인덱스 없는 스토어:
+      worlds, templates, settings, streak, editHistory
 
-    ── 캐릭터 & 생물 ──
-    characters.js     — 캐릭터 목록/상세
-                        · 상세뷰: 상태창 스타일 출력 (status-row 클래스)
-                        · 직업 배지 표시 (메인/서브)
-                        · 회귀 회차: useRegression 플래그 off 시 숨김
-                        HIDDEN_STATS: 힘특화/민첩특화/체력특화/마나계열/정신계열/기타
-    characters-form.js— 캐릭터 편집 폼 (statDefs 없을 시 기본 스텟 자동 생성)
-                        · 업적 연동: achievements DB 검색+칩UI, linkedAchievements [{id,name}] 저장
-                        · 직업 연동: mainJob(1개), subJobs(복수) 검색+칩UI
-                        · 회귀 회차(fCharCycle): useRegression 플래그 off 시 숨김
-                        · 템플릿 모드: normalStatsSection 숨김 (isTemplate radio 연동)
-    races.js          — 종족
-    gods.js           — 신
+    HISTORY_STORES (23개, DB.put 시 자동 스냅샷):
+      worlds, characters, skills, items, monsters, organizations, gates,
+      towers, countries, companies, places, races, gods, quests, constellations,
+      events, worldRules, traps, jobs, statDefs, keywords, achievements,
+      keywordFolders
 
-    ── 전투 & 던전 ──
-    gates.js          — 게이트 목록/상세 (개념별 상세 표시: 방어전/공성전/스피드런/생존 포함)
-    gates-form.js     — 게이트 편집 폼
-                        · 개념 선택: 토글 칩 버튼 (data-active 방식, 클릭으로 활성화)
-                        · 컨셉: 웨이브/탐험/참수/보스/방어전/공성전/스피드런/생존
-                        · 웨이브 클리어 조건: 토글 칩 (wave-cond-chip)
-                        · 퀘스트 연동 (linkedQuests)
-                        · statDefs 없을 시 기본 스텟 자동 생성
-    monsters.js       — 몬스터
-    monsters-form.js  — 몬스터 편집 폼
-    tower.js          — 탑 관리 (통합 층 compositeRange 라벨 표시, 서브/히든층 분리 버튼)
-                        · 서브층: 보라색 점선 버튼 / 히든층: 노란색 점선 버튼
-                        · 서브층 카드: 히든=노란 좌측 선, 일반=보라 좌측 선, 접근방식 칩 표시
-    tower-floor-form.js — 탑 층 편집 폼
-                        · 통합 층 (isComposite) 기능: 층 범위(compositeRange) 입력
-                        · 컨셉: 웨이브/탐험/참수/보스/방어전/공성전/스피드런/생존 전부 활성화
-                        · statDefs 없을 시 기본 스텟 자동 생성
-    tower-subfloor-form.js — 서브/히든 플로어 편집 폼
-                        · defaultHidden 파라미터로 히든층/서브층 모드 분리
-                        · 접근 방식 칩 (quest/item/stat/skill/level/hidden) + accessDesc 텍스트
-                        · accessTypes[], accessDesc 저장
-    traps.js          — 함정 종류
-                        · 아이콘 필드 (icon, 기본: 🪤)
-                        · 제작 조건 (craftCondition, 구 craftLevel 대체)
-                        · 사용되는 탑/게이트 섹션 접기 기능
-                        · 연동 스킬 (linkedSkills [{id,name}] 검색+칩UI)
+    DB.put() 히스토리 로직:
+      - 기존 레코드 있을 때만 스냅샷 (신규 생성 시 히스토리 없음)
+      - getSetting('historyMaxLength', 366) 으로 최대 보관 수 읽음
+      - 초과 시 오래된 것부터 삭제 (비동기, fire-and-forget)
+      ※ DB.put()은 항상 data.id, data.updatedAt, data.createdAt 자동 설정
 
-    ── 스킬 & 능력 ──
-    skills.js         — 스킬
-    skills-form.js    — 스킬 편집 폼
-                        · passiveSubtypes, activeSubtypes, skillSubtypes: AppConstants(_C)에서 로드
-    achievements.js   — 업적
-    stat-defs.js      — 스텟 정의 (목록 형식 UI, 기본 스텟 초기화 버튼,
-                        DEFAULT_STATS: 근력/민첩/체력/지능/마나/정신력/행운/재능/감각)
-                        window.StatDefs = window.Pages.statDefs 로 전역 참조
+    API: open, genId, getAll(store, worldId?), get(store, id), put(store, data),
+         del(store, id), getSetting(key, default), setSetting(key, value),
+         exportAll, importAll
 
-    ── 세계 요소 ──
-    organizations.js  — 조직
-    organizations-form.js
-    constellations.js — 성좌
-    constellations-form.js
-    countries.js      — 국가 (관계창 접기, 도시 주요인물/기업 접기)
-    countries-form.js
-    companies.js      — 기업
-    places.js         — 장소
-    places-form.js
-    quests.js         — 퀘스트 (난이도/클리어방법/실패패널티/게이트 연동)
-                        · 아이콘: 고정 그리드 + 직접 입력 (#qIconCustomInput)
-                        · 상세뷰: 퀘스트 내용/클리어 방법/요구 조건/보상/실패 패널티/
-                          연관 게이트/퀘스트 제약/발생 정보/메모
-    items.js          — 아이템
-    items-form.js
-    jobs.js           — 직업 (상세뷰: 회귀 가능 직업 정보 표시)
-    jobs-form.js      — 직업 편집 폼
-                        · 회귀 가능 직업 (isRegressable): useRegression 플래그 off 시 전체 섹션 숨김
-                        · regressFromCycle (첫 획득 가능 회차), regressNote (메모) 저장
+  js/store.js
+    역할: 전역 상태 관리 + 스트릭/미션 엔진. window.AppStore 전역.
 
-    ── 유틸리티 ──
-    reminders.js      — 리마인더
-    keywords.js       — 키워드
-    world-rules.js    — 세계관 규칙
-    tutorial.js       — 튜토리얼 & 기능 설명
-                        · 탭1: 미션 체크리스트 (세계 생성 ~ 스토리 작성 단계별)
-                        · 탭2: 기능 설명 (접기/펼치기 카드 UI)
-                          - 연동 방법(HOW-TO): 스킬/직업/업적 캐릭터 연결,
-                            퀘스트↔게이트 연동, 몬스터 스킬 연동, 서브/히든층,
-                            상태창 뷰어 사용법
-                          - 기능별 설명: 모든 페이지 상세 안내
+    내부 상태 (AppStore._state):
+      currentWorldId, worlds, currentWorld, streak, searchScope
+
+    QUEST_POOL (14개 일일 퀘스트):
+      각 퀘스트: { id, store, isNew, texts[], cleared[], hint }
+      id 목록: add_character, edit_character, add_skill, edit_skill,
+               add_achievement, add_item, edit_item, add_monster,
+               add_gate, edit_gate, write_novel, add_event, add_quest, add_job
+      날짜 기반 선택: seed = date.getFullYear()*10000+... % QUEST_POOL.length
+
+    MISSION_POOL (14개 8시간 미션):
+      각 미션: { id, text, target, store, isNew?, reward }
+      8시간마다 새 3개 미션 세트 (getMissionState())
+
+    SHIELD_COST: 50포인트
+
+    recordActivity(storeName, isNew):
+      - 오늘의 퀘스트가 storeName+isNew 와 일치하면 퀘스트 클리어
+      - 현재 미션 중 storeName+isNew 와 일치하는 것 progress 증가
+      - _onQuestDone(): streak.count++, streak.history 갱신, +50점, totalCleared++
+      - _onMissionDone(): 미션 완료 시 streak 1증가 (단, missionAdvancedStreak 중복 방지)
+      ※ 호출하는 페이지: characters-form, skills-form, achievements, items-form,
+                        monsters-form, constellations-form, countries-form, countries(inline),
+                        companies(2곳), event-graph, places-form, jobs-form, keywords,
+                        quests(3곳), traps
+      ※ 호출 안 하는 페이지 (미션 기여 없음):
+                        gates-form, organizations-form, tower-floor-form,
+                        tower-subfloor-form, stat-defs, world, world-rules,
+                        reminders, timeline, family-tree
+      ※ updateStreak만 호출 (recordActivity 없음): races, gods, novel-view
+
+    updateStreak():
+      - home.js init, novel-view.js 저장 시, races.js 저장 시, gods.js 저장 시 호출
+      - 날짜 변경 감지 → 쉴드 소비 또는 스트릭 리셋
+
+    getMissionState(): 현재 8시간 미션 세트 반환 (만료 시 새로 생성)
+    getMissionResetCost(state): 미완료 미션당 15포인트
+    buyShield(): 50포인트 소비 → 쉴드 +1
+    resetMissions(): 포인트 소비 → 미션 새로고침
+
+  js/router.js
+    역할: 해시 기반 SPA 라우터. window.AppRouter 전역.
+
+    PAGE_TITLES 맵 (32개):
+      home, world, characters, organizations, skills, achievements, constellations,
+      gates, monsters, tower, timeline, event-graph, family-tree, world-rules,
+      items, jobs, templates, status-viewer, novel-view, settings,
+      countries, companies, reminders, keywords, stat-defs, traps,
+      places, gods, races, shortcuts, quests, tutorial
+
+    뒤로가기 스택: 최대 50개, options는 항상 {} 로 저장 (탭/하이라이트 상태 복원 안됨)
+    navigate(pageId, options): destroy() → innerHTML 초기화 → init(app, options) 순서
+    handleBack(): 스택 없으면 home으로
+    ※ 현재 URL hash 미사용 (window.location.hash 연동 없음)
+
+  js/utils.js
+    역할: 유틸리티 함수 모음. window.Utils, window.AppFlags 전역.
+
+    Utils 주요 API:
+      toast(msg, type, duration): 3초 토스트 (success/error/info/warning)
+      confirm(title, desc, onOk, okLabel): #confirmDialog 기반 확인 다이얼로그
+      confirmWithInput(title, desc, expected, onOk): 텍스트 입력 확인 (삭제 시)
+      openModal(title, body, onConfirm, confirmLabel): #globalModalOverlay 기반 모달
+        - onConfirm에서 false 반환 시 모달 유지 (검증 실패 시)
+        - onConfirm에서 true 반환 시 모달 닫힘
+      closeModal(): #globalModalOverlay.classList.remove('open')
+        ※ 모달 닫을 때 반드시 closeModal() 사용
+        ※ #globalModal (모달 박스 자체)의 open 클래스 제거는 동작 안함
+      fieldError(id): 입력 필드 빨간 테두리 표시
+      escHtml(str): XSS 방지 HTML 이스케이프
+      nl2br(str): \n → <br>
+      gradeColor(grade): 등급별 CSS 색상
+      gradeBadge(grade): 등급 배지 HTML
+      formatDate(ts): 타임스탬프 → '2026-05-17 14:30' 형식
+      matchesQuery(text, query): 검색어 매칭 (공백 분리 AND)
+      imageToBase64(file): 이미지 파일 → base64 문자열
+      addFieldToggles(root): textarea 앞 form-label 있는 모든 필드에 접기/펼치기 버튼 자동 추가
+
+    AppFlags:
+      - localStorage의 'appFlags' JSON에 동기 저장/읽기
+      - AppFlags.get(key, default), AppFlags.set(key, value), AppFlags.getAll()
+      - 페이지 초기화 시 DB.getSetting('flag_'+key) 와 동기화 필요
+      - 빠른 동기 접근용 (폼 렌더링 시)
+
+  js/constants.js
+    역할: 전역 상수 관리. window.AppConstants 전역.
+
+    DEFAULTS (코드 내장 기본값):
+      grades: ['F','E','D','C','B','A','S','SS','SSS','EX']
+      attributes: ['화염','수','빙','번개','암','광','풍','지','독','무속성']
+      skillSeries: ['헌터', '마법사', '전사', '암살자', '성기사', '지원']
+      itemTypes: ['장비','소비','재료','퀘스트','기타']
+      iconPresets: [...성좌 아이콘 목록]
+      (baseStats 항목 제거됨)
+
+    load(): DB settings에서 const_* 키 로드 → this._cache 에 저장
+    get(key): 캐시 조회 → 없으면 DEFAULTS 반환
+    invalidate(): this._cache 초기화 (settings.js에서 상수 저장 후 반드시 호출)
+
+    const_* 설정 키: grades, attributes, skillSeries, itemTypes, iconPresets,
+                     statCategories (+ 기타 커스텀 상수)
+
+  js/search.js
+    역할: 전체 검색 엔진. window.SearchEngine 전역.
+
+    SEARCH_STORES (13개, 검색 범위):
+      characters, skills, achievements, items, monsters, constellations,
+      gates, organizations, events, jobs, countries, companies, keywords
+
+    검색에서 제외된 스토어 (의도적):
+      worlds, places, traps, races, gods, statDefs, towers, worldRules,
+      quests, editHistory, templates, folders, settings, streak
+
+    search(query, worldId, scopeAll, typeFilter):
+      - scopeAll=true 이면 worldId 무시 (전체 세계 검색)
+      - typeFilter: 'all' 또는 특정 store명
+      - 최대 20개/그룹 반환 (하드코딩)
+
+    renderResults(results, query): 결과 HTML 생성
+
+  js/app.js
+    역할: 앱 부트스트랩. window.AppStore 초기화 + 페이지 등록 + DOM 이벤트 바인딩.
+
+    등록된 pageModules (32개):
+      home, world, characters, organizations, skills, achievements, constellations,
+      gates, monsters, tower, timeline, event-graph, family-tree, world-rules,
+      items, jobs, templates, status-viewer, novel-view, settings,
+      countries, companies, reminders, keywords, stat-defs, traps,
+      places, gods, races, shortcuts, quests, tutorial
+
+    setupDrawer(): 서랍 메뉴 + 하단 탭 click 이벤트 바인딩
+    12초 로딩 타임아웃 — DB 초기화 실패 시 오류 메시지 표시
+    SW 업데이트 감지 (SW_UPDATED 메시지) → Utils.toast + 페이지 리로드 권고
+
+  ──────────────────────────────────────────────────────────────────────────────
+  pages/ — 페이지 모듈 (window.Pages.pageName = { init(container, opts), destroy() })
+  ──────────────────────────────────────────────────────────────────────────────
+
+  ── 홈 & 탐색 ──
+
+  pages/home.js
+    - HOME_ALL_PAGES: 전역 상수 (29개 페이지 목록, shortcuts.js 의존)
+    - 바로가기 5슬롯: DB.getSetting('homeBookmarks') 로드
+    - 스트릭/미션/7일 바 차트 표시
+    - 수정 기록 버튼: DB.getAll('editHistory') 전체 조회 (worldId 미사용)
+      → 수정 기록 모달: 타임스탬프 내림차순, 전체 삭제 버튼 포함
+      → 삭제 후 반드시 Utils.closeModal() 호출 (✅ v88에서 수정됨)
+    - AppStore.updateStreak() 를 init 마지막에 호출
+
+  pages/shortcuts.js
+    - HOME_ALL_PAGES (home.js 전역) 의존 — home.js 로드 후 로드 필수
+    - DB.getSetting('homeBookmarks') 공유
+
+  pages/timeline.js
+    - events 스토어 사용 (DB_NAME에서 'events' 키)
+    - AppStore.recordActivity 미호출
+
+  pages/event-graph.js
+    - 캔버스 기반 노드-엣지 그래프 (드래그/핀치 줌)
+    - AppStore.recordActivity('events', !isEdit) 호출 ✅
+
+  pages/family-tree.js
+    - AppStore.recordActivity 미호출
+
+  ── 세계 & 시스템 ──
+
+  pages/world.js
+    - DB.getAll('worlds') — worldId 인덱스 없음, 전체 조회
+    - DB.put('worlds', ...) 로 저장 (HISTORY_STORES에 포함, 히스토리 자동 저장)
+    - AppStore.recordActivity 미호출
+
+  pages/settings.js
+    - 기능 플래그: DB.setSetting('flag_'+key) + AppFlags.set(key) 동시 저장
+    - 아이콘 관리: DB.setSetting('iconList_'+catKey) + _syncLegacy() 호출
+    - _syncLegacy(): const 카테고리 → const_iconPresets 업데이트 + AppConstants.invalidate()
+    - 전체 초기화: ALL_STORES (28개) 모두 빈 배열 + localStorage.clear() ✅
+    - 수정 기록 초기화: editHistory 전체 삭제 (실제 데이터 유지)
+    - historyMaxLength: DB.setSetting('historyMaxLength', val) 저장
+    - 앱 버전: SW에서 GET_VERSION 메시지로 자동 조회
+
+  pages/templates.js
+    - 탭1: 필드 템플릿 (스킬/아이템/직업/업적 등)
+    - 탭2: 전역 상수 (grades/attributes/skillSeries/itemTypes 등, const_* 키로 저장)
+           저장 후 AppConstants.invalidate() 호출
+    - 탭3: 게이트 목록 (gateCustomTypes_{wid}, gateCustomBreakTypes_{wid})
+    - 탭4: 세계 타입 (DB.setSetting('worldTypes', [...]))
+
+  pages/status-viewer.js
+    - HIDDEN_STATS 그룹 처리
+    - novelViewDefault 플래그로 기본 뷰 결정
+    - communityLockedDefault, showConstellationsInStatus 플래그 적용
+
+  pages/novel-view.js
+    - 저장: DB.setSetting('novelDraft_'+wid, text) — editHistory 기록 없음 (의도적)
+    - AppStore.updateStreak() 4곳 호출 (저장/임시저장/다른 기능)
+    - AppStore.recordActivity 미호출 (저장은 settings가 아닌 write streak만 올림)
+    - 언두 스택 40단계
+    - THEMATIC_QUESTIONS 기본 비어있음 (설정에서 사용자가 추가)
+
+  ── 캐릭터 & 생물 ──
+
+  pages/characters.js
+    - HIDDEN_STATS 섹션 그룹 (힘특화/민첩특화/체력특화/마나계열/정신계열/기타)
+    - listScrollMemory 플래그 연동
+
+  pages/characters-form.js
+    - Object.assign(window.Pages.characters, {...}) 패턴
+    - StatDefs 없을 시 DEFAULT_STATS 자동 생성 (window.Pages.statDefs.DEFAULT_STATS)
+    - linkedAchievements: [{id, name}] 배열
+    - mainJob: {id, name} 단일, subJobs: [{id, name}] 배열
+    - useRegression 플래그 → fCharCycle 필드 표시/숨김
+    - AppStore.updateStreak() + AppStore.recordActivity('characters', !isEdit) ✅
+
+  pages/races.js
+    - 종족 스킬 연동: raceSkills [{id, name, grade}]
+    - 계급 체계, 세부 종류, 평균 스탯 범위 저장
+    - AppStore.updateStreak() 호출 ✅
+    - AppStore.recordActivity 미호출 ⚠️ (미션 기여 없음)
+
+  pages/gods.js
+    - 신 그룹 → 계급 → 개별 신 3단계 구조
+    - AppStore.updateStreak() 2곳 호출 ✅
+    - AppStore.recordActivity 미호출 ⚠️ (미션 기여 없음)
+
+  ── 전투 & 던전 ──
+
+  pages/gates.js + pages/gates-form.js
+    - gates-form.js: Object.assign(window.Pages.gates, {...})
+    - 컨셉 칩: data-active 방식 (웨이브/탐험/참수/보스/방어전/공성전/스피드런/생존)
+    - 웨이브 클리어 조건: 토글 칩 다중 선택 (clearConditionTypes[])
+    - 퀘스트 연동: linkedQuests [{id, name}]
+    - statDefs 없을 시 기본 스텟 자동 생성
+    - AppStore.recordActivity 미호출 ⚠️
+
+  pages/monsters.js + pages/monsters-form.js
+    - AppStore.updateStreak() + AppStore.recordActivity('monsters', !isEdit) ✅
+
+  pages/tower.js
+    - BUNDLE_SIZE: 10 (층 번들 묶음)
+    - 통합 층 (isComposite): compositeRange 라벨 표시
+    - 서브층: 보라색 점선 버튼 / 히든층: 노란색 점선 버튼
+    - AppStore.recordActivity 미호출 ⚠️
+
+  pages/tower-floor-form.js
+    - Object.assign(window.Pages.tower, {...})
+    - 통합 층 (isComposite), compositeQuests [{id, name}]
+    - 컨셉: 웨이브/탐험/참수/보스/방어전/공성전/스피드런/생존
+    - 웨이브 → 퀘스트 연동 (wave.linkedQuests)
+    - 특징 엔트리: featureEntries [{id, refType, refId, refName, text}]
+    - statDefs 없을 시 기본 스텟 자동 생성
+    - AppStore.recordActivity 미호출 ⚠️
+
+  pages/tower-subfloor-form.js
+    - Object.assign(window.Pages.tower, {...})
+    - defaultHidden 파라미터로 히든/서브 모드 분리
+    - accessTypes [], accessDesc 저장
+    - AppStore.recordActivity 미호출 ⚠️
+
+  pages/traps.js
+    - 함정 아이콘 (icon 필드), 연동 스킬 (linkedSkills [{id, name}])
+    - 제작 조건 (craftCondition)
+    - AppStore.updateStreak() + AppStore.recordActivity('traps', !isEdit) ✅
+
+  ── 스킬 & 능력 ──
+
+  pages/skills.js + pages/skills-form.js
+    - skills-form.js: passiveSubtypes, activeSubtypes → AppConstants._cache 에서 로드
+    - AppStore.updateStreak() + AppStore.recordActivity('skills', !isEdit) ✅
+
+  pages/achievements.js
+    - AppStore.updateStreak() + AppStore.recordActivity('achievements', !isEdit) ✅
+
+  pages/stat-defs.js
+    - DEFAULT_STATS: 9개 (근력/민첩/체력/지능/마나/정신력/행운/재능/감각)
+    - window.StatDefs = window.Pages.statDefs 전역 참조
+    - CATEGORIES: ['기본스텟','전투스텟','마나계열','정신계열','저항','기타']
+    - const_statCategories 설정에서 커스텀 카테고리 로드
+    - AppStore.recordActivity 미호출 ⚠️
+    - loadNames(wid): 다른 페이지에서 자동완성 datalist 생성 시 사용
+
+  ── 세계 요소 ──
+
+  pages/organizations.js + pages/organizations-form.js
+    - organizations-form.js: Object.assign(window.Pages.organizations, {...})
+    - 커스텀 타입: DB.setSetting('orgCustomTypes_'+wid)
+    - 아이콘: DB.getSetting('iconList_org') 로드
+    - AppStore.recordActivity 미호출 ⚠️
+
+  pages/constellations.js + pages/constellations-form.js
+    - AppStore.updateStreak() + AppStore.recordActivity('constellations', !isEdit) ✅
+
+  pages/countries.js + pages/countries-form.js
+    - countries.js: 관계창 접기, 도시 주요인물/기업 접기
+    - AppStore.updateStreak() + AppStore.recordActivity('countries', !isEdit) ✅ (2곳)
+
+  pages/companies.js
+    - AppStore.updateStreak() + AppStore.recordActivity('companies', ...) ✅ (2곳)
+
+  pages/places.js + pages/places-form.js
+    - AppStore.updateStreak() + AppStore.recordActivity('places', !isEdit) ✅
+
+  pages/quests.js
+    - 아이콘: 고정 그리드 + 직접 입력 (#qIconCustomInput)
+    - 게이트 연동: linkedGates [{id, name}]
+    - AppStore.updateStreak() + AppStore.recordActivity('quests', !isEdit) ✅ (3곳)
+
+  pages/items.js + pages/items-form.js
+    - AppStore.updateStreak() + AppStore.recordActivity('items', !isEdit) ✅
+
+  pages/jobs.js + pages/jobs-form.js
+    - isRegressable: useRegression 플래그 off 시 섹션 숨김
+    - AppStore.updateStreak() + AppStore.recordActivity('jobs', !isEdit) ✅
+
+  ── 유틸리티 ──
+
+  pages/reminders.js
+    - AppStore.recordActivity 미호출 (reminders는 HISTORY_STORES에도 없음, 의도적)
+
+  pages/keywords.js
+    - keywordFolders, keywords 2개 스토어 사용
+    - AppStore.recordActivity('keywords', !isEdit) ✅ (updateStreak 미호출)
+
+  pages/world-rules.js
+    - AppStore.recordActivity 미호출 ⚠️
+
+  pages/tutorial.js
+    - 탭1: 미션 체크리스트 (세계 생성 ~ 스토리 작성 단계별)
+    - 탭2: 기능 설명 카드 (접기/펼치기 tut-toggle-btn + tut-guide-body)
+      - HOW-TO (7개): 스킬→캐릭터, 직업→캐릭터, 업적→캐릭터,
+                      퀘스트↔게이트, 스킬→몬스터, 서브/히든층, 상태창 뷰어
+      - 기능별 설명 (27개): 각 페이지 상세 안내
+    - _collapsed: {} 로 접기 상태 추적
 
 ================================================================================
-3. IndexedDB 스키마 (DB_VERSION=12)
+4. IndexedDB 스키마 & 설정 키 전체 목록
 ================================================================================
 
-  스토어 (모든 스토어는 keyPath:'id'):
-    worlds, characters, skills, achievements, constellations, gates, towers,
-    monsters, timeline (=events), organizations, countries, companies,
-    places, traps, items, jobs, reminders, keywords, statDefs, races, gods, quests
-    editHistory (히스토리 스냅샷, worldId 인덱스 없음)
+  ── IndexedDB 스토어 (keyPath: 'id') ──
 
-  설정 (DB.getSetting / DB.setSetting — key-value):
-    homeBookmarks           — 홈 북마크 5슬롯 배열
-    historyMaxLength        — 편집 히스토리 최대 저장 수 (기본 366, settings.js에서 저장)
-    gateCustomTypes_{wid}   — 게이트 커스텀 종류 목록
-    gateCustomBreakTypes_{wid} — 게이트 커스텀 브레이크 유형
-    flag_{key}              — 기능 플래그 (gradeColors, showAuthorBadge, useRegression 등)
-    iconList_{cat}          — 카테고리별 아이콘 목록 (world/const/org/country/company/trap)
-    novelQuestions          — 테마 질문 목록
-    worldTypes              — 세계 타입 목록
-    const_{key}             — 전역 상수 (grades, attributes, etc.)
-    searchScope             — 검색 범위 ('world' | 'all')
-    eventColors             — 사건 그래프 커스텀 색상 목록 (JSON 문자열)
+    스토어명          worldId인덱스  HISTORY  설명
+    ─────────────────────────────────────────────────────────
+    worlds            ✗              ✅       세계/차원
+    characters        ✅             ✅       캐릭터
+    skills            ✅             ✅       스킬
+    achievements      ✅             ✅       업적
+    organizations     ✅             ✅       조직/단체
+    constellations    ✅             ✅       성좌
+    gates             ✅             ✅       게이트
+    monsters          ✅             ✅       몬스터
+    towers            ✅             ✅       탑 (floors[] 배열 내포)
+    items             ✅             ✅       아이템
+    jobs              ✅             ✅       직업
+    events            ✅             ✅       타임라인 사건
+    worldRules        ✅             ✅       세계관 규칙
+    templates         ✗              ✗        기본 설정
+    folders           ✅             ✗        폴더 (미사용?)
+    settings          ✗              ✗        설정 키-값
+    streak            ✗              ✗        스트릭 데이터
+    countries         ✅             ✅       국가
+    companies         ✅             ✅       기업
+    keywordFolders    ✅             ✅       키워드 폴더
+    keywords          ✅             ✅       키워드
+    statDefs          ✅             ✅       스텟 정의
+    traps             ✅             ✅       함정 종류
+    places            ✅             ✅       장소
+    gods              ✅             ✅       신
+    races             ✅             ✅       종족
+    quests            ✅             ✅       퀘스트
+    editHistory       ✗              ✗        수정 기록 스냅샷
+
+  ── settings 스토어 키 목록 ──
+
+    homeBookmarks              홈 북마크 5슬롯 배열 (공유: home.js, shortcuts.js)
+    historyMaxLength           편집 히스토리 최대 보관 수 (기본 366)
+    novelDraft_{wid}           소설 작성 초안 (per-world)
+    novelTempSave_{wid}        소설 임시 저장 (per-world)
+    novelFontSize              소설 뷰 폰트 크기 (기본 13)
+    novelQuestions             테마 질문 목록 []
+    flag_{key}                 기능 플래그 DB 사본
+      flag_gradeColors         등급 색상 배지 (기본 true)
+      flag_showAuthorBadge     작가 전용 배지 (기본 true)
+      flag_novelViewDefault    상태창 소설뷰 기본 (기본 false)
+      flag_communityLockedDefault  커뮤니티 패널 기본 잠금 (기본 true)
+      flag_showConstellationsInStatus  성좌 계약 섹션 (기본 true)
+      flag_deleteConfirmInput  삭제 시 이름 확인 (기본 true)
+      flag_listScrollMemory    목록 스크롤 위치 기억 (기본 true)
+      flag_autoResetFilters    검색 시 필터 초기화 (기본 false)
+      flag_useRegression       회귀 시스템 (기본 true)
+      flag_searchScope         검색 범위 ('world'|'all')
+    searchScope                검색 범위 (flag_searchScope 와 중복 저장)
+    iconList_world             세계 아이콘 목록 []
+    iconList_const             성좌 아이콘 목록 []
+    iconList_org               조직 아이콘 목록 []
+    iconList_country           국가 아이콘 목록 []
+    iconList_company           기업 아이콘 목록 []
+    iconList_trap              함정 아이콘 목록 []
+    worldCustomIcons           레거시: 세계 커스텀 아이콘 (iconList_world로 마이그레이션)
+    constCustomIcons           레거시: 성좌 커스텀 아이콘 (iconList_const로 마이그레이션)
+    orgCustomIcons             레거시: 조직 커스텀 아이콘 (iconList_org로 마이그레이션)
+    countryCustomIcons         레거시: 국가 커스텀 아이콘
+    companyCustomIcons         레거시: 기업 커스텀 아이콘
+    trapCustomIcons            레거시: 함정 커스텀 아이콘
+    worldTypes                 세계 타입 목록 (templates.js 탭4)
+    orgCustomTypes_{wid}       조직 커스텀 타입 목록 (per-world)
+    gateCustomTypes_{wid}      게이트 커스텀 종류 (per-world, templates.js 탭3)
+    gateCustomBreakTypes_{wid} 게이트 커스텀 브레이크 유형 (per-world)
+    defaultClearCondTypes      웨이브 기본 클리어 조건 (settings.js)
+    eventColors                사건 그래프 커스텀 색상 (JSON 문자열)
+    const_grades               전역 상수: 등급 목록
+    const_attributes           전역 상수: 속성 목록
+    const_skillSeries          전역 상수: 스킬 계열
+    const_itemTypes            전역 상수: 아이템 타입
+    const_iconPresets          전역 상수: 성좌 아이콘 (iconList_const 와 동기화)
+    const_statCategories       전역 상수: 스텟 카테고리 목록 [{name, color}]
+
+  ── streak 스토어 (id='main') ──
+
+    { id:'main', count, lastDate, history:[{d:'YYYY-MM-DD', c:0|1}],
+      totalCleared, longestStreak, shields, points,
+      missionAdvancedStreak (미션으로 이미 streak 올렸는지 플래그) }
 
 ================================================================================
-4. 주요 패턴 & 규칙
+5. 주요 패턴 & 규칙
 ================================================================================
 
   페이지 등록: window.Pages.pageName = { init(container, opts), destroy() }
   파일 분리:   Object.assign(window.Pages.pageName, { methods }) — 분리된 form 파일
 
-  모달:       Utils.openModal(title, bodyHTML, onConfirm, label)
-              → onConfirm 에서 false 반환 시 모달 유지 (필드 검증용)
-              → Utils.fieldError(id) 로 빨간 테두리 표시
+  모달:
+    Utils.openModal(title, bodyHTML, onConfirm, label)
+    → onConfirm에서 false 반환 시 모달 유지 (필드 검증 실패)
+    → onConfirm에서 true 반환 시 자동으로 Utils.closeModal() 호출
+    → Utils.fieldError(id) 로 빨간 테두리 표시
+    ⚠️ 모달 수동 닫기 시 반드시 Utils.closeModal() 사용 (closeModal은 #globalModalOverlay 조작)
+       #globalModal.classList.remove('open') 사용 금지 (동작 안 함)
 
-  토글 칩:    data-active="true|false" 방식 (wave-cond-chip, concept-chip 등)
-              체크박스 사용 금지 (시각 피드백 없어 혼란 유발)
+  토글 칩:
+    data-active="true|false" 방식 (wave-cond-chip, concept-chip 등)
+    체크박스 사용 금지 (시각 피드백 없어 혼란 유발)
 
-  접기/펼치기: section-toggle 버튼 + section-body div
-               _collapsedSections 객체로 상태 추적
+  접기/펼치기:
+    section-toggle 버튼 + section-body div
+    _collapsedSections 객체로 상태 추적
 
-  등급 색상:  Utils.gradeColor(grade) / Utils.gradeBadge(grade)
+  등급 색상: Utils.gradeColor(grade) / Utils.gradeBadge(grade)
+  이미지:    Utils.imageToBase64(file) → base64 저장 (IndexedDB)
 
-  이미지:     Utils.imageToBase64(file) → base64 저장 (IndexedDB)
+  히스토리:
+    DB.put() 내부 자동 스냅샷 (HISTORY_STORES 대상, 기존 레코드 있을 때만)
+    editHistory: { id, storeName, itemId, itemName, timestamp, snapshot }
+    최대 보관 수: historyMaxLength 설정 (기본 366)
 
-  히스토리:   DB.put() 내부에서 HISTORY_STORES 대상 자동 스냅샷
-              editHistory 스토어 → { id, storeName, itemId, itemName, timestamp, snapshot }
+  세계 선택:
+    AppStore.getCurrentWorldId() → wid (null이면 세계 선택 화면 표시)
 
-  세계 선택:  AppStore.getCurrentWorldId() → wid (null 이면 세계 선택 화면 표시)
+  기능 플래그:
+    AppFlags.get(key, default) — 동기 접근, localStorage 캐시
+    DB.getSetting('flag_'+key) — 비동기 DB 접근 (settings.js에서 저장)
+    둘 다 항상 동시 업데이트 필요 (AppFlags.set + DB.setSetting)
 
-  기능 플래그: AppFlags.get(key, default) — 동기 접근, localStorage 캐시
-               DB.getSetting('flag_'+key) — 비동기 DB 접근 (settings.js에서 저장)
-               형태 모두 동시 지원. 폼/페이지는 AppFlags.get() 사용 권장.
+  스트릭/활동 기록:
+    저장 성공 후: await AppStore.updateStreak(); await AppStore.recordActivity(storeName, isNew);
+    updateStreak() — 날짜 변경 감지 (항상 호출)
+    recordActivity() — 미션/퀘스트 진행 (저장 페이지에서 호출)
+    ⚠️ 일부 페이지 미호출 현황은 섹션 3 참조
+
+  검색 자동완성 드롭다운:
+    blur 이벤트 + setTimeout 200ms 패턴으로 결과창 닫기
+    mousedown에서 e.preventDefault() 로 blur 보다 먼저 처리
 
 ================================================================================
-5. UI/UX 일관성 규칙
+6. UI/UX 일관성 규칙
 ================================================================================
 
   하단 탭 (5개):
@@ -237,54 +588,90 @@
     세계 요소: 게이트, 탑, 몬스터, 성좌, 조직, 국가, 기업, 장소, 종족, 신
     캐릭터 관련: 스킬, 업적, 직업
     시스템: 아이템, 함정, 스텟 정의, 키워드, 리마인더, 세계관 규칙
-    (settings, templates, status-viewer, novel-view, world 는 ⋯ 헤더 메뉴 또는 바로가기에서)
+    (settings, templates, status-viewer, novel-view, world 는 헤더 ⋯ 메뉴 또는 바로가기)
 
   헤더 ⋯ 메뉴:
     세계/차원 관리 | 설정 | 기본 설정 관리 | 상태창 뷰어
 
 ================================================================================
-6. 미완성 / 추가 예정 기능 (알려야 할 것)
+7. 알려진 버그 & 제한사항
 ================================================================================
 
-  ☐ 바로가기 페이지(shortcuts.js) 에서 편집 시 북마크 변경 후 재렌더링 확인 필요
-  ☐ 게이트 컨셉 칩 → 이전 체크박스 UI 데이터(checked) 를 가진 기존 데이터 마이그레이션
+  ✅ 수정 완료 (v88 이전):
+    - db.js: historyLimit → historyMaxLength 키 불일치 (항상 기본 50개만 보관하던 버그)
+    - db.js: HISTORY_STORES에서 worlds, keywordFolders 누락
+    - settings.js: 전체 초기화 시 editHistory 및 일부 스토어 미삭제
+    - router.js: PAGE_TITLES에 quests, tutorial 누락 (raw pageId 표시되던 버그)
+    - home.js: 수정 기록 모달 삭제 버튼이 #globalModal로 잘못 닫음
+               → Utils.closeModal() 로 수정
+
+  ⚠️ 알려진 미수정 이슈:
+    1. AppStore.recordActivity 미호출 페이지:
+       - gates-form, organizations-form, tower-floor-form, tower-subfloor-form,
+         stat-defs, world, world-rules, reminders, timeline, family-tree
+       → 해당 저장 시 미션 진행 카운트 미증가
+
+    2. races.js, gods.js — updateStreak만 호출, recordActivity 없음
+       → 종족/신 저장 시 미션 카운트 미증가
+
+    3. AppStore._onQuestDone에서 totalCleared 매 호출마다 증가
+       → 같은 세션에서 퀘스트가 두 번 트리거되면 이중 카운트 가능성
+
+    4. router.js 뒤로가기: options를 항상 {} 로 저장
+       → 뒤로가기 시 탭/하이라이트 상태 복원 안됨
+
+    5. SearchEngine SEARCH_STORES (13개) — places, traps, races, gods, statDefs,
+       worlds, quests, towers, worldRules 미포함
+       → 전체 검색에서 이들 항목 검색 불가
+
+    6. novel-view.js — THEMATIC_QUESTIONS 기본 비어있음
+       (설정 페이지에서 직접 추가해야 표시됨)
+
+    7. 퀘스트 ↔ 게이트 양방향 연동 미완성
+       (한쪽에서 저장해도 상대방에 자동 반영 안됨)
+
+    8. 함정 아이콘 — settings의 iconList_trap을 함정 폼 아이콘 피커에 미연동
+       (현재 직접 이모지 입력만 가능)
+
+================================================================================
+8. 미완성 / 추가 예정 기능
+================================================================================
+
+  ☐ 바로가기 페이지(shortcuts.js) 편집 시 북마크 변경 후 재렌더링 확인 필요
+  ☐ 게이트 컨셉 칩 → 이전 체크박스 UI 데이터 마이그레이션
      (formConcepts Set은 g.concepts 배열에서 복원되므로 저장된 데이터는 무관)
-  ☐ 함정 아이콘 — 설정의 iconList_trap 목록을 함정 폼의 아이콘 피커로 연동 필요
-     (현재는 직접 이모지 입력만 가능)
-  ☐ 통합 층(isComposite) — 퀘스트 연동 필드가 미추가 (compositeQuests)
-  ☐ 퀘스트 ↔ 게이트 양방향 연동 — 저장 시 상대 쪽에도 자동 반영 미구현
-  ☐ 캐릭터 상세 뷰 — 업적 연동 표시 (현재 폼에서 저장은 되나 상세 뷰 표시 미검토)
-  ☐ novel-view.js — THEMATIC_QUESTIONS 비어있어 참고 질문 패널 빈 상태 (의도적 리셋)
+  ☐ 함정 아이콘 — iconList_trap → 함정 폼 아이콘 피커 연동
+  ☐ 퀘스트 ↔ 게이트 양방향 자동 반영
+  ☐ 캐릭터 상세 뷰 — 업적 연동 표시 (폼에서 저장은 되나 상세뷰 표시 미검토)
+  ☐ SearchEngine에 places, traps, races, gods 추가 여부 결정
+  ☐ recordActivity 미호출 페이지에 추가 여부 결정
+     (gates, organizations, tower, stat-defs, world, world-rules)
 
 ================================================================================
-7. 버전 이력 (최근)
+9. 버전 이력 (최근)
 ================================================================================
 
+  v89 (2026-05-17): 코드 충돌/버그 전체 감사 + PROJECT_DESIGN 종합 업데이트
+                    - router.js: PAGE_TITLES에 quests:'퀘스트', tutorial:'튜토리얼' 추가
+                    - home.js: 수정 기록 삭제 후 모달 닫기 버그 수정
+                      (document.getElementById('globalModal').classList.remove('open')
+                       → Utils.closeModal())
   v88 (2026-05-17): 수정 기록 범위 확장·키 불일치 수정·기록 초기화 버튼 추가
-                    - HISTORY_STORES에 worlds·keywordFolders 추가 (누락 수정)
-                    - db.js: getSetting 키 historyLimit → historyMaxLength (settings.js와 일치)
-                      (기존에는 설정값 무시하고 항상 기본 50개만 보관하던 버그)
-                    - home.js: 수정 기록 모달에 "기록 전체 삭제" 버튼 추가, 표시 수 제한 제거
-                    - settings.js: "수정 기록 초기화" 버튼 추가 (실제 데이터는 유지)
+                    - HISTORY_STORES에 worlds·keywordFolders 추가
+                    - db.js: getSetting 키 historyLimit → historyMaxLength
+                    - home.js: 수정 기록 모달 "기록 전체 삭제" 버튼 추가
+                    - settings.js: "수정 기록 초기화" 버튼 추가
   v87 (2026-05-17): 전체 초기화 버그 수정 — editHistory·모든 스토어·localStorage 완전 삭제
   v86 (2026-05-17): TRPG 기능 전체 제거 + 튜토리얼 대폭 개선
                     - pages/trpg.js 삭제, index.html/app.js/sw.js 에서 TRPG 참조 제거
-                    - tutorial.js: 기능 설명 탭 접기/펼치기 카드 UI 추가
-                    - tutorial.js: 연동 방법(HOW-TO) 섹션 신설
-                      (캐릭터←스킬/직업/업적 연동, 퀘스트↔게이트 연동 등 7개)
-                    - tutorial.js: 기능별 설명 전체 보강 (연동 정보 포함)
-  v71 (2026-05-17): 타임라인 사건 편집/추가 기능, 모든 회차 기본값 1로 변경,
-                    함정 스킬 연동, 상태창 커뮤니티 패널 세로 레이아웃 수정
-  v70 (2026-05-17): 사건그래프 연결타입 제거(화살표 방향만), 노드색상 피커 버그수정,
-                    회귀 시스템 플래그(useRegression) 추가,
-                    캐릭터/사건/직업 폼에서 회귀 회차 필드 플래그 연동
-  v69 (2026-05-17): 직업 회귀 가능 토글, 캐릭터 직업 연동(메인/서브), 스킬 서브타입 상수 연동,
-                    퀘스트 이모지 직접 입력, settings.js 세계타입 섹션 제거
-  v68 (2026-05-17): 서브/히든층 폼 분리+접근방식 칩UI, 캐릭터 업적 DB 연동,
-                    검색 타입 필터 칩, 세계타입→기본설정관리 이동, 수정기록 용어 정리
-  v65~67 (2026-05-17): 바로가기 하단탭/전용페이지, 앱버전 SW 연동, 컨셉칩 토글버튼화,
-                    통합 층, 기본 스텟 자동초기화, 스텟 정의 목록UI,
-                    함정 아이콘/제작조건/접기, 게이트-퀘스트 연동, 웨이브 조건 칩UI
+                    - tutorial.js: 접기/펼치기 카드 UI + HOW-TO 섹션 신설
+  v71 (2026-05-17): 타임라인 사건 편집/추가 기능, 함정 스킬 연동,
+                    상태창 커뮤니티 패널 세로 레이아웃 수정
+  v70 (2026-05-17): 사건그래프 연결타입 제거, 회귀 시스템 플래그(useRegression) 추가
+  v69 (2026-05-17): 직업 회귀 가능 토글, 캐릭터 직업 연동, 스킬 서브타입 상수 연동
+  v68 (2026-05-17): 서브/히든층 폼 분리, 캐릭터 업적 DB 연동, 검색 타입 필터 칩
+  v65~67 (2026-05-17): 바로가기 페이지, 앱버전 SW 연동, 컨셉칩 토글버튼화,
+                        통합 층, 함정 아이콘, 게이트-퀘스트 연동, 웨이브 조건 칩UI
   v63 (이전): 캐릭터 스텟 검색 피커, 히든 스텟 섹션 제거
   v62 (이전): 다수 form 파일 분리, 국가 접기, 바로가기 홈 개편, 히스토리 모달
 

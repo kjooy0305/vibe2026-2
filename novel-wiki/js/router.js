@@ -22,6 +22,8 @@ const AppRouter = (function() {
     gods: '신',
     races: '종족',
     shortcuts: '바로가기',
+    quests: '퀘스트',
+    tutorial: '튜토리얼',
   };
 
   function register(pageId, module) {
