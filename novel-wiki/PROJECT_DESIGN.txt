@@ -19,7 +19,7 @@
 
   커밋/배포 원칙:
     - 항상 master:master 로 push (git push origin master:master)
-    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v71)
+    - sw.js CACHE_VERSION 을 반드시 버전업 후 커밋 (현재: novel-wiki-v83)
     - 배포 결과 링크: https://kjooy0305.github.io/vibe2026-2/novel-wiki/
 
 ================================================================================
@@ -29,7 +29,7 @@
   [ 루트 파일 ]
     index.html      — 앱 셸 HTML. 스크립트 로드 순서 중요 (의존성 있음)
     manifest.json   — PWA 매니페스트
-    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v71)
+    sw.js           — 서비스 워커 (캐시 버전: CACHE_VERSION, 현재 v83)
 
   [ js/ — 핵심 모듈 ]
     js/db.js        — IndexedDB 래퍼 (DB.open, DB.get, DB.getAll, DB.put, DB.del,
@@ -253,6 +253,9 @@
 7. 버전 이력 (최근)
 ================================================================================
 
+  v83 (2026-05-17): TRPG 새 씬 생성 버그 수정 (buildSceneList null 가드,
+                    doNewSc 현재 씬 자동저장 + ID 충돌 방지)
+  v82 (이전): TRPG 새 씬 생성 버그 1차 수정 (doNewSc _E.scenes 미추가 수정)
   v71 (2026-05-17): 타임라인 사건 편집/추가 기능, 모든 회차 기본값 1로 변경,
                     함정 스킬 연동, 상태창 커뮤니티 패널 세로 레이아웃 수정
   v70 (2026-05-17): 사건그래프 연결타입 제거(화살표 방향만), 노드색상 피커 버그수정,
