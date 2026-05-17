@@ -742,6 +742,7 @@ function buildSceneList() {
   }
   el.innerHTML = _E.order.map(id => {
     const s = _E.scenes[id];
+    if (!s) return '';
     const lbl = `#${id}# ${s.title||s.text?.slice(0,14)||''}`.trim();
     return `<div class="trpg-sli${_E.editId===id?' on':''}" data-id="${eA(id)}">${esc(lbl)}</div>`;
   }).join('');
@@ -813,8 +814,16 @@ function doDelSc() {
 }
 
 function doNewSc() {
+  // 현재 편집 중인 씬이 있으면 먼저 저장
+  if (_E.editId && _E.scenes[_E.editId]) {
+    const curId = document.getElementById('eId')?.value.trim();
+    if (curId) doSaveSc();
+  }
+  // 이미 존재하지 않는 ID 찾기
   const nums = _E.order.map(id=>+id).filter(n=>!isNaN(n));
-  const nextId = nums.length ? String(Math.max(...nums)+1) : '1';
+  let nextNum = nums.length ? Math.max(...nums)+1 : 1;
+  let nextId = String(nextNum);
+  while (_E.scenes[nextId]) { nextNum++; nextId = String(nextNum); }
   _E.scenes[nextId] = { id: nextId, title: '', text: '', choices: [], initVars: {} };
   _E.order.push(nextId);
   loadSceneToEditor(nextId);
