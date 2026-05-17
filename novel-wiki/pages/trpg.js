@@ -171,6 +171,18 @@ function injectStyle() {
 .trpg-tab-btn.on { border-bottom-color: var(--tg); color: var(--tg); }
 .trpg-tab-panel { display: none; flex: 1; min-height: 0; overflow: hidden; flex-direction: column; }
 .trpg-tab-panel.on { display: flex; }
+/* ── CHARACTER CARD ──────────────────────────────────────── */
+.trpg-char-card {
+  margin-bottom: 4px; padding: 5px 7px;
+  background: var(--color-bg); border: 1px solid var(--color-border); border-radius: 4px;
+}
+.trpg-char-name { font-size: 12px; font-weight: 700; color: var(--color-text); }
+.trpg-char-role { font-size: 10px; color: var(--color-text-muted); margin-top: 1px; }
+.trpg-gmnote {
+  font-size: 11px; color: var(--color-text-muted); white-space: pre-wrap;
+  background: rgba(245,158,11,.06); border: 1px solid rgba(245,158,11,.2);
+  border-radius: 4px; padding: 5px 7px; line-height: 1.5; min-height: 18px;
+}
 /* ── LIST ────────────────────────────────────────────────── */
 .trpg-list-wrap { flex: 1; overflow-y: auto; padding: 14px; }
 .trpg-card {
@@ -196,7 +208,7 @@ function injectStyle() {
 // ─── STATE ───────────────────────────────────────────────────────────────────
 let _el = null, _stories = [], _story = null;
 let _P = { sceneId:'1', vars:{}, hist:[], dlog:[], scenes:{}, order:[], initVars:'' };
-let _E = { scenes:{}, order:[], editId:null, initVars:'', title:'' };
+let _E = { scenes:{}, order:[], editId:null, initVars:'', title:'', gmNotes:{}, rulebook:'', scenarioNotes:'', characters:[] };
 
 // ─── PARSER ──────────────────────────────────────────────────────────────────
 function parseTxt(txt) {
@@ -383,7 +395,7 @@ function showPlay(story) {
   _story = story;
   const { scenes, order } = parseTxt(story.content||'');
   _P = { scenes, order, initVars:story.initVars||'', hist:[], dlog:[],
-         sceneId:order[0]||'1', vars:{} };
+         sceneId:order[0]||'1', vars:{}, gmNotes:story.gmNotes||{} };
   _P.vars = mkVars(story.initVars||'', scenes, order);
 
   _el.innerHTML = `
@@ -431,6 +443,34 @@ function showPlay(story) {
           <div class="trpg-hlog" id="pHlog"></div>
         </div>
       </div>
+      ${story.rulebook ? `
+      <div class="trpg-rsec">
+        <div class="trpg-rtitle" data-body="pRulB">📖 룰북 <span>▼</span></div>
+        <div class="trpg-rbody" id="pRulB" style="display:none;">
+          <div style="font-size:11px;white-space:pre-wrap;color:var(--color-text);line-height:1.6;">${esc(story.rulebook)}</div>
+        </div>
+      </div>` : ''}
+      ${(story.characters||[]).length ? `
+      <div class="trpg-rsec">
+        <div class="trpg-rtitle" data-body="pCharB">👤 캐릭터 <span>▼</span></div>
+        <div class="trpg-rbody" id="pCharB" style="display:none;">
+          ${(story.characters||[]).map(c => `
+            <div style="margin-bottom:7px;padding-bottom:7px;border-bottom:1px dashed var(--color-border);">
+              <div style="font-size:12px;font-weight:700;color:var(--tg);">${esc(c.name)}</div>
+              ${c.desc ? `<div style="font-size:10px;color:var(--color-text-muted);">${esc(c.desc)}</div>` : ''}
+              ${Object.keys(c.stats||{}).length ? Object.entries(c.stats).map(([k,v])=>`
+                <div class="trpg-svrow"><span class="trpg-svn">${esc(k)}</span><span class="trpg-svv">${esc(String(v))}</span></div>`).join('') : ''}
+              ${c.items ? `<div style="font-size:10px;color:var(--color-text-muted);margin-top:2px;">${esc(c.items)}</div>` : ''}
+            </div>`).join('')}
+        </div>
+      </div>` : ''}
+      ${Object.values(story.gmNotes||{}).some(v=>v) ? `
+      <div class="trpg-rsec">
+        <div class="trpg-rtitle" data-body="pGmNB">🔒 GM 노트 <span>▼</span></div>
+        <div class="trpg-rbody" id="pGmNB" style="display:none;">
+          <div class="trpg-gmnote" id="pGmNote"></div>
+        </div>
+      </div>` : ''}
     </div>
   </div>
 </div>`;
@@ -508,6 +548,8 @@ function renderScene(id) {
   choEl.innerHTML = '';
   scidEl.textContent = `#${id}#${sc?.title?' — '+sc.title:''}`;
   txtEl.textContent = sc ? sc.text : '❌ 씬을 찾을 수 없습니다: #'+id+'#';
+  const gnEl = document.getElementById('pGmNote');
+  if (gnEl) gnEl.textContent = _P.gmNotes[id] || '(이 씬에 GM 노트 없음)';
   if (!sc) return;
 
   const chs = sc.choices||[];
@@ -571,9 +613,12 @@ function showEdit(story) {
   _story = story;
   if (story) {
     const { scenes, order } = parseTxt(story.content||'');
-    _E = { scenes, order, editId:null, initVars:story.initVars||'', title:story.title||'' };
+    _E = { scenes, order, editId:null, initVars:story.initVars||'', title:story.title||'',
+           gmNotes:story.gmNotes||{}, rulebook:story.rulebook||'',
+           scenarioNotes:story.scenarioNotes||'', characters:story.characters||[] };
   } else {
-    _E = { scenes:{}, order:[], editId:null, initVars:'hp = 100\ngold = 30\nsword = 0', title:'' };
+    _E = { scenes:{}, order:[], editId:null, initVars:'hp = 100\ngold = 30\nsword = 0', title:'',
+           gmNotes:{}, rulebook:'', scenarioNotes:'', characters:[] };
   }
 
   _el.innerHTML = `
@@ -593,7 +638,7 @@ function showEdit(story) {
   <div class="trpg-tabs" id="eTabs">
     <button class="trpg-tab-btn on" data-tab="eTabList">씬 목록</button>
     <button class="trpg-tab-btn" data-tab="eTabEdit">씬 편집</button>
-    <button class="trpg-tab-btn" data-tab="eTabVars">변수/안내</button>
+    <button class="trpg-tab-btn" data-tab="eTabVars">설정/룰북</button>
   </div>
 
   <div class="trpg-edit-body">
@@ -628,7 +673,13 @@ function showEdit(story) {
           <button class="btn btn-ghost btn-sm" id="eAddCh" style="padding:2px 8px;font-size:10px;">+ 추가</button>
         </div>
         <div style="font-size:10px;color:var(--color-text-muted);margin-bottom:3px;">텍스트 | 조건(hp>=5) | 효과(hp-=5) | 이동씬ID</div>
-        <div id="eCed" style="max-height:140px;overflow-y:auto;"></div>
+        <div id="eCed" style="max-height:120px;overflow-y:auto;"></div>
+      </div>
+      <div style="flex-shrink:0;">
+        <label class="trpg-elabel">🔒 GM 노트 (플레이 시 비공개)</label>
+        <textarea class="trpg-einput" id="eGmNote" rows="2"
+          style="resize:none;font-size:11px;font-family:monospace;"
+          placeholder="이 씬의 GM 전용 메모 (복선, 힌트, 숨겨진 정보 등)"></textarea>
       </div>
       <div style="display:flex;gap:5px;flex-shrink:0;flex-wrap:wrap;">
         <button class="btn btn-primary btn-sm" id="eSaveSc">💾 씬 저장</button>
@@ -637,16 +688,41 @@ function showEdit(story) {
       </div>
     </div>
 
-    <!-- RIGHT: Vars + guide -->
+    <!-- RIGHT: Vars + Rulebook + Characters -->
     <div class="trpg-eside trpg-tab-panel trpg-tab-mobile" id="eTabVars">
       <div class="trpg-rsec">
         <div class="trpg-rtitle">📐 초기 변수</div>
         <div class="trpg-rbody">
           <div style="font-size:10px;color:var(--color-text-muted);margin-bottom:4px;line-height:1.5;">한 줄에 변수 하나<br>예) hp = 100</div>
-          <textarea class="trpg-einput" id="eIVars" rows="5"
+          <textarea class="trpg-einput" id="eIVars" rows="4"
             style="resize:none;font-family:monospace;font-size:11px;"
             placeholder="hp = 100&#10;gold = 30">${eA(_E.initVars)}</textarea>
         </div>
+      </div>
+      <div class="trpg-rsec">
+        <div class="trpg-rtitle">📖 룰북</div>
+        <div class="trpg-rbody">
+          <div style="font-size:10px;color:var(--color-text-muted);margin-bottom:4px;line-height:1.5;">세계관·전투·판정 규칙을 자유롭게 작성</div>
+          <textarea class="trpg-einput" id="eRulebook" rows="6"
+            style="resize:none;font-size:11px;font-family:monospace;"
+            placeholder="예) 판정: d20 + 능력치&#10;20이상 대성공, 1이하 치명실패&#10;전투: 이니셔티브 → 공격 → 방어">${eA(_E.rulebook)}</textarea>
+        </div>
+      </div>
+      <div class="trpg-rsec">
+        <div class="trpg-rtitle">📝 시나리오 노트</div>
+        <div class="trpg-rbody">
+          <div style="font-size:10px;color:var(--color-text-muted);margin-bottom:4px;line-height:1.5;">주요 NPC, 사건 개요, GM 힌트</div>
+          <textarea class="trpg-einput" id="eScenNotes" rows="4"
+            style="resize:none;font-size:11px;"
+            placeholder="사건의 발단, 핵심 단서, NPC 동기...">${eA(_E.scenarioNotes)}</textarea>
+        </div>
+      </div>
+      <div class="trpg-rsec">
+        <div class="trpg-rtitle" style="cursor:default;">
+          👤 캐릭터 시트
+          <button class="btn btn-ghost btn-sm" id="eAddChar" style="padding:1px 6px;font-size:10px;">+</button>
+        </div>
+        <div class="trpg-rbody" id="eCharList"></div>
       </div>
       <div class="trpg-rsec">
         <div class="trpg-rtitle">📋 TXT 문법</div>
@@ -691,7 +767,9 @@ function showEdit(story) {
     doSaveSc();
     const iv = document.getElementById('eIVars').value;
     const title = document.getElementById('eTitle').value || '테스트';
-    showPlay({ id:_story?.id||'_test', title, content:toTxt(_E.scenes,_E.order,iv), initVars:iv });
+    showPlay({ id:_story?.id||'_test', title, content:toTxt(_E.scenes,_E.order,iv), initVars:iv,
+               rulebook:_E.rulebook, scenarioNotes:_E.scenarioNotes,
+               characters:_E.characters, gmNotes:_E.gmNotes });
   });
   document.getElementById('eExport').addEventListener('click', () => {
     const iv = document.getElementById('eIVars').value;
@@ -729,8 +807,12 @@ function showEdit(story) {
     document.getElementById('eCed').appendChild(r);
   });
   document.getElementById('eIVars').addEventListener('input', e => { _E.initVars = e.target.value; });
+  document.getElementById('eRulebook').addEventListener('input', e => { _E.rulebook = e.target.value; });
+  document.getElementById('eScenNotes').addEventListener('input', e => { _E.scenarioNotes = e.target.value; });
+  document.getElementById('eAddChar').addEventListener('click', () => doEditChar(null));
 
   buildSceneList();
+  renderCharList();
   if (_E.order.length) loadSceneToEditor(_E.order[0]);
 }
 
@@ -761,6 +843,7 @@ function loadSceneToEditor(id) {
   _E.editId = id;
   const set = (elId, val) => { const e=document.getElementById(elId); if(e) e.value=val; };
   set('eId', id); set('eScTitle', s.title||''); set('eText', s.text||'');
+  set('eGmNote', _E.gmNotes[id]||'');
   const ced = document.getElementById('eCed');
   if (ced) ced.innerHTML = (s.choices||[]).map(c => `
     <div class="trpg-crow">
@@ -786,6 +869,7 @@ function getChoices() {
 function doSaveSc() {
   const id = document.getElementById('eId')?.value.trim();
   if (!id) { tst('씬 ID를 입력하세요.'); return; }
+  const gmNote = document.getElementById('eGmNote')?.value || '';
   const s = {
     id,
     title: document.getElementById('eScTitle').value.trim(),
@@ -795,10 +879,16 @@ function doSaveSc() {
   };
   if (_E.editId && _E.editId !== id) {
     delete _E.scenes[_E.editId];
+    // GM 노트도 새 ID로 이전
+    if (_E.gmNotes[_E.editId] !== undefined) {
+      _E.gmNotes[id] = _E.gmNotes[_E.editId];
+      delete _E.gmNotes[_E.editId];
+    }
     const i = _E.order.indexOf(_E.editId); if(i>=0) _E.order[i]=id; else _E.order.push(id);
   } else if (!_E.scenes[id]) {
     _E.order.push(id);
   }
+  _E.gmNotes[id] = gmNote;
   _E.scenes[id] = s; _E.editId = id;
   buildSceneList(); tst('씬 저장됨.');
 }
@@ -806,9 +896,10 @@ function doSaveSc() {
 function doDelSc() {
   if (!_E.editId || !confirm(`씬 #${_E.editId}#을 삭제하시겠습니까?`)) return;
   delete _E.scenes[_E.editId];
+  delete _E.gmNotes[_E.editId];
   _E.order = _E.order.filter(i => i!==_E.editId);
   _E.editId = null;
-  ['eId','eScTitle','eText'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
+  ['eId','eScTitle','eText','eGmNote'].forEach(id => { const e=document.getElementById(id); if(e) e.value=''; });
   const ced = document.getElementById('eCed'); if(ced) ced.innerHTML='';
   buildSceneList(); tst('삭제되었습니다.');
 }
@@ -836,21 +927,101 @@ function doNewSc() {
 async function doSaveStory() {
   const title = document.getElementById('eTitle')?.value.trim();
   if (!title) { tst('이야기 제목을 입력하세요.'); return; }
-  // Save current scene if ID is filled
   const id = document.getElementById('eId')?.value.trim();
   if (id) doSaveSc();
   const iv = document.getElementById('eIVars')?.value || '';
   const content = toTxt(_E.scenes, _E.order, iv);
+  const extra = { rulebook:_E.rulebook, scenarioNotes:_E.scenarioNotes,
+                  characters:_E.characters, gmNotes:_E.gmNotes };
   const now = Date.now();
   if (_story && _stories.find(s=>s.id===_story.id)) {
     const idx = _stories.findIndex(s=>s.id===_story.id);
-    _stories[idx] = { ..._stories[idx], title, content, initVars:iv, updatedAt:now };
+    _stories[idx] = { ..._stories[idx], title, content, initVars:iv, ...extra, updatedAt:now };
     _story = _stories[idx];
   } else {
-    const ns = { id:uid(), title, content, initVars:iv, createdAt:now, updatedAt:now };
+    const ns = { id:uid(), title, content, initVars:iv, ...extra, createdAt:now, updatedAt:now };
     _stories.push(ns); _story = ns;
   }
   await saveStories(); tst('✅ 저장되었습니다.');
+}
+
+// ─── CHARACTER SHEET ─────────────────────────────────────────────────────────
+function renderCharList() {
+  const el = document.getElementById('eCharList'); if (!el) return;
+  if (!_E.characters.length) {
+    el.innerHTML = '<div style="font-size:11px;color:var(--color-text-muted);">캐릭터가 없습니다.<br>+ 버튼으로 추가하세요.</div>';
+    return;
+  }
+  el.innerHTML = _E.characters.map(c => `
+    <div class="trpg-char-card">
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <span class="trpg-char-name">${esc(c.name||'이름 없음')}</span>
+        <div style="display:flex;gap:2px;">
+          <button class="trpg-xbtn" style="border-color:rgba(99,102,241,.4);color:var(--tpur,#7c3aed);"
+            data-ced="${eA(c.id)}">편집</button>
+          <button class="trpg-xbtn" data-cdel="${eA(c.id)}">✕</button>
+        </div>
+      </div>
+      ${c.desc ? `<div class="trpg-char-role">${esc(c.desc)}</div>` : ''}
+      ${Object.keys(c.stats||{}).length ? `<div style="margin-top:3px;">${Object.entries(c.stats).slice(0,3).map(([k,v])=>`<span style="font-size:10px;font-family:monospace;color:var(--color-text-muted);margin-right:6px;">${esc(k)}:${esc(String(v))}</span>`).join('')}</div>` : ''}
+    </div>`).join('');
+  el.querySelectorAll('[data-ced]').forEach(b => b.addEventListener('click', () => doEditChar(b.dataset.ced)));
+  el.querySelectorAll('[data-cdel]').forEach(b => b.addEventListener('click', () => doDelChar(b.dataset.cdel)));
+}
+
+function doEditChar(id) {
+  const isNew = !id;
+  const orig = id ? _E.characters.find(x => x.id === id) : null;
+  const c = orig || { id: uid(), name:'', desc:'', stats:{}, items:'' };
+  const statsText = Object.entries(c.stats||{}).map(([k,v]) => `${k} = ${v}`).join('\n');
+
+  const body = `<div style="display:flex;flex-direction:column;gap:10px;padding:2px 0;">
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--color-accent,#f59e0b);display:block;margin-bottom:3px;">이름 *</label>
+      <input class="trpg-einput" id="ceditName" value="${eA(c.name)}" placeholder="캐릭터 이름"/>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--color-accent,#f59e0b);display:block;margin-bottom:3px;">역할 / 설명</label>
+      <input class="trpg-einput" id="ceditDesc" value="${eA(c.desc)}" placeholder="전사 PC, 상인 NPC 등"/>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--color-accent,#f59e0b);display:block;margin-bottom:3px;">스탯 (줄당 하나, 예: hp = 100)</label>
+      <textarea class="trpg-einput" id="ceditStats" rows="5"
+        style="resize:none;font-family:monospace;font-size:11px;"
+        placeholder="hp = 100&#10;str = 16&#10;dex = 12&#10;int = 10">${eA(statsText)}</textarea>
+    </div>
+    <div>
+      <label style="font-size:11px;font-weight:700;color:var(--color-accent,#f59e0b);display:block;margin-bottom:3px;">소지품 / 메모</label>
+      <textarea class="trpg-einput" id="ceditItems" rows="2"
+        style="resize:none;font-size:11px;"
+        placeholder="검, 방패, 포션 x3, 열쇠...">${eA(c.items||'')}</textarea>
+    </div>
+  </div>`;
+
+  Utils.openModal(isNew ? '캐릭터 추가' : '캐릭터 편집', body, () => {
+    const name = document.getElementById('ceditName')?.value.trim();
+    if (!name) { tst('이름을 입력하세요.'); return false; }
+    const stats = {};
+    (document.getElementById('ceditStats')?.value || '').split('\n').forEach(l => {
+      const m = l.trim().match(/^(\w+)\s*=\s*(.+)$/);
+      if (m) { const v = m[2].trim(); stats[m[1]] = isNaN(v) ? v : +v; }
+    });
+    const updated = { ...c, name, desc: document.getElementById('ceditDesc')?.value.trim()||'',
+                      stats, items: document.getElementById('ceditItems')?.value.trim()||'' };
+    if (isNew) {
+      _E.characters.push(updated);
+    } else {
+      const idx = _E.characters.findIndex(x => x.id === id);
+      if (idx >= 0) _E.characters[idx] = updated;
+    }
+    renderCharList();
+  }, isNew ? '추가' : '저장');
+}
+
+function doDelChar(id) {
+  if (!confirm('캐릭터를 삭제하시겠습니까?')) return;
+  _E.characters = _E.characters.filter(c => c.id !== id);
+  renderCharList();
 }
 
 // ─── SAMPLE SCENARIO ─────────────────────────────────────────────────────────
