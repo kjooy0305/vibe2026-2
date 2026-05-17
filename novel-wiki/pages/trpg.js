@@ -349,11 +349,18 @@ function renderCards() {
   body.innerHTML = _stories.map(s => {
     const cnt = parseTxt(s.content||'').order.length;
     const d = s.updatedAt ? new Date(s.updatedAt).toLocaleDateString('ko-KR') : '';
+    let saveInfo = '';
+    try {
+      const raw = localStorage.getItem('trpg_s_'+s.id);
+      if (raw) { const sv = JSON.parse(raw); saveInfo = sv.sceneId ? ` (씬 #${sv.sceneId})` : ''; }
+    } catch(e) {}
+    const hasSave = saveInfo !== '';
     return `<div class="trpg-card">
       <div class="trpg-card__title">🎲 ${esc(s.title)}</div>
-      <div class="trpg-card__meta">씬 ${cnt}개${d?' · '+d:''}</div>
+      <div class="trpg-card__meta">씬 ${cnt}개${d?' · '+d:''}${hasSave?` · 저장됨${saveInfo}`:''}</div>
       <div class="trpg-card__btns">
-        <button class="btn btn-primary btn-sm" data-act="play" data-id="${eA(s.id)}">▶ 플레이</button>
+        <button class="btn btn-primary btn-sm" data-act="play" data-id="${eA(s.id)}">▶ 처음부터</button>
+        ${hasSave?`<button class="btn btn-ghost btn-sm" data-act="continue" data-id="${eA(s.id)}" style="color:var(--color-success,#10b981);">⏮ 이어하기</button>`:''}
         <button class="btn btn-ghost btn-sm" data-act="edit" data-id="${eA(s.id)}">✏ 편집</button>
         <button class="btn btn-ghost btn-sm" data-act="del" data-id="${eA(s.id)}" style="color:var(--color-danger);">🗑</button>
       </div>
@@ -364,7 +371,8 @@ function renderCards() {
       const s = _stories.find(x => x.id === btn.dataset.id);
       if (!s) return;
       const act = btn.dataset.act;
-      if (act==='play') showPlay(s);
+      if (act==='play') showPlay(s, false);
+      else if (act==='continue') showPlay(s, true);
       else if (act==='edit') showEdit(s);
       else if (act==='del') doDelStory(s.id);
     });
@@ -391,7 +399,7 @@ async function doLoadSample() {
 }
 
 // ─── PLAY VIEW ───────────────────────────────────────────────────────────────
-function showPlay(story) {
+function showPlay(story, autoLoad = false) {
   _story = story;
   const { scenes, order } = parseTxt(story.content||'');
   _P = { scenes, order, initVars:story.initVars||'', hist:[], dlog:[],
@@ -404,9 +412,9 @@ function showPlay(story) {
     <button class="btn btn-ghost btn-sm" id="pBack">← 목록</button>
     <h2 style="font-size:13px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">${esc(story.title)}</h2>
     <button class="btn btn-ghost btn-sm" id="pEdit">✏ 편집</button>
-    <button class="btn btn-ghost btn-sm" id="pRestart">↺ 재시작</button>
-    <button class="btn btn-ghost btn-sm" id="pSave">💾</button>
-    <button class="btn btn-ghost btn-sm" id="pLoad">⏮</button>
+    <button class="btn btn-ghost btn-sm" id="pRestart">↺ 처음부터</button>
+    <button class="btn btn-ghost btn-sm" id="pSave" title="수동 저장">💾 저장</button>
+    <button class="btn btn-ghost btn-sm" id="pLoad" style="color:var(--color-success,#10b981);" title="이어하기">⏮ 이어하기</button>
   </div>
   <div class="trpg-play-body">
     <div class="trpg-play-main">
@@ -533,6 +541,33 @@ function showPlay(story) {
   renderScene(_P.sceneId);
   updateStats();
   updateHist();
+
+  // 이어하기 자동 로드
+  if (autoLoad) {
+    try {
+      const raw = localStorage.getItem('trpg_s_'+story.id);
+      if (raw) {
+        const d = JSON.parse(raw);
+        _P.sceneId = d.sceneId || _P.order[0];
+        _P.vars = d.vars || {};
+        _P.hist = d.hist || [];
+        const mv = localStorage.getItem('trpg_m_'+story.id);
+        const m = document.getElementById('pMemo'); if (m && mv) m.value = mv;
+        renderScene(_P.sceneId); updateStats(); updateHist();
+        tst('⏮ 이어하기 완료. (씬 #'+_P.sceneId+'#)');
+      } else {
+        tst('저장된 진행이 없습니다. 처음부터 시작합니다.');
+      }
+    } catch(e) {}
+  }
+}
+
+function autoSave() {
+  if (!_story?.id || _story.id === '_test') return;
+  try {
+    localStorage.setItem('trpg_s_'+_story.id,
+      JSON.stringify({ sceneId:_P.sceneId, vars:_P.vars, hist:_P.hist }));
+  } catch(e) {}
 }
 
 function renderScene(id) {
@@ -579,7 +614,9 @@ function renderScene(id) {
     if (ok) btn.addEventListener('click', () => {
       if (ch.eff) _P.vars = applyEff(ch.eff, _P.vars);
       _P.hist.unshift({ from:id, txt:ch.text });
+      if (ch.tgt) _P.sceneId = ch.tgt;
       updateStats(); updateHist();
+      autoSave();
       if (ch.tgt) { renderScene(ch.tgt); txtEl.scrollTop=0; }
       else { txtEl.textContent='⚠️ 이동할 씬 ID가 없습니다.'; choEl.innerHTML=''; }
     });
@@ -642,11 +679,16 @@ function showEdit(story) {
   </div>
 
   <div class="trpg-edit-body">
+    <!-- Scene ID datalist for choice autocomplete -->
+    <datalist id="trpg-sid-list"></datalist>
     <!-- LEFT: Scene list -->
     <div class="trpg-lpanel trpg-tab-panel trpg-tab-mobile on" id="eTabList">
       <div class="trpg-lhdr">
         씬 목록
         <button class="btn btn-ghost btn-sm" id="eNewSc" style="padding:2px 8px;font-size:11px;">+ 새 씬</button>
+      </div>
+      <div id="eScLinkHint" style="padding:3px 7px 3px;font-size:9px;color:var(--tpur,#7c3aed);display:none;border-bottom:1px solid var(--color-border);">
+        📌 클릭하면 이동ID 자동 입력
       </div>
       <div class="trpg-slist" id="eScList"></div>
     </div>
@@ -801,10 +843,11 @@ function showEdit(story) {
     r.innerHTML = `<input class="trpg-ci-t" placeholder="선택지 텍스트"/>
       <input class="trpg-ci-c" placeholder="조건"/>
       <input class="trpg-ci-e" placeholder="효과"/>
-      <input class="trpg-ci-g" placeholder="이동ID"/>
+      <input class="trpg-ci-g" placeholder="이동ID" list="trpg-sid-list"/>
       <button class="trpg-xbtn" type="button">✕</button>`;
     r.querySelector('.trpg-xbtn').onclick = () => r.remove();
     document.getElementById('eCed').appendChild(r);
+    updateSceneDatalist();
   });
   document.getElementById('eIVars').addEventListener('input', e => { _E.initVars = e.target.value; });
   document.getElementById('eRulebook').addEventListener('input', e => { _E.rulebook = e.target.value; });
@@ -820,22 +863,43 @@ function buildSceneList() {
   const el = document.getElementById('eScList'); if (!el) return;
   if (!_E.order.length) {
     el.innerHTML = '<div style="padding:8px;font-size:11px;color:var(--color-text-muted);">씬이 없습니다.<br>+ 새 씬을 클릭하세요.</div>';
+    updateSceneDatalist();
     return;
   }
   el.innerHTML = _E.order.map(id => {
     const s = _E.scenes[id];
     if (!s) return '';
     const lbl = `#${id}# ${s.title||s.text?.slice(0,14)||''}`.trim();
-    return `<div class="trpg-sli${_E.editId===id?' on':''}" data-id="${eA(id)}">${esc(lbl)}</div>`;
+    const tgts = [...new Set((s.choices||[]).map(c=>c.tgt).filter(Boolean))];
+    const tgtHtml = tgts.length
+      ? `<div style="font-size:9px;color:var(--tpur,#7c3aed);margin-top:1px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;">→ ${tgts.map(t=>`#${esc(t)}#`).join(' ')}</div>`
+      : '';
+    return `<div class="trpg-sli${_E.editId===id?' on':''}" data-id="${eA(id)}">${esc(lbl)}${tgtHtml}</div>`;
   }).join('');
   el.querySelectorAll('.trpg-sli').forEach(d => {
     d.addEventListener('click', () => {
+      // 이동ID 입력란이 포커스된 상태면 해당 씬 ID를 채워줌
+      const focused = document.activeElement;
+      if (focused && focused.classList.contains('trpg-ci-g')) {
+        focused.value = d.dataset.id;
+        focused.dispatchEvent(new Event('change'));
+        return;
+      }
       loadSceneToEditor(d.dataset.id);
-      // On mobile: switch to edit tab
       const editBtn = document.querySelector('#eTabs .trpg-tab-btn[data-tab="eTabEdit"]');
       if (editBtn && editBtn.offsetParent !== null) editBtn.click();
     });
   });
+  updateSceneDatalist();
+}
+
+function updateSceneDatalist() {
+  const dl = document.getElementById('trpg-sid-list'); if (!dl) return;
+  dl.innerHTML = _E.order.map(id => {
+    const s = _E.scenes[id];
+    const label = s?.title ? ` — ${s.title}` : (s?.text ? ` — ${s.text.slice(0,20)}` : '');
+    return `<option value="${eA(id)}">${esc(id)}${esc(label)}</option>`;
+  }).join('');
 }
 
 function loadSceneToEditor(id) {
@@ -850,10 +914,23 @@ function loadSceneToEditor(id) {
       <input class="trpg-ci-t" value="${eA(c.text||'')}" placeholder="텍스트"/>
       <input class="trpg-ci-c" value="${eA(c.cond||'')}" placeholder="조건"/>
       <input class="trpg-ci-e" value="${eA(c.eff||'')}" placeholder="효과"/>
-      <input class="trpg-ci-g" value="${eA(c.tgt||'')}" placeholder="이동ID"/>
+      <input class="trpg-ci-g" value="${eA(c.tgt||'')}" placeholder="이동ID" list="trpg-sid-list"/>
       <button class="trpg-xbtn" type="button">✕</button>
     </div>`).join('');
   ced?.querySelectorAll('.trpg-xbtn').forEach(b => b.onclick=()=>b.closest('.trpg-crow').remove());
+  // 이동ID 입력 포커스 시 씬 목록 힌트 표시
+  ced?.addEventListener('focusin', e => {
+    const hint = document.getElementById('eScLinkHint');
+    if (hint) hint.style.display = e.target.classList.contains('trpg-ci-g') ? 'block' : 'none';
+  }, true);
+  ced?.addEventListener('focusout', () => {
+    setTimeout(() => {
+      if (!document.activeElement?.classList.contains('trpg-ci-g')) {
+        const hint = document.getElementById('eScLinkHint');
+        if (hint) hint.style.display = 'none';
+      }
+    }, 150);
+  }, true);
   buildSceneList();
 }
 
